@@ -1,0 +1,16 @@
+services:
+  verity-runner:
+    build: .
+    image: verity-standalone-runner:latest
+    container_name: verity-runner
+    ports:
+      - "${PORT:-4100}:4100"
+    environment:
+      - PORT=4100
+      - DATA_DIR=/app/data
+    volumes:
+      - verity_runner_data:/app/data
+    restart: unless-stopped
+
+volumes:
+  verity_runner_data:

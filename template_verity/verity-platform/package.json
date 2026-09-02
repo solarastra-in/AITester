@@ -1,0 +1,24 @@
+{
+  "name": "verity-test-platform",
+  "version": "1.0.0",
+  "description": "Generic, multi-tenant automated functional-test platform: point it at any site, upload or AI-generate test cases, build the dataset interactively, run automated tests, and either self-host (free, via the downloadable Docker package) or run hosted executions billed against org/user credits.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "cors": "^2.8.5",
+    "axios": "^1.7.7",
+    "archiver": "^7.0.1",
+    "multer": "^1.4.5-lts.2",
+    "dotenv": "^16.4.5",
+    "better-sqlite3": "^11.3.0",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "uuid": "^9.0.1"
+  },
+  "engines": { "node": ">=18" },
+  "license": "UNLICENSED"
+}

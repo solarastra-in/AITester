@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Verity — Point it at any site. It builds and runs the tests.</title>
+<link rel="stylesheet" href="home.css" />
+</head>
+<body>
+
+<header class="nav">
+  <div class="nav-inner">
+    <div class="nav-brand"><span class="mark">◈</span>Verity</div>
+    <nav class="nav-links">
+      <a href="#how">How it works</a>
+      <a href="#capabilities">Capabilities</a>
+      <a href="#pricing">Pricing</a>
+    </nav>
+    <div class="nav-cta">
+      <a class="btn ghost" href="/console#/login">Log in</a>
+      <a class="btn primary" href="/console#/signup">Start free</a>
+    </div>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-copy">
+      <div class="eyebrow">Automated functional testing · any site</div>
+      <h1>Point it at a URL.<br>It builds the tests<br>and <em>runs</em> them.</h1>
+      <p class="hero-sub">Upload a test plan or let the model draft one. Fill in the dataset it asks for. Run real HTTP requests against your real site — not a mock. Self-host the result for free, or run it hosted, priced per execution.</p>
+      <div class="hero-actions">
+        <a class="btn primary lg" href="/console#/signup">Start free — 20 credits</a>
+        <a class="btn ghost lg" href="#how">See how it works ↓</a>
+      </div>
+      <div class="hero-trust">No credit card required · self-hosted export always free</div>
+    </div>
+    <div class="hero-panel">
+      <div class="panel-head">
+        <div class="panel-dots"><span></span><span></span><span></span></div>
+        <div class="panel-title">live run — checkout.example.com</div>
+      </div>
+      <div class="panel-body" id="ledger"></div>
+    </div>
+  </div>
+</section>
+
+<section class="strip">
+  <div class="strip-inner">
+    <div class="strip-item"><strong>Any site.</strong> Point at a URL — no SDK, no code changes on your end.</div>
+    <div class="strip-item"><strong>Any test source.</strong> Upload CSV/Markdown/JSON, or generate with your own model key.</div>
+    <div class="strip-item"><strong>Any cloud.</strong> Export a Docker package and run it wherever you already deploy.</div>
+  </div>
+</section>
+
+<section class="section" id="how">
+  <div class="section-inner">
+    <div class="section-head">
+      <div class="eyebrow">How it works</div>
+      <h2>Five steps, the same for every project</h2>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-n">01</div>
+        <div class="step-title">Give it a URL</div>
+        <div class="step-body">Create a project and point it at the site you want tested — staging, production, an internal tool, anything reachable over HTTP.</div>
+      </div>
+      <div class="step">
+        <div class="step-n">02</div>
+        <div class="step-title">Upload or generate test cases</div>
+        <div class="step-body">Bring your own test plan (structured JSON/CSV, or a Markdown table — even a messy one) or hand the URL and a description to an AI generator using your own model key.</div>
+      </div>
+      <div class="step">
+        <div class="step-n">03</div>
+        <div class="step-title">It asks for what it's missing</div>
+        <div class="step-body">Every test declares the dataset fields it needs — auth tokens, sample records, provider keys. The console surfaces exactly those fields so you're never guessing what to fill in.</div>
+      </div>
+      <div class="step">
+        <div class="step-n">04</div>
+        <div class="step-title">Run it — free preview or hosted</div>
+        <div class="step-body">Real HTTP and load-test execution against your real endpoint. Run a capped free preview in-console, or pay per hosted execution when you want it off your own infrastructure.</div>
+      </div>
+      <div class="step">
+        <div class="step-n">05</div>
+        <div class="step-title">Take it anywhere</div>
+        <div class="step-body">Download a self-contained Docker package — your exact suite and dataset baked in — with deploy instructions for AWS, GCP, Azure, or any VM. No lock-in.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section alt" id="capabilities">
+  <div class="section-inner">
+    <div class="section-head">
+      <div class="eyebrow">Capabilities</div>
+      <h2>Built for teams, not just individual testers</h2>
+    </div>
+    <div class="cap-grid">
+      <div class="cap-card">
+        <div class="cap-title">Business</div>
+        <ul>
+          <li>Multi-tenant organizations with seeded org admins</li>
+          <li>Team seats via direct seed or email-invite links</li>
+          <li>Standalone accounts for individual testers, no org required</li>
+          <li>Usage-based credits — 1 credit per hosted execution</li>
+          <li>Platform-admin console for onboarding & credit allocation</li>
+          <li>Full audit ledger of every credit grant and spend</li>
+        </ul>
+      </div>
+      <div class="cap-card">
+        <div class="cap-title">Technical</div>
+        <ul>
+          <li>Generic execution engine — no hand-written code per test</li>
+          <li>Structured JSON/CSV ingestion for deterministic, any-site test specs</li>
+          <li>Best-effort Markdown test-plan parser with manual fallback</li>
+          <li>AI test generation against your own Anthropic/OpenAI key</li>
+          <li>Real HTTP assertions (status, body) plus concurrent load testing</li>
+          <li>Self-contained Docker export — SQLite, no external DB required</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="pricing">
+  <div class="section-inner">
+    <div class="section-head">
+      <div class="eyebrow">Pricing</div>
+      <h2>Free to self-host. Pay only for hosted runs.</h2>
+    </div>
+    <div class="price-grid">
+      <div class="price-card">
+        <div class="price-name">Starter</div>
+        <div class="price-amount">$19</div>
+        <div class="price-sub">100 credits</div>
+        <ul><li>100 hosted test executions</li><li>Unlimited free preview runs (capped/day)</li><li>Unlimited self-hosted exports</li></ul>
+      </div>
+      <div class="price-card featured">
+        <div class="price-name">Team</div>
+        <div class="price-amount">$99</div>
+        <div class="price-sub">600 credits</div>
+        <ul><li>600 hosted test executions</li><li>Org seats & team roster</li><li>Shared credit pool</li></ul>
+      </div>
+      <div class="price-card">
+        <div class="price-name">Scale</div>
+        <div class="price-amount">$399</div>
+        <div class="price-sub">3,000 credits</div>
+        <ul><li>3,000 hosted test executions</li><li>Priority onboarding</li><li>Volume org allocation</li></ul>
+      </div>
+    </div>
+    <div class="price-note">Self-hosted Docker export is unlimited and free on every plan, including the free trial.</div>
+  </div>
+</section>
+
+<section class="cta">
+  <div class="cta-inner">
+    <h2>Point it at your site. See what breaks.</h2>
+    <a class="btn primary lg" href="/console#/signup">Start free — 20 credits</a>
+  </div>
+</section>
+
+<footer class="foot">
+  <div class="foot-inner">
+    <div><span class="mark">◈</span> Verity</div>
+    <div class="muted">Automated functional testing for any site.</div>
+  </div>
+</footer>
+
+<script src="home.js"></script>
+</body>
+</html>

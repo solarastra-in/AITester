@@ -1,0 +1,1458 @@
+import React, { useState, useEffect } from 'react';
+import {
+  Play,
+  Download,
+  Plus,
+  Sparkles,
+  Upload,
+  Database,
+  FileCode,
+  FileText,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  AlertTriangle,
+  ExternalLink,
+  ChevronDown,
+  Layers,
+  Search,
+  Filter,
+  Trash2,
+  RefreshCw,
+  Zap,
+  Cloud,
+  Code2,
+  Sliders,
+  Globe,
+  Wand2,
+  Shield,
+  Activity,
+  ArrowRight,
+  Tag,
+  Eye,
+  Server,
+  Terminal,
+  HelpCircle
+} from 'lucide-react';
+import { api, UrlAnalysisResult } from '../services/api';
+import { Project, TestCase, TestRun, User, Organization } from '../types';
+import { InteractiveDataModal } from './InteractiveDataModal';
+import { CloudDeployModal } from './CloudDeployModal';
+import { TestDetailDrawer } from './TestDetailDrawer';
+import { DatasetConfigurator } from './DatasetConfigurator';
+import { BatchExecutionModal } from './BatchExecutionModal';
+
+interface ProjectStudioProps {
+  currentUser: User | null;
+  currentOrg: Organization | null;
+  onOpenBilling: () => void;
+}
+
+export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, currentOrg, onOpenBilling }) => {
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [projectData, setProjectData] = useState<Project | null>(null);
+
+  const [cases, setCases] = useState<TestCase[]>([]);
+  const [dataset, setDataset] = useState<Record<string, any>>({});
+  const [missingProjectFields, setMissingProjectFields] = useState<string[]>([]);
+  const [allNeededFields, setAllNeededFields] = useState<string[]>([]);
+
+  const [loading, setLoading] = useState(true);
+  const [isRunningAll, setIsRunningAll] = useState(false);
+  const [runningCaseId, setRunningCaseId] = useState<string | null>(null);
+
+  // Active view tab inside Studio
+  const [activeTab, setActiveTab] = useState<'cases' | 'ingest' | 'dataset' | 'deploy'>('cases');
+
+  // Filters
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState<string>('all');
+  const [filterPriority, setFilterPriority] = useState<string>('all');
+
+  // Modals & Drawers
+  const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
+  const [newProjName, setNewProjName] = useState('');
+  const [newProjUrl, setNewProjUrl] = useState('');
+  const [newProjDesc, setNewProjDesc] = useState('');
+
+  const [isDeployModalOpen, setIsDeployModalOpen] = useState(false);
+  const [selectedDrawerCase, setSelectedDrawerCase] = useState<TestCase | null>(null);
+
+  // Production Batch Execution Modal State
+  const [batchModalState, setBatchModalState] = useState<{
+    isOpen: boolean;
+    mode: 'preview' | 'hosted';
+  }>({
+    isOpen: false,
+    mode: 'preview',
+  });
+
+  // Interactive Missing Data Prompt
+  const [interactivePrompt, setInteractivePrompt] = useState<{
+    isOpen: boolean;
+    missingField: string;
+    testCase: TestCase | null;
+    targetMode: 'preview' | 'hosted';
+  }>({
+    isOpen: false,
+    missingField: '',
+    testCase: null,
+    targetMode: 'preview',
+  });
+
+  // Ingest state
+  const [ingestMode, setIngestMode] = useState<'ai' | 'upload_json' | 'upload_csv' | 'upload_md'>('ai');
+  const [generatorUrl, setGeneratorUrl] = useState('');
+  const [urlAnalysis, setUrlAnalysis] = useState<UrlAnalysisResult | null>(null);
+  const [isAnalyzingUrl, setIsAnalyzingUrl] = useState(false);
+  const [autoFillEnabled, setAutoFillEnabled] = useState(true);
+  const [userPromptHint, setUserPromptHint] = useState('');
+  const [appliedArchetype, setAppliedArchetype] = useState<string | null>(null);
+  const [isAnalyzingProjUrl, setIsAnalyzingProjUrl] = useState(false);
+
+  const [aiPromptDesc, setAiPromptDesc] = useState('');
+  const [aiExistingPlan, setAiExistingPlan] = useState('');
+  const [uploadContent, setUploadContent] = useState('');
+  const [uploadSuiteName, setUploadSuiteName] = useState('');
+  const [isAiGenerating, setIsAiGenerating] = useState(false);
+
+  // Dataset JSON editor
+  const [rawDatasetText, setRawDatasetText] = useState('');
+  const [datasetSaveSuccess, setDatasetSaveSuccess] = useState(false);
+
+  // 1. Initial Load of Projects
+  const loadProjects = async () => {
+    try {
+      setLoading(true);
+      const list = await api.getProjects();
+      setProjects(list);
+      if (list.length > 0 && !selectedProjectId) {
+        setSelectedProjectId(list[0].id);
+      }
+    } catch (err) {
+      console.error('Failed to load projects:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadProjects();
+  }, [currentUser]);
+
+  // 2. Load Selected Project Cases & Dataset
+  const loadSelectedProject = async (id: string) => {
+    try {
+      const [proj, casesResp] = await Promise.all([
+        api.getProject(id),
+        api.getProjectCases(id),
+      ]);
+      setProjectData(proj);
+      setCases(casesResp.cases);
+      setDataset(casesResp.dataset);
+      setRawDatasetText(JSON.stringify(casesResp.dataset, null, 2));
+      setMissingProjectFields(casesResp.missingProjectFields);
+      setAllNeededFields(casesResp.allNeededFields);
+      if (proj.siteUrl) {
+        setGeneratorUrl(proj.siteUrl);
+      }
+    } catch (err) {
+      console.error('Failed to load project details:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedProjectId) {
+      loadSelectedProject(selectedProjectId);
+    }
+  }, [selectedProjectId]);
+
+  // Dynamic URL analysis for Test Case Generation
+  const triggerUrlAnalysis = async (
+    targetUrlToAnalyze: string,
+    hint?: string,
+    forceApply = false
+  ) => {
+    const cleanUrl = targetUrlToAnalyze.trim();
+    if (!cleanUrl || cleanUrl.length < 4) return;
+    setIsAnalyzingUrl(true);
+    try {
+      const result = await api.analyzeUrl(cleanUrl, hint !== undefined ? hint : userPromptHint, selectedProjectId || undefined);
+      setUrlAnalysis(result);
+
+      if (autoFillEnabled || forceApply) {
+        if (result.suggestedSuiteName && (!uploadSuiteName || forceApply || uploadSuiteName.startsWith('AI Generated Suite'))) {
+          setUploadSuiteName(result.suggestedSuiteName);
+        }
+        if (result.description && (!aiPromptDesc || forceApply)) {
+          setAiPromptDesc(result.description);
+        }
+        if (result.suggestedOpenApiDoc && (!aiExistingPlan || forceApply)) {
+          setAiExistingPlan(result.suggestedOpenApiDoc);
+        }
+      }
+    } catch (err) {
+      console.warn('URL analysis error:', err);
+    } finally {
+      setIsAnalyzingUrl(false);
+    }
+  };
+
+  // Debounced URL and user hint watcher
+  useEffect(() => {
+    if (activeTab !== 'ingest' || ingestMode !== 'ai') return;
+    if (!generatorUrl.trim() || generatorUrl.length < 5) return;
+
+    const timer = setTimeout(() => {
+      triggerUrlAnalysis(generatorUrl, userPromptHint, false);
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [generatorUrl, userPromptHint, activeTab, ingestMode]);
+
+  // Initial trigger when selected project loads
+  useEffect(() => {
+    if (projectData?.siteUrl) {
+      setGeneratorUrl(projectData.siteUrl);
+      if (!urlAnalysis) {
+        triggerUrlAnalysis(projectData.siteUrl, '', true);
+      }
+    }
+  }, [projectData?.id]);
+
+  // Quick Auto-Fill Helpers
+  const handleAutoFillAll = () => {
+    if (!urlAnalysis) {
+      triggerUrlAnalysis(generatorUrl, userPromptHint, true);
+      return;
+    }
+    setUploadSuiteName(urlAnalysis.suggestedSuiteName);
+    setAiPromptDesc(urlAnalysis.description);
+    if (urlAnalysis.suggestedOpenApiDoc) {
+      setAiExistingPlan(urlAnalysis.suggestedOpenApiDoc);
+    }
+    setAppliedArchetype('all');
+  };
+
+  const handleApplyArchetype = (archetype: 'security' | 'load' | 'crud' | 'validation') => {
+    setAppliedArchetype(archetype);
+    const domain = generatorUrl ? generatorUrl.replace(/^https?:\/\//, '').split('/')[0] : 'Target';
+
+    if (archetype === 'security') {
+      setUploadSuiteName(`${domain} Auth & RBAC Security Suite`);
+      const secDesc = `High-priority security test suite verifying JWT/Bearer token authorization with {{authTokens.user}}, ensuring unauthenticated requests are rejected (401 Unauthorized), admin paths enforce RBAC roles (403 Forbidden), and security headers (CORS, HSTS) are strictly verified.`;
+      setAiPromptDesc(prev => (prev.trim() ? `${prev}\n\n${secDesc}` : secDesc));
+    } else if (archetype === 'load') {
+      setUploadSuiteName(`${domain} Concurrency & Latency Stress Suite`);
+      const loadDesc = `Performance & burst load test suite benchmarking p95 latency under 500ms across 10 concurrent virtual clients. Verifies server throughput, connection pooling, and absence of 502/504 gateway timeouts under burst spikes.`;
+      setAiPromptDesc(prev => (prev.trim() ? `${prev}\n\n${loadDesc}` : loadDesc));
+    } else if (archetype === 'crud') {
+      setUploadSuiteName(`${domain} Parameterized CRUD Lifecycle Suite`);
+      const crudDesc = `Comprehensive resource lifecycle test verifying creation (POST) status 201, parameterized retrieval (GET) with dynamic variable {{sample_id}}, state mutation (PUT/PATCH), and cleanup (DELETE 204), with body payload assertions.`;
+      setAiPromptDesc(prev => (prev.trim() ? `${prev}\n\n${crudDesc}` : crudDesc));
+    } else if (archetype === 'validation') {
+      setUploadSuiteName(`${domain} Negative Testing & 422 Edge Case Suite`);
+      const valDesc = `Negative testing and schema boundary test suite. Injects malformed JSON bodies, missing required parameters, and invalid data types to assert proper 400 Bad Request or 422 Unprocessable Entity responses without 500 crashes.`;
+      setAiPromptDesc(prev => (prev.trim() ? `${prev}\n\n${valDesc}` : valDesc));
+    }
+  };
+
+  const handleInsertScenario = (scenario: string) => {
+    setAiPromptDesc(prev => {
+      const addition = `\n- Verify scenario: ${scenario}`;
+      return prev ? `${prev}${addition}` : addition.trim();
+    });
+  };
+
+  const handleInsertVariable = (variable: string) => {
+    setAiPromptDesc(prev => {
+      const placeholder = `{{${variable}}}`;
+      return prev ? `${prev} ${placeholder}` : placeholder;
+    });
+  };
+
+  const handleInsertFocusArea = (area: string) => {
+    setAiPromptDesc(prev => {
+      const addition = ` Focus on ${area}.`;
+      return prev ? `${prev}${addition}` : addition.trim();
+    });
+  };
+
+  // 3. Create Project
+  const handleCreateProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newProjName.trim() || !newProjUrl.trim()) return;
+    try {
+      const created = await api.createProject(newProjName.trim(), newProjUrl.trim(), newProjDesc.trim());
+      setIsNewProjectModalOpen(false);
+      setNewProjName('');
+      setNewProjUrl('');
+      setNewProjDesc('');
+      await loadProjects();
+      setSelectedProjectId(created.id);
+    } catch (err: any) {
+      alert(err.message || 'Failed to create project.');
+    }
+  };
+
+  // 4. Run Single Test Case (with Interactive Data check)
+  const handleRunTestCase = async (testCase: TestCase, mode: 'preview' | 'hosted' = 'preview', openDrawer = true) => {
+    if (!selectedProjectId || !projectData) return;
+
+    if (openDrawer) {
+      setSelectedDrawerCase(testCase);
+    }
+
+    // Check if test case has missing variables
+    const missing = (testCase.missingDataFields || []);
+    if (missing.length > 0) {
+      // Trigger interactive prompt!
+      setInteractivePrompt({
+        isOpen: true,
+        missingField: missing[0],
+        testCase,
+        targetMode: mode,
+      });
+      return;
+    }
+
+    try {
+      setRunningCaseId(testCase.id);
+      const res = await api.runTestCase(selectedProjectId, testCase.id, mode);
+
+      // Update local state
+      setCases(prev => prev.map(c => (c.id === testCase.id ? { ...c, lastResult: res.testRun } : c)));
+      setSelectedDrawerCase(prev => (prev && prev.id === testCase.id ? { ...prev, lastResult: res.testRun } : prev));
+    } catch (err: any) {
+      if (err.capReached) {
+        alert(err.message);
+      } else if (err.insufficientCredits) {
+        if (confirm('Insufficient credits for Cloud Hosted execution. Would you like to top up credits now?')) {
+          onOpenBilling();
+        }
+      } else {
+        alert(err.message || 'Execution error');
+      }
+    } finally {
+      setRunningCaseId(null);
+    }
+  };
+
+  // 5. Run All Automated Cases
+  const handleRunAll = async (mode: 'preview' | 'hosted' = 'preview') => {
+    if (!selectedProjectId) return;
+    try {
+      setIsRunningAll(true);
+      const res = await api.runAllTestCases(selectedProjectId, mode);
+      await loadSelectedProject(selectedProjectId);
+    } catch (err: any) {
+      alert(err.message || 'Run all failed');
+    } finally {
+      setIsRunningAll(false);
+    }
+  };
+
+  // 6. Save Interactive Data Field & Resume
+  const handleSaveInteractiveField = async (field: string, value: any) => {
+    if (!selectedProjectId) return;
+    await api.patchDatasetField(selectedProjectId, field, value);
+    await loadSelectedProject(selectedProjectId);
+
+    // If testCase exists, automatically trigger its run
+    if (interactivePrompt.testCase) {
+      const targetCase = interactivePrompt.testCase;
+      const targetMode = interactivePrompt.targetMode;
+      setTimeout(() => {
+        handleRunTestCase(targetCase, targetMode);
+      }, 200);
+    }
+  };
+
+  // 7. Record Manual Verdict
+  const handleRecordManual = async (testCase: TestCase, pass: boolean, notes: string) => {
+    if (!selectedProjectId) return;
+    try {
+      const res = await api.recordManualResult(selectedProjectId, testCase.id, pass, notes);
+      setCases(prev => prev.map(c => (c.id === testCase.id ? { ...c, lastResult: res } : c)));
+      if (selectedDrawerCase && selectedDrawerCase.id === testCase.id) {
+        setSelectedDrawerCase(prev => (prev ? { ...prev, lastResult: res } : null));
+      }
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  // 8. AI Generate Test Suite
+  const handleAiGenerate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedProjectId) return;
+    setIsAiGenerating(true);
+    try {
+      const targetUrl = generatorUrl.trim() || projectData?.siteUrl;
+      await api.generateAiSuite(selectedProjectId, uploadSuiteName, aiPromptDesc, aiExistingPlan, targetUrl);
+      setAiPromptDesc('');
+      setAiExistingPlan('');
+      setUploadSuiteName('');
+      setUserPromptHint('');
+      setAppliedArchetype(null);
+      await loadSelectedProject(selectedProjectId);
+      setActiveTab('cases');
+    } catch (err: any) {
+      alert(err.message || 'AI Generation failed.');
+    } finally {
+      setIsAiGenerating(false);
+    }
+  };
+
+  // 9. Upload Suite (JSON, CSV, Markdown)
+  const handleUploadSuite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedProjectId || !uploadContent.trim()) return;
+    const format = ingestMode === 'upload_json' ? 'json' : ingestMode === 'upload_csv' ? 'csv' : 'markdown';
+    try {
+      await api.uploadSuite(selectedProjectId, uploadSuiteName, format, uploadContent.trim());
+      setUploadContent('');
+      setUploadSuiteName('');
+      await loadSelectedProject(selectedProjectId);
+      setActiveTab('cases');
+    } catch (err: any) {
+      alert(err.message || 'Upload failed.');
+    }
+  };
+
+  // 10. Save Dataset via Visual Configurator or Raw JSON
+  const handleSaveDatasetCustom = async (newDataset: Record<string, any>) => {
+    if (!selectedProjectId) return;
+    await api.updateDataset(selectedProjectId, newDataset);
+    await loadSelectedProject(selectedProjectId);
+  };
+
+  const handleSaveDataset = async () => {
+    if (!selectedProjectId) return;
+    try {
+      const parsed = JSON.parse(rawDatasetText);
+      await handleSaveDatasetCustom(parsed);
+      setDatasetSaveSuccess(true);
+      setTimeout(() => setDatasetSaveSuccess(false), 3000);
+    } catch (err: any) {
+      alert('Invalid JSON: ' + err.message);
+    }
+  };
+
+  // 11. Download .ZIP package (Production ready with virtual link trigger)
+  const handleDownloadPackage = () => {
+    if (!selectedProjectId) return;
+    const url = api.getDownloadPackageUrl(selectedProjectId);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${projectData?.name?.replace(/\W+/g, '_') || 'verity-package'}.zip`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Filter cases
+  const filteredCases = cases.filter(c => {
+    const matchesSearch = c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          c.extId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          c.category.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesType = filterType === 'all' || c.type === filterType;
+    const matchesPriority = filterPriority === 'all' || c.priority === filterPriority;
+    return matchesSearch && matchesType && matchesPriority;
+  });
+
+  // Calculate quick metrics
+  const passedCount = cases.filter(c => c.lastResult?.pass === true).length;
+  const failedCount = cases.filter(c => c.lastResult?.pass === false).length;
+  const notRunCount = cases.filter(c => !c.lastResult).length;
+
+  return (
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      {/* Top Bar: Project Switcher & Actions */}
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#1E2235] pb-5">
+        <div className="flex items-center gap-4">
+          {/* Project selector dropdown */}
+          <div className="relative">
+            <select
+              value={selectedProjectId || ''}
+              onChange={(e) => setSelectedProjectId(e.target.value)}
+              className="rounded-xl border border-[#1E2235] bg-[#0F111A] px-3.5 py-2 text-sm font-bold text-white focus:border-emerald-500 focus:outline-none"
+            >
+              {projects.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {projectData && (
+            <div className="hidden sm:flex items-center gap-2">
+              <a
+                href={projectData.siteUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1.5 rounded-lg border border-[#1E2235] bg-[#06070B] px-2.5 py-1 font-mono text-xs text-emerald-300 transition hover:border-emerald-500/50"
+              >
+                <span>{projectData.siteUrl}</span>
+                <ExternalLink className="h-3 w-3 text-slate-400" />
+              </a>
+            </div>
+          )}
+
+          <button
+            onClick={() => setIsNewProjectModalOpen(true)}
+            className="flex items-center gap-1 rounded-xl border border-[#1E2235] bg-[#131622] px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-[#1A1D2B] hover:border-[#2D334D]"
+          >
+            <Plus className="h-3.5 w-3.5 text-emerald-400" />
+            <span>New Site Project</span>
+          </button>
+        </div>
+
+        {/* Global Export & Deploy Action Buttons */}
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => setIsDeployModalOpen(true)}
+            className="flex items-center gap-1.5 rounded-xl border border-[#1E2235] bg-[#131622] px-3.5 py-2 text-xs font-semibold text-slate-200 transition hover:bg-[#1A1D2B] hover:border-[#2D334D]"
+          >
+            <Cloud className="h-4 w-4 text-emerald-400" />
+            <span>Multi-Cloud Deploy</span>
+          </button>
+
+          <button
+            onClick={handleDownloadPackage}
+            className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-4 py-2 text-xs font-bold text-slate-950 shadow-md shadow-emerald-500/20 transition hover:from-emerald-400 hover:to-teal-500"
+          >
+            <Download className="h-4 w-4" />
+            <span>Download Docker Bundle</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Missing Variables Alert Banner */}
+      {missingProjectFields.length > 0 && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/40 bg-amber-950/30 p-4 backdrop-blur-sm">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
+              <Database className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-white">
+                Interactive Dataset Engine: <span className="text-amber-300">{missingProjectFields.length} dynamic parameters required</span>
+              </div>
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {missingProjectFields.map((f, i) => (
+                  <code key={i} className="rounded bg-[#06070B] px-1.5 py-0.5 font-mono text-[11px] text-emerald-300 border border-[#1E2235]">
+                    {`{{${f}}}`}
+                  </code>
+                ))}
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={() => setActiveTab('dataset')}
+            className="rounded-xl bg-amber-500 px-3.5 py-1.5 text-xs font-bold text-slate-950 transition hover:bg-amber-400"
+          >
+            Configure Dataset
+          </button>
+        </div>
+      )}
+
+      {/* Main Studio Navigation Tabs */}
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-b border-[#1E2235] pb-3">
+        <div className="flex items-center gap-2">
+          {[
+            { id: 'cases', label: `Test Cases (${cases.length})`, icon: Layers },
+            { id: 'ingest', label: 'Import / AI Generate', icon: Sparkles },
+            { id: 'dataset', label: `Dataset (${Object.keys(dataset).length} Keys)`, icon: Database },
+          ].map(tab => {
+            const Icon = tab.icon;
+            const active = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold transition ${
+                  active
+                    ? 'bg-[#1A1D2B] text-emerald-300 ring-1 ring-emerald-500/30 border border-[#1E2235]'
+                    : 'text-slate-400 hover:bg-[#131622] hover:text-white'
+                }`}
+              >
+                <Icon className={`h-4 w-4 ${active ? 'text-emerald-400' : 'text-slate-500'}`} />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {activeTab === 'cases' && (
+          <div className="flex flex-wrap items-center gap-2">
+            <a
+              href={`/api/projects/${selectedProjectId}/export?format=csv&token=${encodeURIComponent(api.getToken() || '')}`}
+              download={`${projectData?.name?.replace(/\W+/g, '_') || 'report'}-test-cases.csv`}
+              className="flex items-center gap-1.5 rounded-xl border border-[#1E2235] bg-[#0F111A] px-3.5 py-1.5 text-xs font-semibold text-slate-300 hover:bg-[#131622] hover:text-white transition"
+              title="Export test suite specification and execution results to CSV"
+            >
+              <Download className="h-3.5 w-3.5 text-emerald-400" />
+              <span>Export CSV</span>
+            </a>
+
+            <button
+              onClick={() => setIsDeployModalOpen(true)}
+              className="flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/20 transition"
+              title="Deploy standalone Docker container to GCP Cloud Run, AWS ECS, Azure, or Kubernetes"
+            >
+              <Server className="h-3.5 w-3.5 text-emerald-400" />
+              <span>Multi-Cloud Deploy</span>
+            </button>
+
+            <button
+              onClick={() => setBatchModalState({ isOpen: true, mode: 'preview' })}
+              className="flex items-center gap-1.5 rounded-xl border border-[#1E2235] bg-[#131622] px-3.5 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-[#1A1D2B]"
+              title="Run entire test suite locally in sandbox preview"
+            >
+              <Play className="h-3.5 w-3.5 text-emerald-400" />
+              <span>Run All Preview</span>
+            </button>
+
+            <button
+              onClick={() => setBatchModalState({ isOpen: true, mode: 'hosted' })}
+              className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-4 py-1.5 text-xs font-bold text-slate-950 shadow-md shadow-emerald-500/20 transition hover:from-emerald-400 hover:to-teal-500"
+              title="Execute full test suite on Verity Cloud Runner in us-central1 (1 Credit per scenario)"
+            >
+              <Cloud className="h-3.5 w-3.5 text-slate-950" />
+              <span>Run All Cloud</span>
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* TAB 1: Test Cases & Live Runner */}
+      {activeTab === 'cases' && (
+        <div className="mt-6 space-y-6">
+          {/* Status Metrics Bar */}
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div className="rounded-2xl border border-[#1E2235] bg-[#0F111A] p-4 text-center">
+              <div className="text-2xl font-black text-emerald-400">{passedCount}</div>
+              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Passed</div>
+            </div>
+            <div className="rounded-2xl border border-[#1E2235] bg-[#0F111A] p-4 text-center">
+              <div className="text-2xl font-black text-rose-400">{failedCount}</div>
+              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Failed</div>
+            </div>
+            <div className="rounded-2xl border border-[#1E2235] bg-[#0F111A] p-4 text-center">
+              <div className="text-2xl font-black text-slate-400">{notRunCount}</div>
+              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Not Run Yet</div>
+            </div>
+            <div className="rounded-2xl border border-[#1E2235] bg-[#0F111A] p-4 text-center">
+              <div className="text-2xl font-black text-emerald-300">{cases.length}</div>
+              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Total Scenarios</div>
+            </div>
+          </div>
+
+          {/* Search & Filter Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="relative flex-1 min-w-[240px]">
+              <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-500" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search test ID, title, or category..."
+                className="w-full rounded-xl border border-[#1E2235] bg-[#06070B] pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none"
+              />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <select
+                value={filterType}
+                onChange={(e) => setFilterType(e.target.value)}
+                className="rounded-xl border border-[#1E2235] bg-[#06070B] px-3 py-2 text-xs text-slate-300 focus:border-emerald-500 focus:outline-none"
+              >
+                <option value="all">All Types</option>
+                <option value="http">HTTP Functional</option>
+                <option value="load">Load Test</option>
+                <option value="manual">Manual QA</option>
+              </select>
+
+              <select
+                value={filterPriority}
+                onChange={(e) => setFilterPriority(e.target.value)}
+                className="rounded-xl border border-[#1E2235] bg-[#06070B] px-3 py-2 text-xs text-slate-300 focus:border-emerald-500 focus:outline-none"
+              >
+                <option value="all">All Priorities</option>
+                <option value="High">High Priority</option>
+                <option value="Medium">Medium Priority</option>
+                <option value="Low">Low Priority</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Cases Grid */}
+          {filteredCases.length > 0 ? (
+            <div className="space-y-3">
+              {filteredCases.map(testCase => {
+                const result = testCase.lastResult;
+                const isRunningThis = runningCaseId === testCase.id;
+                const hasMissingData = (testCase.missingDataFields || []).length > 0;
+
+                return (
+                  <div
+                    key={testCase.id}
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-[#1E2235] bg-[#0F111A] p-4 transition hover:border-[#2D334D] hover:bg-[#131622]"
+                  >
+                    <div
+                      onClick={() => setSelectedDrawerCase(testCase)}
+                      className="flex-1 cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="rounded bg-[#1A1D2B] px-2 py-0.5 font-mono font-bold text-emerald-300 border border-[#1E2235]">
+                          {testCase.extId}
+                        </span>
+                        <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${
+                          testCase.type === 'http' ? 'bg-emerald-500/20 text-emerald-300' :
+                          testCase.type === 'load' ? 'bg-amber-500/20 text-amber-300' :
+                          'bg-purple-500/20 text-purple-300'
+                        }`}>
+                          {testCase.type}
+                        </span>
+                        <span className="text-slate-500">•</span>
+                        <span className="text-slate-400">{testCase.category}</span>
+                        {hasMissingData && (
+                          <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300 border border-amber-500/30">
+                            Needs Data: {testCase.missingDataFields?.join(', ')}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="mt-1.5 text-sm font-bold text-white hover:text-emerald-300 transition">
+                        {testCase.title}
+                      </div>
+
+                      {result && (
+                        <div className="mt-2 flex items-center gap-2 font-mono text-xs">
+                          <span className={result.pass ? 'text-emerald-400' : 'text-rose-400'}>
+                            {result.pass ? 'PASS' : 'FAIL'}
+                          </span>
+                          <span className="text-slate-500">•</span>
+                          <span className="text-slate-400 truncate max-w-md">{result.message}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Action buttons */}
+                    <div className="flex items-center gap-2">
+                      {testCase.type !== 'manual' ? (
+                        <>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRunTestCase(testCase, 'preview', true);
+                            }}
+                            disabled={isRunningThis}
+                            className="flex items-center gap-1.5 rounded-xl border border-[#1E2235] bg-[#131622] px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-[#1A1D2B] hover:text-white disabled:opacity-50"
+                            title="Execute locally in free sandbox preview"
+                          >
+                            <Play className="h-3 w-3 text-emerald-400" />
+                            <span>{isRunningThis ? 'Executing...' : 'Run Preview'}</span>
+                          </button>
+
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRunTestCase(testCase, 'hosted', true);
+                            }}
+                            disabled={isRunningThis}
+                            className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-3.5 py-1.5 text-xs font-bold text-slate-950 shadow-sm shadow-emerald-500/20 hover:from-emerald-400 hover:to-teal-500 transition disabled:opacity-50"
+                            title="Execute on Verity Managed Cloud Runner in us-central1 (1 Credit)"
+                          >
+                            <Cloud className="h-3 w-3 text-slate-950" />
+                            <span>Cloud Run</span>
+                          </button>
+
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedDrawerCase(testCase);
+                            }}
+                            className="flex items-center gap-1 rounded-xl border border-[#1E2235] bg-[#0E1019] px-2.5 py-1.5 text-xs text-slate-400 hover:text-white transition"
+                            title="Inspect specification, headers, assertions, and execution telemetry"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                            <span>Inspect</span>
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => setSelectedDrawerCase(testCase)}
+                          className="flex items-center gap-1.5 rounded-xl bg-purple-500/20 px-3 py-1.5 text-xs font-bold text-purple-300 border border-purple-500/30 hover:bg-purple-500/30"
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          <span>Manual QA</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-[#1E2235] bg-[#0F111A] p-12 text-center">
+              <Layers className="mx-auto h-10 w-10 text-slate-600" />
+              <h3 className="mt-3 text-base font-bold text-white">No test cases found</h3>
+              <p className="mt-1 text-xs text-slate-400">Import or AI-generate test cases in the tab above.</p>
+              <button
+                onClick={() => setActiveTab('ingest')}
+                className="mt-4 rounded-xl bg-emerald-500 px-4 py-2 text-xs font-bold text-slate-950"
+              >
+                Import / AI Generate
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 2: Ingest & AI Generation */}
+      {activeTab === 'ingest' && (
+        <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-12">
+          {/* Mode Switcher */}
+          <div className="lg:col-span-4 space-y-2">
+            <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Ingestion Method</div>
+            {[
+              { id: 'ai', label: 'AI Test Generator (Gemini)', icon: Sparkles },
+              { id: 'upload_json', label: 'Upload Structured JSON', icon: FileCode },
+              { id: 'upload_csv', label: 'Upload Structured CSV', icon: FileText },
+              { id: 'upload_md', label: 'Upload Markdown QA Plan', icon: FileText },
+            ].map(m => {
+              const Icon = m.icon;
+              const active = ingestMode === m.id;
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => setIngestMode(m.id as any)}
+                  className={`flex w-full items-center gap-3 rounded-xl p-3 text-left text-xs font-semibold transition ${
+                    active
+                      ? 'bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/40 border border-emerald-500/30'
+                      : 'border border-[#1E2235] bg-[#0F111A] text-slate-300 hover:bg-[#131622]'
+                  }`}
+                >
+                  <Icon className={`h-4 w-4 ${active ? 'text-emerald-400' : 'text-slate-500'}`} />
+                  <span>{m.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Form */}
+          <div className="lg:col-span-8 rounded-2xl border border-[#1E2235] bg-[#0F111A] p-6">
+            {ingestMode === 'ai' ? (
+              <form onSubmit={handleAiGenerate} className="space-y-6">
+                {/* Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#1E2235] pb-4">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-emerald-400" />
+                    <div>
+                      <h3 className="text-base font-bold text-white">Intelligent AI Test Case Generator</h3>
+                      <p className="text-xs text-slate-400">
+                        Enter any API, endpoint, or web URL. The generator will inspect the service, form the test case descriptions, auto-fill parameters, and craft executable test suites.
+                      </p>
+                    </div>
+                  </div>
+                  {urlAnalysis?.detectedType && (
+                    <span className="self-start sm:self-center inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-300">
+                      <Zap className="h-3 w-3 text-emerald-400" />
+                      {urlAnalysis.detectedType}
+                    </span>
+                  )}
+                </div>
+
+                {/* Step 1: Target URL Input & Real-Time Probing */}
+                <div className="space-y-2 rounded-xl border border-[#1E2235] bg-[#06070B] p-4">
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-slate-200">
+                      <Globe className="h-4 w-4 text-emerald-400" />
+                      <span>Target API or Application URL</span>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      {isAnalyzingUrl ? (
+                        <span className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-400 animate-pulse">
+                          <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                          Analyzing URL & forming test cases...
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => triggerUrlAnalysis(generatorUrl, userPromptHint, true)}
+                          className="flex items-center gap-1 rounded-lg border border-[#1E2235] bg-[#131622] px-2.5 py-1 text-[11px] font-semibold text-slate-300 hover:bg-[#1C2030] hover:text-white transition"
+                        >
+                          <Sparkles className="h-3 w-3 text-emerald-400" />
+                          <span>Re-Analyze URL</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="relative">
+                    <input
+                      type="url"
+                      value={generatorUrl}
+                      onChange={(e) => {
+                        setGeneratorUrl(e.target.value);
+                      }}
+                      placeholder="https://api.example.com or https://reqres.in/api/users"
+                      className="w-full rounded-xl border border-[#1E2235] bg-[#0B0D14] p-3 pl-3 pr-24 font-mono text-xs text-emerald-300 focus:border-emerald-500 focus:outline-none transition shadow-inner"
+                    />
+                    <div className="absolute right-2 top-2.5">
+                      <span className="rounded-md bg-[#131622] px-2 py-1 font-mono text-[10px] text-slate-400 border border-[#1E2235]">
+                        Live Probing
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Quick example URL chips */}
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                    <span className="text-[11px] text-slate-500">Quick Samples:</span>
+                    {[
+                      { label: 'ReqRes Users API', url: 'https://reqres.in/api/users' },
+                      { label: 'PetStore Swagger', url: 'https://petstore.swagger.io/v2' },
+                      { label: 'HttpBin HTTP Probe', url: 'https://httpbin.org/get' },
+                      { label: 'GitHub Public API', url: 'https://api.github.com' },
+                    ].map((sample) => (
+                      <button
+                        key={sample.url}
+                        type="button"
+                        onClick={() => {
+                          setGeneratorUrl(sample.url);
+                          triggerUrlAnalysis(sample.url, userPromptHint, true);
+                        }}
+                        className="rounded-lg border border-[#1E2235] bg-[#0E1019] px-2 py-0.5 text-[10px] font-mono text-slate-300 hover:border-emerald-500/50 hover:bg-emerald-500/10 hover:text-emerald-300 transition"
+                      >
+                        {sample.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Step 2: Live AI Test Case Formulation & Auto-Fill Assistant */}
+                <div className="rounded-xl border border-emerald-500/30 bg-gradient-to-b from-[#0F1420] to-[#0A0D15] p-4 space-y-3.5 shadow-lg">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-400">
+                        <Wand2 className="h-3.5 w-3.5" />
+                      </div>
+                      <div>
+                        <span className="text-xs font-bold text-white">Live AI Test Case Formulation</span>
+                        <span className="ml-2 text-[11px] text-slate-400">
+                          {isAnalyzingUrl ? 'Forming test case descriptions...' : 'Auto-derived from URL & target structure'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Auto-Fill All Button */}
+                    <button
+                      type="button"
+                      onClick={handleAutoFillAll}
+                      className="flex items-center gap-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 px-3 py-1.5 text-xs font-bold text-emerald-300 transition"
+                    >
+                      <Sparkles className="h-3.5 w-3.5" />
+                      <span>Auto-Fill All Form Fields</span>
+                    </button>
+                  </div>
+
+                  {/* Auto-Formed Description Preview */}
+                  <div className="rounded-lg border border-[#1E2235] bg-[#06070B] p-3 text-xs">
+                    <div className="flex items-center justify-between pb-1.5 border-b border-[#1E2235]/60 mb-2">
+                      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                        Formed Test Case Description & Objectives
+                      </span>
+                      {urlAnalysis?.description && (
+                        <button
+                          type="button"
+                          onClick={() => setAiPromptDesc(urlAnalysis.description)}
+                          className="text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 flex items-center gap-1"
+                        >
+                          <ArrowRight className="h-3 w-3" />
+                          Use this description
+                        </button>
+                      )}
+                    </div>
+                    {isAnalyzingUrl ? (
+                      <div className="space-y-1.5 py-1 text-slate-400">
+                        <div className="h-3 w-3/4 animate-pulse rounded bg-slate-800"></div>
+                        <div className="h-3 w-5/6 animate-pulse rounded bg-slate-800"></div>
+                        <div className="h-3 w-2/3 animate-pulse rounded bg-slate-800"></div>
+                      </div>
+                    ) : urlAnalysis?.description ? (
+                      <p className="text-slate-300 leading-relaxed text-xs">
+                        {urlAnalysis.description}
+                      </p>
+                    ) : (
+                      <p className="text-slate-500 text-xs italic">
+                        Enter a target URL above to start automatically forming test case descriptions.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* One-Click Testing Archetypes (Auto-Fill Buttons) */}
+                  <div className="space-y-1.5">
+                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                      Auto-Fill Testing Archetypes:
+                    </span>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleApplyArchetype('security')}
+                        className={`flex flex-col items-start p-2.5 rounded-lg border text-left transition ${
+                          appliedArchetype === 'security'
+                            ? 'border-emerald-500 bg-emerald-500/20 text-white'
+                            : 'border-[#1E2235] bg-[#0E1019] text-slate-300 hover:border-slate-700 hover:bg-[#131622]'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400">
+                          <Shield className="h-3.5 w-3.5" />
+                          <span>Security & Auth</span>
+                        </div>
+                        <span className="text-[10px] text-slate-400 mt-1">
+                          JWT, 401/403, RBAC & headers
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleApplyArchetype('load')}
+                        className={`flex flex-col items-start p-2.5 rounded-lg border text-left transition ${
+                          appliedArchetype === 'load'
+                            ? 'border-emerald-500 bg-emerald-500/20 text-white'
+                            : 'border-[#1E2235] bg-[#0E1019] text-slate-300 hover:border-slate-700 hover:bg-[#131622]'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-cyan-400">
+                          <Activity className="h-3.5 w-3.5" />
+                          <span>Burst & Latency</span>
+                        </div>
+                        <span className="text-[10px] text-slate-400 mt-1">
+                          p95 &lt;500ms, concurrency
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleApplyArchetype('crud')}
+                        className={`flex flex-col items-start p-2.5 rounded-lg border text-left transition ${
+                          appliedArchetype === 'crud'
+                            ? 'border-emerald-500 bg-emerald-500/20 text-white'
+                            : 'border-[#1E2235] bg-[#0E1019] text-slate-300 hover:border-slate-700 hover:bg-[#131622]'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-amber-400">
+                          <Database className="h-3.5 w-3.5" />
+                          <span>Dynamic CRUD</span>
+                        </div>
+                        <span className="text-[10px] text-slate-400 mt-1">
+                          201 Create, ID mutations
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleApplyArchetype('validation')}
+                        className={`flex flex-col items-start p-2.5 rounded-lg border text-left transition ${
+                          appliedArchetype === 'validation'
+                            ? 'border-emerald-500 bg-emerald-500/20 text-white'
+                            : 'border-[#1E2235] bg-[#0E1019] text-slate-300 hover:border-slate-700 hover:bg-[#131622]'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-purple-400">
+                          <AlertTriangle className="h-3.5 w-3.5" />
+                          <span>Negative & 422</span>
+                        </div>
+                        <span className="text-[10px] text-slate-400 mt-1">
+                          Malformed body & 404
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Suggested Dynamic Variables & Scenarios */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    {/* Variables */}
+                    {urlAnalysis?.sampleVariables && urlAnalysis.sampleVariables.length > 0 && (
+                      <div className="space-y-1">
+                        <span className="text-[11px] font-semibold text-slate-400">
+                          Insert Dynamic Placeholders:
+                        </span>
+                        <div className="flex flex-wrap gap-1">
+                          {urlAnalysis.sampleVariables.map((v) => (
+                            <button
+                              key={v}
+                              type="button"
+                              onClick={() => handleInsertVariable(v)}
+                              className="rounded-md border border-[#1E2235] bg-[#06070B] px-2 py-0.5 font-mono text-[10px] text-emerald-400 hover:border-emerald-500 hover:bg-emerald-500/10 transition"
+                              title={`Click to insert {{${v}}} into test description`}
+                            >
+                              + {`{{${v}}}`}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Focus Area Tags */}
+                    {urlAnalysis?.focusAreas && urlAnalysis.focusAreas.length > 0 && (
+                      <div className="space-y-1">
+                        <span className="text-[11px] font-semibold text-slate-400">
+                          Add Focus Tags:
+                        </span>
+                        <div className="flex flex-wrap gap-1">
+                          {urlAnalysis.focusAreas.map((area) => (
+                            <button
+                              key={area}
+                              type="button"
+                              onClick={() => handleInsertFocusArea(area)}
+                              className="rounded-md border border-[#1E2235] bg-[#06070B] px-2 py-0.5 text-[10px] text-slate-300 hover:border-cyan-500 hover:text-cyan-300 transition"
+                            >
+                              + {area}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Quick Scenarios Outline */}
+                  {urlAnalysis?.quickScenarios && urlAnalysis.quickScenarios.length > 0 && (
+                    <div className="rounded-lg border border-[#1E2235]/70 bg-[#080A10] p-2.5">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[11px] font-semibold text-slate-400">
+                          Suggested Test Scenarios Preview ({urlAnalysis.quickScenarios.length}):
+                        </span>
+                        <span className="text-[10px] text-slate-500">Click scenario to add to description</span>
+                      </div>
+                      <div className="space-y-1">
+                        {urlAnalysis.quickScenarios.map((sc, i) => (
+                          <div
+                            key={i}
+                            onClick={() => handleInsertScenario(sc)}
+                            className="group flex cursor-pointer items-center justify-between rounded-md p-1.5 text-xs text-slate-300 hover:bg-[#131622] transition"
+                          >
+                            <span className="flex items-center gap-1.5 truncate">
+                              <span className="text-emerald-400 text-[11px]">#{i + 1}</span>
+                              <span className="truncate">{sc}</span>
+                            </span>
+                            <span className="text-[10px] text-emerald-400 opacity-0 group-hover:opacity-100 transition whitespace-nowrap ml-2">
+                              + Insert
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Step 3: User Guidance / Custom Requirements */}
+                <div>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-300">
+                      User Guidance & Custom Prompt (Optional)
+                    </label>
+                    <span className="text-[10px] text-slate-500">
+                      Auto-refines description as you type
+                    </span>
+                  </div>
+                  <input
+                    type="text"
+                    value={userPromptHint}
+                    onChange={(e) => setUserPromptHint(e.target.value)}
+                    placeholder="e.g. Focus on cart checkout, token expiration, search filters, and rate limiting"
+                    className="mt-1 w-full rounded-xl border border-[#1E2235] bg-[#06070B] p-2.5 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                  />
+                </div>
+
+                {/* Step 4: Suite Name (Auto-filled & Editable) */}
+                <div>
+                  <label className="text-xs font-semibold text-slate-300">Test Suite Name</label>
+                  <input
+                    type="text"
+                    value={uploadSuiteName}
+                    onChange={(e) => setUploadSuiteName(e.target.value)}
+                    placeholder="e.g. ReqRes Users Functional & RBAC Suite"
+                    className="mt-1 w-full rounded-xl border border-[#1E2235] bg-[#06070B] p-2.5 text-xs text-white focus:border-emerald-500 focus:outline-none font-medium"
+                  />
+                </div>
+
+                {/* Step 5: Description & Focus Areas (Auto-filled & Editable) */}
+                <div>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-300">
+                      Test Case Description & Execution Plan
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (urlAnalysis?.description) setAiPromptDesc(urlAnalysis.description);
+                      }}
+                      className="text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold"
+                    >
+                      Reset to Auto-Formed
+                    </button>
+                  </div>
+                  <textarea
+                    value={aiPromptDesc}
+                    onChange={(e) => setAiPromptDesc(e.target.value)}
+                    rows={4}
+                    placeholder="Auto-formed description will appear here as you enter the URL..."
+                    className="mt-1 w-full rounded-xl border border-[#1E2235] bg-[#06070B] p-2.5 text-xs text-white focus:border-emerald-500 focus:outline-none font-sans leading-relaxed"
+                  />
+                </div>
+
+                {/* Step 6: OpenAPI / Swagger Specification Notes (Optional) */}
+                <div>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-300">
+                      OpenAPI / Swagger Endpoints Specification (Optional)
+                    </label>
+                    {urlAnalysis?.suggestedOpenApiDoc && (
+                      <button
+                        type="button"
+                        onClick={() => setAiExistingPlan(urlAnalysis.suggestedOpenApiDoc)}
+                        className="text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1"
+                      >
+                        <Sparkles className="h-3 w-3" />
+                        Auto-Fill Suggested Spec
+                      </button>
+                    )}
+                  </div>
+                  <textarea
+                    value={aiExistingPlan}
+                    onChange={(e) => setAiExistingPlan(e.target.value)}
+                    rows={3}
+                    placeholder="Auto-suggested endpoints or paste your OpenAPI schema here..."
+                    className="mt-1 w-full rounded-xl border border-[#1E2235] bg-[#06070B] p-2.5 font-mono text-xs text-emerald-300 focus:border-emerald-500 focus:outline-none"
+                  />
+                </div>
+
+                {/* Bottom Bar: Auto-Fill Toggle & Generate Button */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-[#1E2235]">
+                  <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-400 hover:text-slate-200">
+                    <input
+                      type="checkbox"
+                      checked={autoFillEnabled}
+                      onChange={(e) => setAutoFillEnabled(e.target.checked)}
+                      className="rounded border-[#1E2235] bg-[#06070B] text-emerald-500 focus:ring-0"
+                    />
+                    <span>Automatically auto-fill form fields when URL changes</span>
+                  </label>
+
+                  <button
+                    type="submit"
+                    disabled={isAiGenerating}
+                    className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-7 py-3 text-xs font-bold text-slate-950 shadow-lg shadow-emerald-500/20 hover:from-emerald-400 hover:to-teal-500 disabled:opacity-50 transition"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    <span>{isAiGenerating ? 'Generating Test Cases with Gemini...' : 'Generate AI Test Suite'}</span>
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={handleUploadSuite} className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Upload className="h-5 w-5 text-emerald-400" />
+                  <h3 className="text-base font-bold text-white capitalize">Upload {ingestMode.replace('upload_', '')} Specification</h3>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-300">Suite Name</label>
+                  <input
+                    type="text"
+                    value={uploadSuiteName}
+                    onChange={(e) => setUploadSuiteName(e.target.value)}
+                    placeholder="e.g. Imported Regression Suite"
+                    className="mt-1 w-full rounded-xl border border-[#1E2235] bg-[#06070B] p-2.5 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-300">Content (Paste or drag text)</label>
+                  <textarea
+                    value={uploadContent}
+                    onChange={(e) => setUploadContent(e.target.value)}
+                    rows={12}
+                    placeholder={
+                      ingestMode === 'upload_json' ? '[\n  {\n    "id": "TC-001",\n    "title": "Health check",\n    "category": "Smoke",\n    "requests": [{ "method": "GET", "path": "/health" }]\n  }\n]' :
+                      ingestMode === 'upload_csv' ? 'id,category,title,priority,tags,type,path,method,expected_status\nTC-001,Smoke,Health Check,High,smoke,http,/,GET,200' :
+                      '| ID | Category | Title | Priority | Method | Path | Expected Status |\n|---|---|---|---|---|---|---|\n| TC-001 | Smoke | Home Page | High | GET | / | 200 |'
+                    }
+                    className="mt-1 w-full rounded-xl border border-[#1E2235] bg-[#06070B] p-3 font-mono text-xs text-emerald-300 focus:border-emerald-500 focus:outline-none"
+                  />
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <button
+                    type="submit"
+                    className="flex items-center gap-2 rounded-xl bg-emerald-500 px-6 py-2.5 text-xs font-bold text-slate-950 hover:bg-emerald-400"
+                  >
+                    <Upload className="h-4 w-4" />
+                    <span>Parse & Ingest Test Suite</span>
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: Interactive Dataset Engine */}
+      {activeTab === 'dataset' && projectData && (
+        <div className="mt-6">
+          <DatasetConfigurator
+            project={projectData}
+            testCases={cases}
+            allNeededFields={allNeededFields}
+            missingProjectFields={missingProjectFields}
+            dataset={dataset}
+            onSaveDataset={handleSaveDatasetCustom}
+            onRunTestCase={handleRunTestCase}
+          />
+        </div>
+      )}
+
+      {/* New Project Modal */}
+      {isNewProjectModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-[#1E2235] bg-[#0F111A] p-6 shadow-2xl">
+            <h3 className="text-base font-bold text-white">Create New Test Target Project</h3>
+            <p className="mt-1 text-xs text-slate-400">Specify the website or API endpoint you want to automate.</p>
+            <form onSubmit={handleCreateProject} className="mt-4 space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-slate-300">Project Name</label>
+                <input
+                  type="text"
+                  value={newProjName}
+                  onChange={(e) => setNewProjName(e.target.value)}
+                  placeholder="e.g. E-Commerce Staging API"
+                  required
+                  className="mt-1 w-full rounded-xl border border-[#1E2235] bg-[#06070B] p-2.5 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-slate-300">Target Site / API URL</label>
+                  {newProjUrl && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!newProjUrl.trim()) return;
+                        setIsAnalyzingProjUrl(true);
+                        try {
+                          const res = await api.analyzeUrl(newProjUrl.trim());
+                          if (res.suggestedSuiteName && !newProjName) {
+                            setNewProjName(res.suggestedSuiteName.replace(/Suite$/, 'API').replace(/Automation$/, 'Target'));
+                          }
+                          if (res.description && !newProjDesc) {
+                            setNewProjDesc(res.description.slice(0, 110) + '...');
+                          }
+                        } catch (e) {
+                          console.warn(e);
+                        } finally {
+                          setIsAnalyzingProjUrl(false);
+                        }
+                      }}
+                      className="text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 flex items-center gap-1 transition"
+                    >
+                      <Sparkles className="h-3 w-3" />
+                      {isAnalyzingProjUrl ? 'Analyzing...' : 'Auto-fill Name & Description'}
+                    </button>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  value={newProjUrl}
+                  onChange={(e) => setNewProjUrl(e.target.value)}
+                  placeholder="https://api.example.com"
+                  required
+                  className="mt-1 w-full rounded-xl border border-[#1E2235] bg-[#06070B] p-2.5 font-mono text-xs text-white focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-300">Description (Optional)</label>
+                <input
+                  type="text"
+                  value={newProjDesc}
+                  onChange={(e) => setNewProjDesc(e.target.value)}
+                  placeholder="Automated smoke and load verification"
+                  className="mt-1 w-full rounded-xl border border-[#1E2235] bg-[#06070B] p-2.5 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsNewProjectModalOpen(false)}
+                  className="rounded-xl border border-[#1E2235] bg-[#131622] px-4 py-2 text-xs font-semibold text-slate-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="rounded-xl bg-emerald-500 px-4 py-2 text-xs font-bold text-slate-950 hover:bg-emerald-400"
+                >
+                  Create Project
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Interactive Missing Data Modal */}
+      <InteractiveDataModal
+        isOpen={interactivePrompt.isOpen}
+        onClose={() => setInteractivePrompt(prev => ({ ...prev, isOpen: false }))}
+        missingField={interactivePrompt.missingField}
+        testCase={interactivePrompt.testCase}
+        siteUrl={projectData?.siteUrl || ''}
+        onSaveAndResume={handleSaveInteractiveField}
+      />
+
+      {/* Cloud Deploy Guide Modal */}
+      <CloudDeployModal
+        isOpen={isDeployModalOpen}
+        onClose={() => setIsDeployModalOpen(false)}
+        project={projectData}
+        onDownload={handleDownloadPackage}
+      />
+
+      {/* Test Detail Inspector Drawer */}
+      <TestDetailDrawer
+        testCase={selectedDrawerCase}
+        onClose={() => setSelectedDrawerCase(null)}
+        onRunTest={handleRunTestCase}
+        onRecordManual={handleRecordManual}
+        isRunning={runningCaseId === selectedDrawerCase?.id}
+      />
+
+      {/* Production Batch Execution Modal */}
+      {selectedProjectId && projectData && (
+        <BatchExecutionModal
+          isOpen={batchModalState.isOpen}
+          onClose={() => {
+            setBatchModalState(prev => ({ ...prev, isOpen: false }));
+            if (selectedProjectId) loadSelectedProject(selectedProjectId);
+          }}
+          projectId={selectedProjectId}
+          projectName={projectData.name}
+          testCases={cases.filter(c => c.type !== 'manual')}
+          mode={batchModalState.mode}
+          onOpenBilling={onOpenBilling}
+          onRunComplete={(results) => {
+            setCases(prev => prev.map(c => {
+              const matched = results.find(r => r.caseId === c.id);
+              return matched ? { ...c, lastResult: matched.testRun } : c;
+            }));
+          }}
+        />
+      )}
+    </div>
+  );
+};

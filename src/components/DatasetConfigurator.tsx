@@ -1,0 +1,953 @@
+import React, { useState, useEffect } from 'react';
+import {
+  Database,
+  Sparkles,
+  CheckCircle2,
+  AlertCircle,
+  Shield,
+  Key,
+  Globe,
+  Hash,
+  FileText,
+  Plus,
+  Trash2,
+  Eye,
+  EyeOff,
+  Code,
+  Layers,
+  ArrowRight,
+  HelpCircle,
+  RefreshCw,
+  Copy,
+  Check,
+  Zap,
+  Sliders
+} from 'lucide-react';
+import { TestCase, Project } from '../types';
+
+interface DatasetConfiguratorProps {
+  project: Project;
+  testCases: TestCase[];
+  allNeededFields: string[];
+  missingProjectFields: string[];
+  dataset: Record<string, any>;
+  onSaveDataset: (newDataset: Record<string, any>) => Promise<void>;
+  onRunTestCase?: (testCase: TestCase, mode: 'preview' | 'hosted') => void;
+}
+
+type VariableCategory = 'auth' | 'env' | 'ids' | 'params' | 'custom';
+
+interface VariableMeta {
+  key: string;
+  value: any;
+  category: VariableCategory;
+  isMissing: boolean;
+  isSecret: boolean;
+  usedByCases: TestCase[];
+  description: string;
+  example: string;
+}
+
+export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
+  project,
+  testCases,
+  allNeededFields,
+  missingProjectFields,
+  dataset,
+  onSaveDataset,
+  onRunTestCase,
+}) => {
+  // Mode: 'visual' guided form or 'json' advanced editor
+  const [editorMode, setEditorMode] = useState<'visual' | 'json'>('visual');
+  const [localDataset, setLocalDataset] = useState<Record<string, any>>(dataset || {});
+  const [rawJsonText, setRawJsonText] = useState<string>(JSON.stringify(dataset || {}, null, 2));
+  const [jsonError, setJsonError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
+  const [copiedJson, setCopiedJson] = useState<boolean>(false);
+
+  // New variable form
+  const [newKeyName, setNewKeyName] = useState('');
+  const [newKeyValue, setNewKeyValue] = useState('');
+  const [isAddingVariable, setIsAddingVariable] = useState(false);
+
+  // Visibility toggle for secrets
+  const [revealedSecrets, setRevealedSecrets] = useState<Record<string, boolean>>({});
+
+  // Active simulated test case for Step 4 (Resolution Preview)
+  const [selectedSimCaseId, setSelectedSimCaseId] = useState<string>(testCases[0]?.id || '');
+  const [activeTabFilter, setActiveTabFilter] = useState<'all' | 'missing' | 'auth' | 'ids'>('all');
+
+  // Sync state when props change
+  useEffect(() => {
+    setLocalDataset(dataset || {});
+    setRawJsonText(JSON.stringify(dataset || {}, null, 2));
+    setJsonError(null);
+  }, [dataset]);
+
+  // Helper to read dotted path from object
+  const getNestedValue = (obj: any, path: string): any => {
+    if (!obj) return undefined;
+    if (obj[path] !== undefined) return obj[path];
+    const parts = path.split('.');
+    let cur = obj;
+    for (const p of parts) {
+      if (cur == null || typeof cur !== 'object') return undefined;
+      cur = cur[p];
+    }
+    return cur;
+  };
+
+  // Helper to set dotted path into object
+  const setNestedValue = (obj: any, path: string, val: any): any => {
+    const clone = JSON.parse(JSON.stringify(obj));
+    if (path.includes('.')) {
+      const parts = path.split('.');
+      let cur = clone;
+      for (let i = 0; i < parts.length - 1; i++) {
+        const p = parts[i];
+        if (!cur[p] || typeof cur[p] !== 'object') {
+          cur[p] = {};
+        }
+        cur = cur[p];
+      }
+      cur[parts[parts.length - 1]] = val;
+    } else {
+      clone[path] = val;
+    }
+    return clone;
+  };
+
+  // Helper to delete dotted path
+  const deleteNestedValue = (obj: any, path: string): any => {
+    const clone = JSON.parse(JSON.stringify(obj));
+    if (clone[path] !== undefined) {
+      delete clone[path];
+    }
+    if (path.includes('.')) {
+      const parts = path.split('.');
+      let cur = clone;
+      for (let i = 0; i < parts.length - 1; i++) {
+        if (!cur[parts[i]]) return clone;
+        cur = cur[parts[i]];
+      }
+      delete cur[parts[parts.length - 1]];
+    }
+    return clone;
+  };
+
+  // Categorize a field
+  const categorizeField = (k: string): VariableCategory => {
+    const lk = k.toLowerCase();
+    if (lk.includes('auth') || lk.includes('token') || lk.includes('jwt') || lk.includes('key') || lk.includes('secret') || lk.includes('pass')) {
+      return 'auth';
+    }
+    if (lk.includes('url') || lk.includes('host') || lk.includes('domain') || lk.includes('env') || lk.includes('port')) {
+      return 'env';
+    }
+    if (lk.includes('id') || lk.includes('uuid') || lk.includes('slug') || lk.endsWith('_num')) {
+      return 'ids';
+    }
+    if (lk.includes('search') || lk.includes('email') || lk.includes('name') || lk.includes('status') || lk.includes('query')) {
+      return 'params';
+    }
+    return 'custom';
+  };
+
+  // Generate realistic synthetic value based on key name
+  const generateSyntheticValue = (k: string): any => {
+    const lk = k.toLowerCase();
+    if (lk.includes('token') || lk.includes('jwt') || lk.includes('bearer')) {
+      return `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMyIsImF1ZCI6InZlcml0eS1xYSIsImlhdCI6MTY3MjUzMTAwMH0.mock_signature_${Math.random().toString(36).substring(2, 10)}`;
+    }
+    if (lk.includes('apikey') || lk.includes('api_key')) {
+      return `vrt_live_${Math.random().toString(36).substring(2, 15)}_${Math.random().toString(36).substring(2, 10)}`;
+    }
+    if (lk.includes('email')) {
+      return `qa.tester_${Math.floor(Math.random() * 900 + 100)}@example.com`;
+    }
+    if (lk.includes('id') || lk.includes('uuid')) {
+      return String(Math.floor(Math.random() * 990 + 10));
+    }
+    if (lk.includes('search') || lk.includes('query')) {
+      return 'active_status_q';
+    }
+    if (lk.includes('url') || lk.includes('domain')) {
+      return project.siteUrl;
+    }
+    if (lk.includes('name')) {
+      return `Sample QA Entity ${Math.floor(Math.random() * 100)}`;
+    }
+    return `synthetic_${k}_${Math.random().toString(36).substring(2, 7)}`;
+  };
+
+  // Compile list of all variables (both needed by test cases and present in dataset)
+  const getAllVariables = (): VariableMeta[] => {
+    const keysSet = new Set<string>();
+    allNeededFields.forEach(f => keysSet.add(f));
+
+    // Extract top-level keys and nested keys from dataset
+    const extractKeys = (obj: any, prefix = '') => {
+      if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return;
+      Object.keys(obj).forEach(k => {
+        const fullKey = prefix ? `${prefix}.${k}` : k;
+        if (typeof obj[k] === 'object' && obj[k] !== null && !Array.isArray(obj[k])) {
+          extractKeys(obj[k], fullKey);
+        } else {
+          keysSet.add(fullKey);
+        }
+      });
+    };
+    extractKeys(localDataset);
+
+    const list: VariableMeta[] = [];
+    keysSet.forEach(k => {
+      const val = getNestedValue(localDataset, k);
+      const isMissing = val === undefined || val === null || val === '';
+      const category = categorizeField(k);
+      const isSecret = category === 'auth' || k.toLowerCase().includes('key') || k.toLowerCase().includes('secret');
+      
+      const usedByCases = testCases.filter(c => {
+        const json = JSON.stringify(c.spec);
+        return json.includes(`{{${k}}}`);
+      });
+
+      let description = 'Custom dynamic configuration value.';
+      let example = 'e.g. "production" or "10"';
+      if (category === 'auth') {
+        description = 'Bearer token or API secret key sent in HTTP Authorization headers.';
+        example = 'e.g. Bearer eyJhbGci... or vrt_key_abc123';
+      } else if (category === 'ids') {
+        description = 'Resource or Entity ID used in URL path parameter lookups (e.g. /users/:id).';
+        example = 'e.g. "2" or "usr_84920"';
+      } else if (category === 'env') {
+        description = 'Target environment URL, protocol, or host domain.';
+        example = `e.g. ${project.siteUrl}`;
+      } else if (category === 'params') {
+        description = 'Query parameter or JSON body payload string.';
+        example = 'e.g. "shoes" or "pending"';
+      }
+
+      list.push({
+        key: k,
+        value: val !== undefined ? val : '',
+        category,
+        isMissing,
+        isSecret,
+        usedByCases,
+        description,
+        example,
+      });
+    });
+
+    return list.sort((a, b) => {
+      // Missing first, then auth, then ids
+      if (a.isMissing && !b.isMissing) return -1;
+      if (!a.isMissing && b.isMissing) return 1;
+      return a.key.localeCompare(b.key);
+    });
+  };
+
+  const allVariables = getAllVariables();
+  const missingCount = allVariables.filter(v => v.isMissing).length;
+  const configuredCount = allVariables.filter(v => !v.isMissing).length;
+
+  // Filtered variables
+  const filteredVariables = allVariables.filter(v => {
+    if (activeTabFilter === 'missing') return v.isMissing;
+    if (activeTabFilter === 'auth') return v.category === 'auth';
+    if (activeTabFilter === 'ids') return v.category === 'ids';
+    return true;
+  });
+
+  // Handle single variable change in visual mode
+  const handleUpdateValue = (key: string, newValue: any) => {
+    const updated = setNestedValue(localDataset, key, newValue);
+    setLocalDataset(updated);
+    setRawJsonText(JSON.stringify(updated, null, 2));
+  };
+
+  // Handle delete variable
+  const handleDeleteVariable = (key: string) => {
+    const updated = deleteNestedValue(localDataset, key);
+    setLocalDataset(updated);
+    setRawJsonText(JSON.stringify(updated, null, 2));
+  };
+
+  // Auto-fill all missing variables with realistic synthetic mocks
+  const handleAutoFillAllMissing = () => {
+    let updated = { ...localDataset };
+    allVariables.forEach(v => {
+      if (v.isMissing) {
+        updated = setNestedValue(updated, v.key, generateSyntheticValue(v.key));
+      }
+    });
+    setLocalDataset(updated);
+    setRawJsonText(JSON.stringify(updated, null, 2));
+  };
+
+  // Apply a standard preset
+  const handleApplyPreset = (presetType: 'rest' | 'ecommerce' | 'auth') => {
+    let presetData: Record<string, any> = {};
+    if (presetType === 'rest') {
+      presetData = {
+        sample_id: '2',
+        page_num: 1,
+        search_query: 'active',
+        authTokens: {
+          user: `mock_jwt_usr_${Math.random().toString(36).substring(2, 8)}`,
+          admin: `mock_jwt_adm_${Math.random().toString(36).substring(2, 8)}`,
+        },
+      };
+    } else if (presetType === 'ecommerce') {
+      presetData = {
+        sample_id: '101',
+        orderId: 'ORD-98421',
+        cartId: 'CRT-552',
+        currency: 'USD',
+        authTokens: {
+          user: `mock_cust_token_${Math.random().toString(36).substring(2, 8)}`,
+        },
+      };
+    } else if (presetType === 'auth') {
+      presetData = {
+        apiKey: `vrt_live_${Math.random().toString(36).substring(2, 12)}`,
+        authTokens: {
+          user: `mock_user_jwt_${Date.now()}`,
+          admin: `mock_admin_jwt_${Date.now()}`,
+          guest: 'mock_guest_token',
+        },
+      };
+    }
+
+    // Merge with current
+    const merged = { ...localDataset, ...presetData };
+    setLocalDataset(merged);
+    setRawJsonText(JSON.stringify(merged, null, 2));
+  };
+
+  // Add custom variable
+  const handleAddCustomVariable = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newKeyName.trim()) return;
+    const cleanKey = newKeyName.trim().replace(/[{}]/g, '');
+    const updated = setNestedValue(localDataset, cleanKey, newKeyValue.trim());
+    setLocalDataset(updated);
+    setRawJsonText(JSON.stringify(updated, null, 2));
+    setNewKeyName('');
+    setNewKeyValue('');
+    setIsAddingVariable(false);
+  };
+
+  // Save changes to backend
+  const handleSave = async () => {
+    setIsSaving(true);
+    setJsonError(null);
+    try {
+      let finalDataset = localDataset;
+      if (editorMode === 'json') {
+        finalDataset = JSON.parse(rawJsonText);
+        setLocalDataset(finalDataset);
+      }
+      await onSaveDataset(finalDataset);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3500);
+    } catch (err: any) {
+      setJsonError(err.message || 'Failed to save dataset. Please verify JSON format.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Copy JSON to clipboard
+  const handleCopyJson = () => {
+    navigator.clipboard.writeText(rawJsonText);
+    setCopiedJson(true);
+    setTimeout(() => setCopiedJson(false), 2000);
+  };
+
+  // Selected test case for Step 4 Resolution Simulation
+  const activeSimCase = testCases.find(c => c.id === selectedSimCaseId) || testCases[0];
+
+  // Resolve template string with current localDataset
+  const resolveTemplateString = (input: string): { resolved: string; missingPlaceholders: string[] } => {
+    const missing: string[] = [];
+    const resolved = input.replace(/\{\{([a-zA-Z0-9_.]+)\}\}/g, (_, path) => {
+      const v = getNestedValue(localDataset, path);
+      if (v === undefined || v === null || v === '') {
+        missing.push(path);
+        return `[MISSING: {{${path}}}]`;
+      }
+      return String(v);
+    });
+    return { resolved, missingPlaceholders: missing };
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Top Banner: Success or Error */}
+      {saveSuccess && (
+        <div className="flex items-center justify-between rounded-2xl border border-emerald-500/40 bg-emerald-950/40 p-4 text-xs font-semibold text-emerald-300 shadow-lg shadow-emerald-950/50">
+          <div className="flex items-center gap-2.5">
+            <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+            <span>Dataset successfully synchronized and persisted for all test scenarios!</span>
+          </div>
+          <span className="rounded-md bg-emerald-500/20 px-2.5 py-1 text-[11px] font-bold text-emerald-300">
+            Production Ready
+          </span>
+        </div>
+      )}
+
+      {jsonError && (
+        <div className="flex items-center gap-2.5 rounded-2xl border border-rose-500/40 bg-rose-950/40 p-4 text-xs font-semibold text-rose-300">
+          <AlertCircle className="h-5 w-5 text-rose-400" />
+          <span>{jsonError}</span>
+        </div>
+      )}
+
+      {/* Main Header & Controls Bar */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-2xl border border-[#1E2235] bg-[#0F111A] p-6 shadow-xl">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+              <Database className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-white">Dynamic Dataset & Environment Variables</h2>
+              <p className="text-xs text-slate-400">
+                Configure runtime variables for <span className="font-mono text-emerald-300">{project.siteUrl}</span>. Variables injected into URLs, headers, and request bodies.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Action Controls */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Visual vs JSON Toggle */}
+          <div className="flex items-center rounded-xl border border-[#1E2235] bg-[#06070B] p-1">
+            <button
+              onClick={() => {
+                if (editorMode === 'json') {
+                  try {
+                    const parsed = JSON.parse(rawJsonText);
+                    setLocalDataset(parsed);
+                    setJsonError(null);
+                  } catch (e: any) {
+                    setJsonError('Please fix JSON syntax errors before switching to visual mode.');
+                    return;
+                  }
+                }
+                setEditorMode('visual');
+              }}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                editorMode === 'visual'
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Sliders className="h-3.5 w-3.5" />
+              <span>Visual Guided Form</span>
+            </button>
+            <button
+              onClick={() => {
+                setRawJsonText(JSON.stringify(localDataset, null, 2));
+                setEditorMode('json');
+              }}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                editorMode === 'json'
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Code className="h-3.5 w-3.5" />
+              <span>Raw JSON Editor</span>
+            </button>
+          </div>
+
+          {/* Auto-Fill Missing */}
+          {missingCount > 0 && (
+            <button
+              onClick={handleAutoFillAllMissing}
+              className="flex items-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-500/15 px-3.5 py-2 text-xs font-bold text-emerald-300 hover:bg-emerald-500/25 transition"
+              title="Automatically fills all missing parameters with realistic synthetic values"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+              <span>Auto-Fill All Missing ({missingCount})</span>
+            </button>
+          )}
+
+          {/* Save Button */}
+          <button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-5 py-2 text-xs font-bold text-slate-950 shadow-lg shadow-emerald-500/20 hover:from-emerald-400 hover:to-teal-500 disabled:opacity-50 transition"
+          >
+            {isSaving ? (
+              <>
+                <RefreshCw className="h-3.5 w-3.5 animate-spin text-slate-950" />
+                <span>Saving Dataset...</span>
+              </>
+            ) : (
+              <>
+                <Check className="h-3.5 w-3.5 text-slate-950" />
+                <span>Save Dataset</span>
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* 4-Step Visual Workflow Guide */}
+      <div className="rounded-2xl border border-[#1E2235] bg-[#0F111A]/90 p-5">
+        <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-2">
+          <HelpCircle className="h-4 w-4 text-emerald-400" />
+          <span>How Dataset Variables Work in Verity (4 Simple Steps)</span>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-xl border border-[#1E2235] bg-[#06070B] p-3.5">
+            <div className="flex items-center gap-2 text-xs font-bold text-white">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400 text-[11px]">1</span>
+              <span>Variable Discovery</span>
+            </div>
+            <p className="mt-2 text-[11px] text-slate-400 leading-relaxed">
+              When test cases run, placeholders like <code className="font-mono text-emerald-300">{`{{authTokens.user}}`}</code> or <code className="font-mono text-emerald-300">{`{{sample_id}}`}</code> are automatically extracted.
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-[#1E2235] bg-[#06070B] p-3.5">
+            <div className="flex items-center gap-2 text-xs font-bold text-white">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-cyan-500/20 text-cyan-400 text-[11px]">2</span>
+              <span>Provide Values</span>
+            </div>
+            <p className="mt-2 text-[11px] text-slate-400 leading-relaxed">
+              Enter real API tokens/secrets or click <strong>"Auto-Generate Mock"</strong> to inject realistic synthetic test data without manual work.
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-[#1E2235] bg-[#06070B] p-3.5">
+            <div className="flex items-center gap-2 text-xs font-bold text-white">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-500/20 text-amber-400 text-[11px]">3</span>
+              <span>Simulation Check</span>
+            </div>
+            <p className="mt-2 text-[11px] text-slate-400 leading-relaxed">
+              Use the Live Resolution Simulator below to inspect the compiled HTTP request and verify all tokens & paths match expected API formats.
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-[#1E2235] bg-[#06070B] p-3.5">
+            <div className="flex items-center gap-2 text-xs font-bold text-white">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-purple-500/20 text-purple-400 text-[11px]">4</span>
+              <span>Run Production Ready</span>
+            </div>
+            <p className="mt-2 text-[11px] text-slate-400 leading-relaxed">
+              Click <strong>Run Preview</strong> or <strong>Cloud Run</strong>. The test runner substitutes variables seamlessly with zero interactive stops!
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content Area */}
+      {editorMode === 'visual' ? (
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
+          {/* Left Column: Visual Form Variables List (8 cols) */}
+          <div className="lg:col-span-8 space-y-4">
+            {/* Filter Tabs & Quick Add */}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#1E2235] pb-3">
+              <div className="flex items-center gap-1.5">
+                {[
+                  { id: 'all', label: `All Variables (${allVariables.length})` },
+                  { id: 'missing', label: `Needs Value (${missingCount})` },
+                  { id: 'auth', label: 'Auth & Secrets' },
+                  { id: 'ids', label: 'IDs & Slugs' },
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTabFilter(tab.id as any)}
+                    className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                      activeTabFilter === tab.id
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddingVariable(!isAddingVariable)}
+                  className="flex items-center gap-1.5 rounded-lg border border-[#1E2235] bg-[#131622] px-2.5 py-1 text-xs font-semibold text-slate-200 hover:bg-[#1A1D2B]"
+                >
+                  <Plus className="h-3.5 w-3.5 text-emerald-400" />
+                  <span>Add Variable</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Add Form Drawer */}
+            {isAddingVariable && (
+              <form onSubmit={handleAddCustomVariable} className="rounded-xl border border-emerald-500/30 bg-[#0E1019] p-4 space-y-3">
+                <div className="text-xs font-bold text-white">Add New Dataset Variable</div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-400">Variable Key (e.g. sample_id, authTokens.user)</label>
+                    <input
+                      type="text"
+                      value={newKeyName}
+                      onChange={(e) => setNewKeyName(e.target.value)}
+                      placeholder="e.g. authTokens.admin"
+                      required
+                      className="mt-1 w-full rounded-lg border border-[#1E2235] bg-[#06070B] px-3 py-2 font-mono text-xs text-emerald-300 placeholder-slate-600 focus:border-emerald-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-400">Initial Value</label>
+                    <input
+                      type="text"
+                      value={newKeyValue}
+                      onChange={(e) => setNewKeyValue(e.target.value)}
+                      placeholder="e.g. secret_token_xyz"
+                      className="mt-1 w-full rounded-lg border border-[#1E2235] bg-[#06070B] px-3 py-2 font-mono text-xs text-white placeholder-slate-600 focus:border-emerald-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingVariable(false)}
+                    className="rounded-lg border border-[#1E2235] bg-[#131622] px-3 py-1.5 text-xs text-slate-300 hover:bg-[#1A1D2B]"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="rounded-lg bg-emerald-500 px-3.5 py-1.5 text-xs font-bold text-slate-950 hover:bg-emerald-400"
+                  >
+                    Save Variable
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* Variable Cards List */}
+            <div className="space-y-3">
+              {filteredVariables.length > 0 ? (
+                filteredVariables.map((v) => {
+                  const isMasked = v.isSecret && !revealedSecrets[v.key];
+                  return (
+                    <div
+                      key={v.key}
+                      className={`rounded-2xl border p-4 transition ${
+                        v.isMissing
+                          ? 'border-rose-500/40 bg-rose-950/10'
+                          : 'border-[#1E2235] bg-[#0F111A] hover:border-[#2D334D]'
+                      }`}
+                    >
+                      {/* Top Row: Key Name, Category, Status Badge, and Used-By */}
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <code className="rounded bg-[#1A1D2B] px-2 py-0.5 font-mono text-xs font-bold text-emerald-300 border border-[#1E2235]">
+                            {`{{${v.key}}}`}
+                          </code>
+
+                          {/* Category Badge */}
+                          <span className={`flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-bold uppercase ${
+                            v.category === 'auth' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' :
+                            v.category === 'ids' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
+                            v.category === 'env' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' :
+                            'bg-slate-500/20 text-slate-300 border border-slate-500/30'
+                          }`}>
+                            {v.category === 'auth' && <Key className="h-3 w-3" />}
+                            {v.category === 'ids' && <Hash className="h-3 w-3" />}
+                            {v.category === 'env' && <Globe className="h-3 w-3" />}
+                            {v.category}
+                          </span>
+
+                          {/* Status Badge */}
+                          {v.isMissing ? (
+                            <span className="flex items-center gap-1 rounded bg-rose-500/20 px-2 py-0.5 text-[10px] font-bold text-rose-300 border border-rose-500/30">
+                              <AlertCircle className="h-3 w-3" />
+                              Required / Missing
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1 rounded bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-300 border border-emerald-500/30">
+                              <CheckCircle2 className="h-3 w-3" />
+                              Configured
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Quick Generate Mock Value */}
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateValue(v.key, generateSyntheticValue(v.key))}
+                            className="flex items-center gap-1 text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 transition"
+                            title="Generate realistic mock data"
+                          >
+                            <Sparkles className="h-3 w-3" />
+                            <span>Generate Mock</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteVariable(v.key)}
+                            className="text-slate-500 hover:text-rose-400 p-1"
+                            title="Delete variable"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Explanation & Used By */}
+                      <div className="mt-2 flex flex-wrap items-center justify-between text-[11px] text-slate-400 gap-2">
+                        <span>{v.description}</span>
+                        {v.usedByCases.length > 0 && (
+                          <span className="text-slate-400">
+                            Required in <strong className="text-white">{v.usedByCases.length}</strong> test case{v.usedByCases.length > 1 ? 's' : ''}:{' '}
+                            <span className="font-mono text-emerald-400">
+                              {v.usedByCases.slice(0, 3).map(c => c.extId).join(', ')}
+                              {v.usedByCases.length > 3 ? ` +${v.usedByCases.length - 3} more` : ''}
+                            </span>
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Input Field */}
+                      <div className="mt-3 relative flex items-center gap-2">
+                        <div className="relative flex-1">
+                          <input
+                            type={isMasked ? 'password' : 'text'}
+                            value={v.value}
+                            onChange={(e) => handleUpdateValue(v.key, e.target.value)}
+                            placeholder={v.example}
+                            className={`w-full rounded-xl border bg-[#06070B] px-3.5 py-2 font-mono text-xs text-white placeholder-slate-600 focus:outline-none transition ${
+                              v.isMissing
+                                ? 'border-rose-500/50 focus:border-rose-500 focus:ring-1 focus:ring-rose-500/30'
+                                : 'border-[#1E2235] focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30'
+                            }`}
+                          />
+
+                          {v.isSecret && (
+                            <button
+                              type="button"
+                              onClick={() => setRevealedSecrets(prev => ({ ...prev, [v.key]: !prev[v.key] }))}
+                              className="absolute right-3 top-2.5 text-slate-400 hover:text-white"
+                              title={isMasked ? 'Reveal secret' : 'Hide secret'}
+                            >
+                              {isMasked ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="rounded-2xl border border-[#1E2235] bg-[#0F111A] p-8 text-center text-slate-400">
+                  No variables found for this filter tab.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Right Column: Presets & Live Resolution Simulator (4 cols) */}
+          <div className="lg:col-span-4 space-y-6">
+            {/* Quick Preset Packs */}
+            <div className="rounded-2xl border border-[#1E2235] bg-[#0F111A] p-5 space-y-3">
+              <div className="flex items-center gap-2 text-xs font-bold text-white">
+                <Sparkles className="h-4 w-4 text-emerald-400" />
+                <span>One-Click Dataset Presets</span>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Instantly populate your project with standardized test fixtures.
+              </p>
+
+              <div className="space-y-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => handleApplyPreset('rest')}
+                  className="flex w-full items-start gap-2.5 rounded-xl border border-[#1E2235] bg-[#06070B] p-2.5 text-left transition hover:border-emerald-500/40 hover:bg-[#131622]"
+                >
+                  <div className="rounded bg-emerald-500/20 p-1 text-emerald-400">
+                    <Globe className="h-3.5 w-3.5" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold text-white">Standard REST API Preset</div>
+                    <div className="text-[10px] text-slate-400">IDs, search query, Bearer user & admin tokens</div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleApplyPreset('ecommerce')}
+                  className="flex w-full items-start gap-2.5 rounded-xl border border-[#1E2235] bg-[#06070B] p-2.5 text-left transition hover:border-emerald-500/40 hover:bg-[#131622]"
+                >
+                  <div className="rounded bg-amber-500/20 p-1 text-amber-400">
+                    <Hash className="h-3.5 w-3.5" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold text-white">E-Commerce & Orders Preset</div>
+                    <div className="text-[10px] text-slate-400">Cart IDs, customer tokens, order references</div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleApplyPreset('auth')}
+                  className="flex w-full items-start gap-2.5 rounded-xl border border-[#1E2235] bg-[#06070B] p-2.5 text-left transition hover:border-emerald-500/40 hover:bg-[#131622]"
+                >
+                  <div className="rounded bg-purple-500/20 p-1 text-purple-400">
+                    <Key className="h-3.5 w-3.5" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold text-white">Auth & RBAC Security Preset</div>
+                    <div className="text-[10px] text-slate-400">API keys, multi-role tokens (user/admin/guest)</div>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* Live Request Resolution Simulator */}
+            <div className="rounded-2xl border border-emerald-500/30 bg-[#0F111A] p-5 space-y-3 ring-1 ring-emerald-500/20">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-bold text-white">
+                  <Zap className="h-4 w-4 text-emerald-400" />
+                  <span>Live Resolution Simulator</span>
+                </div>
+                <span className="rounded bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
+                  Step 3 Validation
+                </span>
+              </div>
+
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Select a test scenario to inspect how variables are substituted into real production requests.
+              </p>
+
+              {testCases.length > 0 ? (
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-400">Select Test Scenario:</label>
+                  <select
+                    value={selectedSimCaseId}
+                    onChange={(e) => setSelectedSimCaseId(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-[#1E2235] bg-[#06070B] p-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                  >
+                    {testCases.map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.extId}: {c.title.slice(0, 38)}...
+                      </option>
+                    ))}
+                  </select>
+
+                  {activeSimCase && activeSimCase.spec.requests?.[0] && (
+                    <div className="mt-3 space-y-2 font-mono text-[11px]">
+                      {/* Before: Raw Template */}
+                      <div className="rounded-xl border border-[#1E2235] bg-[#06070B] p-3">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                          1. Raw Test Template
+                        </div>
+                        <div className="text-emerald-400 font-bold">
+                          {activeSimCase.spec.requests[0].method || 'GET'} {activeSimCase.spec.requests[0].path}
+                        </div>
+                        {activeSimCase.spec.requests[0].headers && (
+                          <div className="mt-1 text-slate-400 text-[10px]">
+                            Headers: {JSON.stringify(activeSimCase.spec.requests[0].headers)}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* After: Resolved Output */}
+                      {(() => {
+                        const pathSim = resolveTemplateString(activeSimCase.spec.requests[0].path);
+                        const isAllResolved = pathSim.missingPlaceholders.length === 0;
+                        return (
+                          <div className={`rounded-xl border p-3 ${
+                            isAllResolved ? 'border-emerald-500/40 bg-emerald-950/20' : 'border-amber-500/40 bg-amber-950/20'
+                          }`}>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-300">
+                                2. Resolved Production Call
+                              </span>
+                              {isAllResolved ? (
+                                <span className="text-emerald-400 text-[10px] font-bold">✓ 100% Resolved</span>
+                              ) : (
+                                <span className="text-amber-400 text-[10px] font-bold">⚠ Needs {pathSim.missingPlaceholders.length} field(s)</span>
+                              )}
+                            </div>
+                            <div className="text-white font-bold break-all">
+                              {activeSimCase.spec.requests[0].method || 'GET'}{' '}
+                              {project.siteUrl.replace(/\/$/, '')}/{pathSim.resolved.replace(/^\//, '')}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-xs text-slate-500 italic py-2">
+                  No test scenarios created yet. Generate test cases in the "Test Generator" tab first.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* JSON Mode */
+        <div className="rounded-2xl border border-[#1E2235] bg-[#0F111A] p-6 space-y-4">
+          <div className="flex items-center justify-between border-b border-[#1E2235] pb-4">
+            <div className="flex items-center gap-2">
+              <Code className="h-5 w-5 text-emerald-400" />
+              <div>
+                <h3 className="text-base font-bold text-white">Direct JSON Specification Editor</h3>
+                <p className="text-xs text-slate-400">
+                  Advanced developers can edit, format, or paste nested JSON data structures directly.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleCopyJson}
+                className="flex items-center gap-1.5 rounded-lg border border-[#1E2235] bg-[#131622] px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-[#1A1D2B]"
+              >
+                {copiedJson ? (
+                  <>
+                    <Check className="h-3.5 w-3.5 text-emerald-400" />
+                    <span className="text-emerald-400">Copied!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-3.5 w-3.5" />
+                    <span>Copy JSON</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          <textarea
+            value={rawJsonText}
+            onChange={(e) => {
+              setRawJsonText(e.target.value);
+              try {
+                const parsed = JSON.parse(e.target.value);
+                setLocalDataset(parsed);
+                setJsonError(null);
+              } catch (err: any) {
+                setJsonError(`JSON Syntax: ${err.message}`);
+              }
+            }}
+            rows={20}
+            className="w-full rounded-xl border border-[#1E2235] bg-[#06070B] p-4 font-mono text-xs text-emerald-300 focus:border-emerald-500 focus:outline-none leading-relaxed"
+          />
+        </div>
+      )}
+    </div>
+  );
+};

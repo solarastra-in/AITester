@@ -1,0 +1,6 @@
+{
+  "name": "Verity Automated Test Platform",
+  "description": "Interactive functional test execution engine, dynamic dataset builder, multi-cloud Docker package generator, and multi-tenant admin platform.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

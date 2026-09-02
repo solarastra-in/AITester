@@ -1,0 +1,13 @@
+{
+  "name": "verity-standalone-runner",
+  "version": "1.0.0",
+  "description": "Self-hosted, single-project test runner exported from Verity. No auth, no billing, no external DB — just runs the seeded test suite against your site.",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "dependencies": {
+    "express": "^4.19.2",
+    "axios": "^1.7.7",
+    "dotenv": "^16.4.5"
+  },
+  "engines": { "node": ">=18" }
+}

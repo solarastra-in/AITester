@@ -1,0 +1,21 @@
+services:
+  verity-platform:
+    build: .
+    image: verity-platform:latest
+    container_name: verity-platform
+    ports:
+      - "${PORT:-5000}:5000"
+    environment:
+      - PORT=5000
+      - DATA_DIR=/app/data
+      - JWT_SECRET=${JWT_SECRET:-change-this-in-production}
+      - PLATFORM_ADMIN_EMAIL=${PLATFORM_ADMIN_EMAIL:-admin@verity.local}
+      - PLATFORM_ADMIN_PASSWORD=${PLATFORM_ADMIN_PASSWORD:-changeme123}
+      - STANDALONE_TRIAL_CREDITS=${STANDALONE_TRIAL_CREDITS:-20}
+      - PREVIEW_DAILY_CAP=${PREVIEW_DAILY_CAP:-15}
+    volumes:
+      - verity_platform_data:/app/data
+    restart: unless-stopped
+
+volumes:
+  verity_platform_data:

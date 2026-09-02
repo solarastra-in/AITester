@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Verity — Self-hosted Test Runner</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="console">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark">◈</span>
+        <div>
+          <div class="brand-title" id="projectName">Verity Test Runner</div>
+          <div class="brand-sub" id="projectUrl">self-hosted</div>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <button class="btn ghost" id="btnUpload">Upload more tests</button>
+        <button class="btn ghost" id="btnDataset">Dataset</button>
+        <button class="btn ghost" id="btnExportJson">Export JSON</button>
+        <button class="btn ghost" id="btnExportCsv">Export CSV</button>
+        <button class="btn primary" id="btnRunAll">Run all automated</button>
+      </div>
+    </header>
+    <div class="scoreboard" id="scoreboard">
+      <div class="score-cell"><div class="score-num" id="scorePass">0</div><div class="score-label">pass</div></div>
+      <div class="score-cell"><div class="score-num" id="scoreFail">0</div><div class="score-label">fail</div></div>
+      <div class="score-cell"><div class="score-num" id="scoreNotRun">0</div><div class="score-label">not run</div></div>
+      <div class="score-bar-track"><div class="score-bar-fill" id="scoreBarFill"></div></div>
+    </div>
+    <main class="body">
+      <section class="test-list" id="testList"></section>
+    </main>
+  </div>
+
+  <div class="drawer-backdrop" id="datasetBackdrop">
+    <div class="drawer">
+      <div class="drawer-head">
+        <div><div class="drawer-title">Dataset</div><div class="drawer-sub">Values available to every test via {{dotted.path}} templates.</div></div>
+        <button class="btn ghost" id="btnCloseDataset">Close</button>
+      </div>
+      <div class="drawer-body"><textarea id="datasetEditor" spellcheck="false"></textarea></div>
+      <div class="drawer-foot"><span id="datasetStatus" class="muted"></span><button class="btn primary" id="btnSaveDataset">Save</button></div>
+    </div>
+  </div>
+
+  <div class="drawer-backdrop" id="uploadBackdrop">
+    <div class="drawer">
+      <div class="drawer-head">
+        <div><div class="drawer-title">Upload test cases</div><div class="drawer-sub">Structured JSON, structured CSV, or a markdown test-plan table.</div></div>
+        <button class="btn ghost" id="btnCloseUpload">Close</button>
+      </div>
+      <div class="drawer-body">
+        <select id="uploadFormat" style="margin-bottom:10px;background:var(--bg-inset);color:var(--text);border:1px solid var(--line);padding:6px;border-radius:4px;">
+          <option value="json">Structured JSON</option>
+          <option value="csv">Structured CSV</option>
+          <option value="markdown">Markdown table</option>
+        </select>
+        <textarea id="uploadContent" placeholder="Paste content here..." style="width:100%;height:50vh;background:var(--bg-inset);color:var(--text);border:1px solid var(--line);border-radius:4px;padding:10px;font-family:var(--mono);font-size:12px;"></textarea>
+      </div>
+      <div class="drawer-foot"><span id="uploadStatus" class="muted"></span><button class="btn primary" id="btnSubmitUpload">Add tests</button></div>
+    </div>
+  </div>
+
+  <div class="drawer-backdrop" id="detailBackdrop">
+    <div class="drawer">
+      <div class="drawer-head">
+        <div><div class="drawer-title" id="detailTitle">—</div><div class="drawer-sub" id="detailSub">—</div></div>
+        <button class="btn ghost" id="btnCloseDetail">Close</button>
+      </div>
+      <div class="drawer-body" id="detailBody"></div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
