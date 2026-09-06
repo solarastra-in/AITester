@@ -13,6 +13,41 @@ export interface User {
   createdAt: string;
 }
 
+export interface OrgApiKey {
+  id: string;
+  keyType: 'test_execution' | 'ai_integration' | 'webhook_secret';
+  name: string;
+  maskedKey: string;
+  fullKey?: string;
+  prefix: string;
+  createdAt: string;
+  lastUsedAt?: string | null;
+  rotatedAt?: string | null;
+  status: 'active' | 'expiring' | 'revoked';
+  expiresAt?: string | null;
+  previousKeyExpiresAt?: string | null;
+  allowedIps?: string[];
+  environment: 'production' | 'staging' | 'all';
+}
+
+export interface KeyRotationHistory {
+  id: string;
+  keyType: 'test_execution' | 'ai_integration' | 'webhook_secret';
+  rotatedByEmail: string;
+  rotatedAt: string;
+  gracePeriodHours: number;
+  reason: string;
+  oldKeyMasked: string;
+  newKeyMasked: string;
+}
+
+export interface OrgSecurityConfig {
+  apiKeys: OrgApiKey[];
+  rotationHistory: KeyRotationHistory[];
+  ipWhitelistingEnabled?: boolean;
+  mfaRequiredForAdmins?: boolean;
+}
+
 export interface Organization {
   id: string;
   name: string;
@@ -21,6 +56,7 @@ export interface Organization {
   tokenBudget?: number;
   createdBy: string;
   createdAt: string;
+  securityConfig?: OrgSecurityConfig;
 }
 
 export interface Team {
@@ -207,4 +243,96 @@ export interface BuildJourneyResult {
   dataset: Record<string, any>;
   cases: TestCase[];
 }
+
+export type AppView =
+  | 'home'
+  | 'studio'
+  | 'org_admin'
+  | 'super_admin'
+  | 'pricing'
+  | 'contact'
+  | 'docs'
+  | 'features'
+  | 'about';
+
+export interface ContactInquiry {
+  id?: string;
+  ticketId?: string;
+  name: string;
+  email: string;
+  company?: string;
+  category: string;
+  message: string;
+  priority?: 'Standard' | 'Expedited' | 'Critical SLA';
+  status?: string;
+  createdAt?: string;
+}
+
+export interface TrendDataPoint {
+  date: string;
+  fullDate: string;
+  passed: number;
+  failed: number;
+  total: number;
+  passRate: number;
+  avgDurationMs: number;
+}
+
+export interface CategoryAnalytics {
+  category: string;
+  total: number;
+  passed: number;
+  failed: number;
+  passRate: number;
+}
+
+export interface PriorityAnalytics {
+  priority: string;
+  count: number;
+  passed: number;
+  failed: number;
+}
+
+export interface AnalyticsDashboardData {
+  summary: {
+    totalRuns: number;
+    passedRuns: number;
+    failedRuns: number;
+    passRate: number;
+    avgDurationMs: number;
+    flakinessScore: number;
+    totalCases: number;
+    activeCasesRun: number;
+  };
+  trendOverTime: TrendDataPoint[];
+  categoryBreakdown: CategoryAnalytics[];
+  priorityBreakdown: PriorityAnalytics[];
+  typeBreakdown: Array<{ type: string; count: number }>;
+  executionModeBreakdown: Array<{ mode: string; count: number }>;
+  recentRuns: TestRun[];
+}
+
+export type ScheduleTriggerType = 'daily' | 'weekly' | 'cron';
+
+export interface TestSchedule {
+  id: string;
+  projectId: string;
+  suiteId?: string | 'all'; // 'all' or specific suiteId
+  suiteName?: string;
+  name: string;
+  scheduleType: ScheduleTriggerType;
+  cronExpression: string; // e.g. "0 2 * * *" or "0 9 * * 1" or custom
+  timeOfDay?: string; // e.g. "02:00"
+  dayOfWeek?: number; // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+  executionMode: 'preview' | 'hosted';
+  enabled: boolean;
+  notifyEmail?: string;
+  lastRunAt?: string | null;
+  lastRunPass?: boolean | null;
+  lastRunMessage?: string | null;
+  nextRunAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 

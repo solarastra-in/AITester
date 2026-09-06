@@ -12,11 +12,13 @@ import {
   AlertCircle,
   Clock,
   ArrowUpRight,
-  Sparkles
+  Sparkles,
+  Lock
 } from 'lucide-react';
 import { api } from '../services/api';
-import { User, Organization, Team, Project, CreditLedgerEntry } from '../types';
+import { User, Organization, Team, Project, CreditLedgerEntry, OrgSecurityConfig, SystemAuditLog } from '../types';
 import { AlertModal } from './AlertModal';
+import { OrgAdminSecurityTab } from './OrgAdminSecurityTab';
 
 interface OrgAdminViewProps {
   currentUser: User;
@@ -30,8 +32,11 @@ export const OrgAdminView: React.FC<OrgAdminViewProps> = ({ currentUser, onOpenB
     teams: Team[];
     projects: Project[];
     ledger: CreditLedgerEntry[];
+    securityConfig?: OrgSecurityConfig;
   } | null>(null);
 
+  const [auditLogs, setAuditLogs] = useState<SystemAuditLog[]>([]);
+  const [activeTab, setActiveTab] = useState<'teams' | 'members' | 'security'>('teams');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,6 +63,15 @@ export const OrgAdminView: React.FC<OrgAdminViewProps> = ({ currentUser, onOpenB
       setError(null);
       const res = await api.getOrgOverview();
       setData(res);
+
+      try {
+        const secRes = await api.getOrgSecurity();
+        if (secRes.auditLogs) {
+          setAuditLogs(secRes.auditLogs);
+        }
+      } catch (secErr) {
+        // Fallback gracefully if security logs query is pending
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to load organization overview.');
     } finally {
@@ -252,86 +266,163 @@ export const OrgAdminView: React.FC<OrgAdminViewProps> = ({ currentUser, onOpenB
         </div>
       </div>
 
-      {/* Teams Grid */}
-      <div className="mt-10">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-base font-bold text-white">Allocated Teams & Budgets</h2>
-            <p className="text-xs text-slate-400">Resource quotas for engineering & QA squads.</p>
+      {/* Top Navigation Tabs */}
+      <div className="mt-8 flex flex-wrap items-center gap-2 border-b border-[#1E2235] pb-3">
+        <button
+          onClick={() => setActiveTab('teams')}
+          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition ${
+            activeTab === 'teams'
+              ? 'bg-[#1A1D2B] text-emerald-300 ring-1 ring-emerald-500/30 border border-[#1E2235]'
+              : 'text-slate-400 hover:bg-[#131622] hover:text-white'
+          }`}
+        >
+          <Layers className={`h-4 w-4 ${activeTab === 'teams' ? 'text-emerald-400' : 'text-slate-500'}`} />
+          <span>Teams & Budgets ({teams.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('members')}
+          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition ${
+            activeTab === 'members'
+              ? 'bg-[#1A1D2B] text-emerald-300 ring-1 ring-emerald-500/30 border border-[#1E2235]'
+              : 'text-slate-400 hover:bg-[#131622] hover:text-white'
+          }`}
+        >
+          <Users className={`h-4 w-4 ${activeTab === 'members' ? 'text-emerald-400' : 'text-slate-500'}`} />
+          <span>Team Members ({members.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('security')}
+          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition ${
+            activeTab === 'security'
+              ? 'bg-[#1A1D2B] text-emerald-300 ring-1 ring-emerald-500/30 border border-[#1E2235]'
+              : 'text-slate-400 hover:bg-[#131622] hover:text-white'
+          }`}
+        >
+          <Shield className={`h-4 w-4 ${activeTab === 'security' ? 'text-emerald-400' : 'text-slate-500'}`} />
+          <span>Security & API Keys</span>
+          <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-mono text-emerald-300">
+            {data.securityConfig?.apiKeys?.length || 3} Active
+          </span>
+        </button>
+      </div>
+
+      {/* Tab: Teams Grid */}
+      {activeTab === 'teams' && (
+        <div className="mt-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-bold text-white">Allocated Teams & Budgets</h2>
+              <p className="text-xs text-slate-400">Resource quotas for engineering & QA squads.</p>
+            </div>
+            <button
+              onClick={() => setIsTeamModalOpen(true)}
+              className="flex items-center gap-1.5 rounded-xl border border-[#1E2235] bg-[#131622] px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-[#1A1D2B]"
+            >
+              <Plus className="h-3.5 w-3.5 text-emerald-400" />
+              <span>Add Team</span>
+            </button>
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            {teams.map(t => {
+              const teamMembers = members.filter(m => m.teamId === t.id);
+              return (
+                <div key={t.id} className="rounded-2xl border border-[#1E2235] bg-[#0F111A] p-5">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-white">{t.name}</h3>
+                    <span className="font-mono text-[10px] text-slate-500">{t.id}</span>
+                  </div>
+                  <div className="mt-4 space-y-2 font-mono text-xs">
+                    <div className="flex justify-between text-slate-400">
+                      <span>AI Token Quota:</span>
+                      <span className="text-emerald-300">{t.budgetTokens.toLocaleString()} tokens</span>
+                    </div>
+                    <div className="flex justify-between text-slate-400">
+                      <span>Assigned Members:</span>
+                      <span className="text-white">{teamMembers.length} users</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
+      )}
 
-        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-          {teams.map(t => {
-            const teamMembers = members.filter(m => m.teamId === t.id);
-            return (
-              <div key={t.id} className="rounded-2xl border border-[#1E2235] bg-[#0F111A] p-5">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-white">{t.name}</h3>
-                  <span className="font-mono text-[10px] text-slate-500">{t.id}</span>
-                </div>
-                <div className="mt-4 space-y-2 font-mono text-xs">
-                  <div className="flex justify-between text-slate-400">
-                    <span>AI Token Quota:</span>
-                    <span className="text-emerald-300">{t.budgetTokens.toLocaleString()} tokens</span>
-                  </div>
-                  <div className="flex justify-between text-slate-400">
-                    <span>Assigned Members:</span>
-                    <span className="text-white">{teamMembers.length} users</span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      {/* Tab: Members Table */}
+      {activeTab === 'members' && (
+        <div className="mt-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-bold text-white">Team Members & Access Roles</h2>
+              <p className="text-xs text-slate-400">Manage developer and QA access permissions within your organization.</p>
+            </div>
+            <button
+              onClick={() => setIsMemberModalOpen(true)}
+              className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-3.5 py-1.5 text-xs font-bold text-slate-950 transition hover:from-emerald-400 hover:to-teal-500"
+            >
+              <Users className="h-3.5 w-3.5" />
+              <span>Invite Member</span>
+            </button>
+          </div>
 
-      {/* Members Table */}
-      <div className="mt-10">
-        <h2 className="text-base font-bold text-white">Team Members & Access Roles</h2>
-        <div className="mt-4 overflow-hidden rounded-2xl border border-[#1E2235] bg-[#0F111A]">
-          <table className="w-full text-left text-xs">
-            <thead className="border-b border-[#1E2235] bg-[#06070B]/60 font-semibold text-slate-400">
-              <tr>
-                <th className="px-6 py-3">Member</th>
-                <th className="px-6 py-3">Role</th>
-                <th className="px-6 py-3">Team</th>
-                <th className="px-6 py-3">Status</th>
-                <th className="px-6 py-3">Joined</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#1E2235] text-slate-300">
-              {members.map(m => (
-                <tr key={m.id} className="hover:bg-[#131622]/40">
-                  <td className="px-6 py-3.5">
-                    <div className="font-semibold text-white">{m.name}</div>
-                    <div className="font-mono text-[11px] text-slate-400">{m.email}</div>
-                  </td>
-                  <td className="px-6 py-3.5">
-                    <span className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase ${
-                      m.role === 'org_admin' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-[#1A1D2B] text-slate-300 border border-[#1E2235]'
-                    }`}>
-                      {m.role}
-                    </span>
-                  </td>
-                  <td className="px-6 py-3.5 font-mono text-slate-400">
-                    {teams.find(t => t.id === m.teamId)?.name || 'General Org'}
-                  </td>
-                  <td className="px-6 py-3.5">
-                    <span className="inline-flex items-center gap-1 text-emerald-400">
-                      <CheckCircle2 className="h-3 w-3" />
-                      <span>Active</span>
-                    </span>
-                  </td>
-                  <td className="px-6 py-3.5 text-slate-400">
-                    {new Date(m.createdAt).toLocaleDateString()}
-                  </td>
+          <div className="mt-4 overflow-hidden rounded-2xl border border-[#1E2235] bg-[#0F111A]">
+            <table className="w-full text-left text-xs">
+              <thead className="border-b border-[#1E2235] bg-[#06070B]/60 font-semibold text-slate-400">
+                <tr>
+                  <th className="px-6 py-3">Member</th>
+                  <th className="px-6 py-3">Role</th>
+                  <th className="px-6 py-3">Team</th>
+                  <th className="px-6 py-3">Status</th>
+                  <th className="px-6 py-3">Joined</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-[#1E2235] text-slate-300">
+                {members.map(m => (
+                  <tr key={m.id} className="hover:bg-[#131622]/40">
+                    <td className="px-6 py-3.5">
+                      <div className="font-semibold text-white">{m.name}</div>
+                      <div className="font-mono text-[11px] text-slate-400">{m.email}</div>
+                    </td>
+                    <td className="px-6 py-3.5">
+                      <span className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase ${
+                        m.role === 'org_admin' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-[#1A1D2B] text-slate-300 border border-[#1E2235]'
+                      }`}>
+                        {m.role}
+                      </span>
+                    </td>
+                    <td className="px-6 py-3.5 font-mono text-slate-400">
+                      {teams.find(t => t.id === m.teamId)?.name || 'General Org'}
+                    </td>
+                    <td className="px-6 py-3.5">
+                      <span className="inline-flex items-center gap-1 text-emerald-400">
+                        <CheckCircle2 className="h-3 w-3" />
+                        <span>Active</span>
+                      </span>
+                    </td>
+                    <td className="px-6 py-3.5 text-slate-400">
+                      {new Date(m.createdAt).toLocaleDateString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Tab: Security & API Keys */}
+      {activeTab === 'security' && data.securityConfig && (
+        <div className="mt-8">
+          <OrgAdminSecurityTab
+            securityConfig={data.securityConfig}
+            auditLogs={auditLogs}
+            onRefresh={loadData}
+          />
+        </div>
+      )}
 
       {/* Modal: Seed Team */}
       {isTeamModalOpen && (

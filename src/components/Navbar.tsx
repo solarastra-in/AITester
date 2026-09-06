@@ -15,11 +15,11 @@ import {
   Code2
 } from 'lucide-react';
 import { signInWithGoogle } from '../services/firebase';
-import { User, Organization } from '../types';
+import { User, Organization, AppView } from '../types';
 
 interface NavbarProps {
-  currentView: 'home' | 'studio' | 'org_admin' | 'super_admin' | 'pricing';
-  onNavigate: (view: 'home' | 'studio' | 'org_admin' | 'super_admin' | 'pricing') => void;
+  currentView: AppView;
+  onNavigate: (view: AppView) => void;
   currentUser: User | null;
   currentOrg: Organization | null;
   onOpenAuth: (mode: 'login' | 'register') => void;
@@ -80,7 +80,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <nav className="hidden items-center gap-1 md:flex">
             <button
               onClick={() => onNavigate('home')}
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+              className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold transition ${
                 currentView === 'home'
                   ? 'bg-[#1A1D2B] text-emerald-300 ring-1 ring-[#2D334D]'
                   : 'text-slate-300 hover:bg-[#131622] hover:text-white'
@@ -90,55 +90,88 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
 
             <button
+              onClick={() => onNavigate('features')}
+              className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold transition ${
+                currentView === 'features'
+                  ? 'bg-[#1A1D2B] text-emerald-300 ring-1 ring-[#2D334D]'
+                  : 'text-slate-300 hover:bg-[#131622] hover:text-white'
+              }`}
+            >
+              Features
+            </button>
+
+            <button
               onClick={() => onNavigate('studio')}
-              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition ${
                 currentView === 'studio'
                   ? 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/40'
                   : 'text-slate-300 hover:bg-[#131622] hover:text-white'
               }`}
             >
               <Play className="h-3.5 w-3.5 text-emerald-400" />
-              Interactive Studio
+              Studio
+            </button>
+
+            <button
+              onClick={() => onNavigate('docs')}
+              className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold transition ${
+                currentView === 'docs'
+                  ? 'bg-[#1A1D2B] text-emerald-300 ring-1 ring-[#2D334D]'
+                  : 'text-slate-300 hover:bg-[#131622] hover:text-white'
+              }`}
+            >
+              Docs
+            </button>
+
+            <button
+              onClick={() => onNavigate('pricing')}
+              className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold transition ${
+                currentView === 'pricing'
+                  ? 'bg-[#1A1D2B] text-emerald-300 ring-1 ring-[#2D334D]'
+                  : 'text-slate-300 hover:bg-[#131622] hover:text-white'
+              }`}
+            >
+              Pricing
+            </button>
+
+            <button
+              onClick={() => onNavigate('contact')}
+              className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold transition ${
+                currentView === 'contact'
+                  ? 'bg-[#1A1D2B] text-emerald-300 ring-1 ring-[#2D334D]'
+                  : 'text-slate-300 hover:bg-[#131622] hover:text-white'
+              }`}
+            >
+              Contact Us
             </button>
 
             {isOrgAdmin && (
               <button
                 onClick={() => onNavigate('org_admin')}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition ${
                   currentView === 'org_admin'
                     ? 'bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/40'
                     : 'text-slate-300 hover:bg-[#131622] hover:text-white'
                 }`}
               >
                 <Building2 className="h-3.5 w-3.5 text-amber-400" />
-                Customer Admin
+                Org Admin
               </button>
             )}
 
             {isPlatformAdmin && (
               <button
                 onClick={() => onNavigate('super_admin')}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition ${
                   currentView === 'super_admin'
                     ? 'bg-rose-500/20 text-rose-300 ring-1 ring-rose-500/40'
                     : 'text-slate-300 hover:bg-[#131622] hover:text-white'
                 }`}
               >
                 <ShieldCheck className="h-3.5 w-3.5 text-rose-400" />
-                Platform Superadmin
+                Superadmin
               </button>
             )}
-
-            <button
-              onClick={() => onNavigate('pricing')}
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                currentView === 'pricing'
-                  ? 'bg-[#1A1D2B] text-emerald-300 ring-1 ring-[#2D334D]'
-                  : 'text-slate-300 hover:bg-[#131622] hover:text-white'
-              }`}
-            >
-              Pricing & Deploy
-            </button>
           </nav>
         </div>
 

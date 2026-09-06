@@ -41,6 +41,11 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Test Schedules
+    match /test_schedules/{scheduleId} {
+      allow read, write: if true;
+    }
+
     // Diagnostics / connection test
     match /test/{docId} {
       allow read, write: if true;

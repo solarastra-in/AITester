@@ -13,6 +13,41 @@ export interface User {
   createdAt: string;
 }
 
+export interface OrgApiKey {
+  id: string;
+  keyType: 'test_execution' | 'ai_integration' | 'webhook_secret';
+  name: string;
+  maskedKey: string;
+  fullKey?: string;
+  prefix: string;
+  createdAt: string;
+  lastUsedAt?: string | null;
+  rotatedAt?: string | null;
+  status: 'active' | 'expiring' | 'revoked';
+  expiresAt?: string | null;
+  previousKeyExpiresAt?: string | null;
+  allowedIps?: string[];
+  environment: 'production' | 'staging' | 'all';
+}
+
+export interface KeyRotationHistory {
+  id: string;
+  keyType: 'test_execution' | 'ai_integration' | 'webhook_secret';
+  rotatedByEmail: string;
+  rotatedAt: string;
+  gracePeriodHours: number;
+  reason: string;
+  oldKeyMasked: string;
+  newKeyMasked: string;
+}
+
+export interface OrgSecurityConfig {
+  apiKeys: OrgApiKey[];
+  rotationHistory: KeyRotationHistory[];
+  ipWhitelistingEnabled?: boolean;
+  mfaRequiredForAdmins?: boolean;
+}
+
 export interface Organization {
   id: string;
   name: string;
@@ -21,6 +56,7 @@ export interface Organization {
   createdBy: string;
   createdAt: string;
   tokenBudget?: number;
+  securityConfig?: OrgSecurityConfig;
 }
 
 export interface Team {
@@ -145,6 +181,29 @@ export interface SystemAuditLog {
   timestamp: string;
 }
 
+export type ScheduleTriggerType = 'daily' | 'weekly' | 'cron';
+
+export interface TestSchedule {
+  id: string;
+  projectId: string;
+  suiteId?: string | 'all';
+  suiteName?: string;
+  name: string;
+  scheduleType: ScheduleTriggerType;
+  cronExpression: string;
+  timeOfDay?: string;
+  dayOfWeek?: number;
+  executionMode: 'preview' | 'hosted';
+  enabled: boolean;
+  notifyEmail?: string;
+  lastRunAt?: string | null;
+  lastRunPass?: boolean | null;
+  lastRunMessage?: string | null;
+  nextRunAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface DatabaseSchema {
   users: User[];
   organizations: Organization[];
@@ -155,4 +214,5 @@ export interface DatabaseSchema {
   testRuns: TestRun[];
   creditLedger: CreditLedgerEntry[];
   auditLogs: SystemAuditLog[];
+  testSchedules?: TestSchedule[];
 }

@@ -5,19 +5,73 @@ import { ProjectStudio } from './components/ProjectStudio';
 import { OrgAdminView } from './components/OrgAdminView';
 import { SuperAdminView } from './components/SuperAdminView';
 import { PricingView } from './components/PricingView';
+import { ContactView } from './components/ContactView';
+import { FeaturesView } from './components/FeaturesView';
+import { DocsView } from './components/DocsView';
+import { AboutView } from './components/AboutView';
 import { BillingModal } from './components/BillingModal';
 import { AuthModals } from './components/AuthModals';
-import { api, getStoredToken, clearStoredToken } from './services/api';
+import { api, clearStoredToken } from './services/api';
 import { subscribeAuthState, signOutGoogle, ensureFirestoreInitialized } from './services/firebase';
-import { User, Organization } from './types';
+import { User, Organization, AppView } from './types';
+
+const VIEW_TITLES: Record<AppView, string> = {
+  home: 'Verity — Zero-Dummy-Data QA Automation, Live Network Introspection & Multi-Cloud Docker Delivery',
+  studio: 'Interactive QA Studio — Verity Automated Test Platform',
+  features: 'Architectural Features & 0-Gap Testing — Verity QA Platform',
+  docs: 'Developer Documentation & Specification Schema — Verity QA Platform',
+  pricing: 'Pricing, Self-Hosted Docker & Hosted Cloud Runners — Verity QA Platform',
+  contact: 'Contact Engineering Solutions & Support — Verity QA Platform',
+  about: 'About Mission, Zero-Trust Architecture & Security — Verity QA Platform',
+  org_admin: 'Organization Customer Admin — Verity QA Platform',
+  super_admin: 'Platform Superadmin — Verity QA Platform',
+};
 
 export function App() {
-  const [currentView, setCurrentView] = useState<'home' | 'studio' | 'org_admin' | 'super_admin' | 'pricing'>('home');
+  const [currentView, setCurrentView] = useState<AppView>('home');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [currentOrg, setCurrentOrg] = useState<Organization | null>(null);
   const [authMode, setAuthMode] = useState<'login' | 'register' | 'reset' | null>(null);
   const [isBillingOpen, setIsBillingOpen] = useState(false);
   const [isLoadingUser, setIsLoadingUser] = useState(true);
+
+  // Sync currentView with URL hash for search engine crawlability and deep links
+  useEffect(() => {
+    const parseHash = (): AppView => {
+      const hash = window.location.hash.replace('#', '').toLowerCase();
+      if (['studio', 'features', 'docs', 'pricing', 'contact', 'about', 'org_admin', 'super_admin'].includes(hash)) {
+        return hash as AppView;
+      }
+      return 'home';
+    };
+
+    const initialView = parseHash();
+    if (initialView !== 'home') {
+      setCurrentView(initialView);
+    }
+
+    const handleHashChange = () => {
+      setCurrentView(parseHash());
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  // Update browser document title when view changes
+  useEffect(() => {
+    document.title = VIEW_TITLES[currentView] || VIEW_TITLES.home;
+  }, [currentView]);
+
+  const handleNavigate = (view: AppView) => {
+    setCurrentView(view);
+    if (view === 'home') {
+      history.pushState(null, '', ' ');
+    } else {
+      window.location.hash = view;
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   // Initialize Firestore datasets and listen to Google Auth state
   useEffect(() => {
@@ -28,7 +82,6 @@ export function App() {
         setCurrentUser(googleUser);
         setIsLoadingUser(false);
       } else {
-        // If not logged in via Firebase Google Auth, check backend session or default demo
         fetchCurrentUser();
       }
     });
@@ -44,7 +97,6 @@ export function App() {
       setCurrentUser(res.user);
       setCurrentOrg(res.organization);
     } catch {
-      // If no valid session, auto-login default demo persona for seamless zero-barrier development preview
       try {
         const demo = await api.switchPersona('platform_admin');
         setCurrentUser(demo.user);
@@ -76,13 +128,13 @@ export function App() {
     clearStoredToken();
     setCurrentUser(null);
     setCurrentOrg(null);
-    setCurrentView('home');
+    handleNavigate('home');
   };
 
   const handleAuthSuccess = (user: User) => {
     setCurrentUser(user);
     if (currentView === 'home') {
-      setCurrentView('studio');
+      handleNavigate('studio');
     }
   };
 
@@ -91,7 +143,7 @@ export function App() {
       {/* Navigation Bar */}
       <Navbar
         currentView={currentView}
-        onNavigate={setCurrentView}
+        onNavigate={handleNavigate}
         currentUser={currentUser}
         currentOrg={currentOrg}
         onOpenAuth={setAuthMode}
@@ -104,14 +156,32 @@ export function App() {
       <main className="flex-1">
         {currentView === 'home' && (
           <Homepage
-            onStartStudio={() => setCurrentView('studio')}
-            onOpenPricing={() => setCurrentView('pricing')}
+            onStartStudio={() => handleNavigate('studio')}
+            onOpenPricing={() => handleNavigate('pricing')}
+            onOpenFeatures={() => handleNavigate('features')}
+            onOpenDocs={() => handleNavigate('docs')}
+            onOpenContact={() => handleNavigate('contact')}
             onSelectPersona={(role, email) => {
               handleSwitchPersona(role, email);
-              if (role === 'platform_admin') setCurrentView('super_admin');
-              else if (role === 'org_admin') setCurrentView('org_admin');
-              else setCurrentView('studio');
+              if (role === 'platform_admin') handleNavigate('super_admin');
+              else if (role === 'org_admin') handleNavigate('org_admin');
+              else handleNavigate('studio');
             }}
+          />
+        )}
+
+        {currentView === 'features' && (
+          <FeaturesView
+            onStartStudio={() => handleNavigate('studio')}
+            onOpenPricing={() => handleNavigate('pricing')}
+            onOpenContact={() => handleNavigate('contact')}
+          />
+        )}
+
+        {currentView === 'docs' && (
+          <DocsView
+            onStartStudio={() => handleNavigate('studio')}
+            onOpenContact={() => handleNavigate('contact')}
           />
         )}
 
@@ -120,6 +190,28 @@ export function App() {
             currentUser={currentUser}
             currentOrg={currentOrg}
             onOpenBilling={() => setIsBillingOpen(true)}
+          />
+        )}
+
+        {currentView === 'pricing' && (
+          <PricingView
+            onStartStudio={() => handleNavigate('studio')}
+            onOpenAuth={setAuthMode}
+            onOpenBilling={() => setIsBillingOpen(true)}
+          />
+        )}
+
+        {currentView === 'contact' && (
+          <ContactView
+            onStartStudio={() => handleNavigate('studio')}
+            onOpenPricing={() => handleNavigate('pricing')}
+          />
+        )}
+
+        {currentView === 'about' && (
+          <AboutView
+            onStartStudio={() => handleNavigate('studio')}
+            onOpenContact={() => handleNavigate('contact')}
           />
         )}
 
@@ -133,31 +225,143 @@ export function App() {
         {currentView === 'super_admin' && (
           <SuperAdminView />
         )}
-
-        {currentView === 'pricing' && (
-          <PricingView
-            onStartStudio={() => setCurrentView('studio')}
-            onOpenAuth={setAuthMode}
-            onOpenBilling={() => setIsBillingOpen(true)}
-          />
-        )}
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-[#1E2235] bg-[#07080D] py-8 text-center text-xs text-slate-500">
-        <div className="mx-auto max-w-7xl px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <span className="font-mono font-bold text-emerald-400">◈ VERITY</span>
-            <span className="text-slate-400">— Interactive Automated Testing & Multi-Cloud Package Delivery</span>
+      {/* SEO-Enhanced Multi-Column Footer */}
+      <footer className="border-t border-[#1E2235] bg-[#07080D] pt-12 pb-8 text-xs text-slate-400">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-10">
+            {/* Column 1: Brand & Tagline */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500 text-slate-950 font-black font-mono">
+                  ◈
+                </div>
+                <span className="font-bold text-white text-base tracking-tight">VERITY QA</span>
+              </div>
+              <p className="text-slate-400 text-xs leading-relaxed">
+                Enterprise automated test execution platform. Live URL network introspection, 0-gap dynamic datasets, and self-contained Docker package delivery for modern distributed architectures.
+              </p>
+              <div className="text-[11px] text-emerald-400 font-mono">
+                100% Zero Dummy Data Guarantee
+              </div>
+            </div>
+
+            {/* Column 2: Product & Capabilities */}
+            <div>
+              <h4 className="font-semibold text-white mb-3 text-xs uppercase tracking-wider">Product & Capabilities</h4>
+              <ul className="space-y-2 text-xs">
+                <li>
+                  <button onClick={() => handleNavigate('studio')} className="hover:text-emerald-400 transition">
+                    Interactive Studio
+                  </button>
+                </li>
+                <li>
+                  <button onClick={() => handleNavigate('features')} className="hover:text-emerald-400 transition">
+                    Live URL Introspection
+                  </button>
+                </li>
+                <li>
+                  <button onClick={() => handleNavigate('features')} className="hover:text-emerald-400 transition">
+                    0-Gap Parameter Datasets
+                  </button>
+                </li>
+                <li>
+                  <button onClick={() => handleNavigate('features')} className="hover:text-emerald-400 transition">
+                    Standalone Docker Packaging
+                  </button>
+                </li>
+                <li>
+                  <button onClick={() => handleNavigate('pricing')} className="hover:text-emerald-400 transition">
+                    Pricing & Credits ($0 Self-Hosted)
+                  </button>
+                </li>
+              </ul>
+            </div>
+
+            {/* Column 3: Documentation & Guides */}
+            <div>
+              <h4 className="font-semibold text-white mb-3 text-xs uppercase tracking-wider">Documentation & Guides</h4>
+              <ul className="space-y-2 text-xs">
+                <li>
+                  <button onClick={() => handleNavigate('docs')} className="hover:text-emerald-400 transition">
+                    Quick Start Guide (60 Seconds)
+                  </button>
+                </li>
+                <li>
+                  <button onClick={() => handleNavigate('docs')} className="hover:text-emerald-400 transition">
+                    Test Spec Schema (HTTP/Load)
+                  </button>
+                </li>
+                <li>
+                  <button onClick={() => handleNavigate('docs')} className="hover:text-emerald-400 transition">
+                    Docker CLI & CI/CD Pipelines
+                  </button>
+                </li>
+                <li>
+                  <a href="/sitemap.xml" target="_blank" rel="noopener noreferrer" className="hover:text-emerald-400 transition">
+                    XML Sitemap
+                  </a>
+                </li>
+                <li>
+                  <a href="/robots.txt" target="_blank" rel="noopener noreferrer" className="hover:text-emerald-400 transition">
+                    robots.txt Indexing Spec
+                  </a>
+                </li>
+              </ul>
+            </div>
+
+            {/* Column 4: Enterprise & Support */}
+            <div>
+              <h4 className="font-semibold text-white mb-3 text-xs uppercase tracking-wider">Enterprise & Support</h4>
+              <ul className="space-y-2 text-xs">
+                <li>
+                  <button onClick={() => handleNavigate('contact')} className="hover:text-emerald-400 transition font-semibold text-emerald-300">
+                    Contact Engineering Support
+                  </button>
+                </li>
+                <li>
+                  <button onClick={() => handleNavigate('about')} className="hover:text-emerald-400 transition">
+                    Security & SOC-2 Compliance
+                  </button>
+                </li>
+                <li>
+                  <button onClick={() => handleNavigate('about')} className="hover:text-emerald-400 transition">
+                    Zero-Trust Credential Isolation
+                  </button>
+                </li>
+                <li>
+                  <span className="text-slate-500">Global Support: </span>
+                  <a href="mailto:support@verity-qa.dev" className="text-emerald-400 hover:underline">
+                    support@verity-qa.dev
+                  </a>
+                </li>
+                <li>
+                  <button onClick={() => setIsBillingOpen(true)} className="hover:text-emerald-400 transition">
+                    Manage Cloud Credits & Ledgers
+                  </button>
+                </li>
+              </ul>
+            </div>
           </div>
-          <div className="flex items-center gap-4 text-slate-400">
-            <span>Self-Hosted Docker: <strong className="text-emerald-400">$0</strong></span>
-            <span>•</span>
-            <span>Cloud Runs: 1 Credit/Run</span>
-            <span>•</span>
-            <button onClick={() => setIsBillingOpen(true)} className="hover:text-emerald-400 transition">
-              Credits & Billing
-            </button>
+
+          <div className="border-t border-[#1E2235] pt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-slate-500">
+            <div>
+              © {new Date().getFullYear()} Verity QA Platform. All rights reserved. Zero dummy data testing framework.
+            </div>
+            <div className="flex items-center gap-4">
+              <button onClick={() => handleNavigate('about')} className="hover:text-slate-300 transition">
+                Privacy Policy
+              </button>
+              <span>•</span>
+              <button onClick={() => handleNavigate('about')} className="hover:text-slate-300 transition">
+                Security Architecture
+              </button>
+              <span>•</span>
+              <button onClick={() => handleNavigate('contact')} className="hover:text-slate-300 transition">
+                SLA Guarantees
+              </button>
+            </div>
           </div>
         </div>
       </footer>
@@ -179,3 +383,4 @@ export function App() {
   );
 }
 export default App;
+

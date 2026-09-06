@@ -1,0 +1,14 @@
+# Verity Automated Test Platform robots.txt
+User-agent: *
+Allow: /
+Allow: /features
+Allow: /docs
+Allow: /pricing
+Allow: /contact
+Allow: /about
+Allow: /studio
+Disallow: /api/
+Disallow: /admin
+
+# Sitemap reference
+Sitemap: https://ais-pre-zxirjfnjh6bl2ylg7svoja-4552824319.us-west2.run.app/sitemap.xml

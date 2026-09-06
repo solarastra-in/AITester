@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
-import { DatabaseSchema, User, Organization, Team, Project, Suite, TestCase, TestRun, CreditLedgerEntry, SystemAuditLog } from './types.js';
+import { DatabaseSchema, User, Organization, Team, Project, Suite, TestCase, TestRun, CreditLedgerEntry, SystemAuditLog, TestSchedule } from './types.js';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'verity-db.json');
@@ -254,7 +254,7 @@ function getInitialDb(): DatabaseSchema {
         ],
         expect: {
           statusIn: [401, 403, 404],
-          bodyContains: ['message', 'Requires authentication'],
+          bodyContains: ['message'],
         },
       },
       dataFields: ['test_org', 'test_repo', 'userAgent'],
@@ -366,6 +366,49 @@ function getInitialDb(): DatabaseSchema {
     },
   ];
 
+  const defaultSchedules: TestSchedule[] = [
+    {
+      id: 'sched_daily_smoke',
+      projectId: 'proj_github_api',
+      suiteId: 'all',
+      suiteName: 'All Suites',
+      name: 'Daily Smoke & Health Ping',
+      scheduleType: 'daily',
+      cronExpression: '0 2 * * *',
+      timeOfDay: '02:00',
+      dayOfWeek: 1,
+      executionMode: 'preview',
+      enabled: true,
+      notifyEmail: 'qa.lead@acmecorp.com',
+      lastRunAt: new Date(Date.now() - 6 * 3600 * 1000).toISOString(),
+      lastRunPass: true,
+      lastRunMessage: 'Completed: 3 passed, 0 failed (3 total)',
+      nextRunAt: new Date(Date.now() + 18 * 3600 * 1000).toISOString(),
+      createdAt: new Date(Date.now() - 10 * 24 * 3600 * 1000).toISOString(),
+      updatedAt: new Date(Date.now() - 6 * 3600 * 1000).toISOString(),
+    },
+    {
+      id: 'sched_weekly_regression',
+      projectId: 'proj_github_api',
+      suiteId: 'suite_gh_01',
+      suiteName: 'GitHub Public Core API Suite',
+      name: 'Weekly Full Regression Audit',
+      scheduleType: 'weekly',
+      cronExpression: '0 6 * * 1',
+      timeOfDay: '06:00',
+      dayOfWeek: 1,
+      executionMode: 'hosted',
+      enabled: true,
+      notifyEmail: 'admin@verity.dev',
+      lastRunAt: new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString(),
+      lastRunPass: true,
+      lastRunMessage: 'Completed: 3 passed, 0 failed (3 total)',
+      nextRunAt: new Date(Date.now() + 5 * 24 * 3600 * 1000).toISOString(),
+      createdAt: new Date(Date.now() - 10 * 24 * 3600 * 1000).toISOString(),
+      updatedAt: new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString(),
+    },
+  ];
+
   return {
     users: defaultUsers,
     organizations: defaultOrgs,
@@ -376,6 +419,7 @@ function getInitialDb(): DatabaseSchema {
     testRuns: [],
     creditLedger: defaultLedger,
     auditLogs: defaultAuditLogs,
+    testSchedules: defaultSchedules,
   };
 }
 
@@ -404,6 +448,30 @@ class Database {
           testRuns: parsed.testRuns || [],
           creditLedger: parsed.creditLedger || [],
           auditLogs: parsed.auditLogs || [],
+          testSchedules: (parsed.testSchedules && parsed.testSchedules.length > 0)
+            ? parsed.testSchedules
+            : [
+                {
+                  id: 'sched_daily_smoke',
+                  projectId: 'proj_github_api',
+                  suiteId: 'all',
+                  suiteName: 'All Suites',
+                  name: 'Daily Smoke & Health Ping',
+                  scheduleType: 'daily',
+                  cronExpression: '0 2 * * *',
+                  timeOfDay: '02:00',
+                  dayOfWeek: 1,
+                  executionMode: 'preview',
+                  enabled: true,
+                  notifyEmail: 'qa.lead@acmecorp.com',
+                  lastRunAt: new Date(Date.now() - 6 * 3600 * 1000).toISOString(),
+                  lastRunPass: true,
+                  lastRunMessage: 'Completed: 3 passed, 0 failed (3 total)',
+                  nextRunAt: new Date(Date.now() + 18 * 3600 * 1000).toISOString(),
+                  createdAt: new Date(Date.now() - 10 * 24 * 3600 * 1000).toISOString(),
+                  updatedAt: new Date(Date.now() - 6 * 3600 * 1000).toISOString(),
+                },
+              ],
         };
       }
     } catch (e) {

@@ -10,6 +10,12 @@ import {
   Team,
   IntrospectedWebsiteData,
   BuildJourneyResult,
+  AnalyticsDashboardData,
+  OrgSecurityConfig,
+  OrgApiKey,
+  KeyRotationHistory,
+  TestSchedule,
+  Suite,
 } from '../types';
 
 const TOKEN_KEY = 'verity_auth_token';
@@ -164,11 +170,16 @@ export const api = {
 
   async getProjectCases(id: string): Promise<{
     cases: TestCase[];
+    suites?: Suite[];
     dataset: Record<string, any>;
     allNeededFields: string[];
     missingProjectFields: string[];
   }> {
     return request(`/api/projects/${id}/cases`);
+  },
+
+  async getSuites(projectId: string): Promise<Suite[]> {
+    return request<Suite[]>(`/api/projects/${projectId}/suites`);
   },
 
   async updateDataset(projectId: string, dataset: Record<string, any>): Promise<Record<string, any>> {
@@ -263,10 +274,86 @@ export const api = {
     });
   },
 
+  async bulkRunTestCases(projectId: string, caseIds: string[], mode: 'preview' | 'hosted' = 'preview'): Promise<{
+    runs: TestRun[];
+    count: number;
+    passedCount: number;
+    failedCount: number;
+  }> {
+    return request(`/api/projects/${projectId}/cases/bulk-run`, {
+      method: 'POST',
+      body: JSON.stringify({ caseIds, mode }),
+    });
+  },
+
+  async bulkDeleteTestCases(projectId: string, caseIds: string[]): Promise<{
+    ok: boolean;
+    deletedCount: number;
+    message: string;
+  }> {
+    return request(`/api/projects/${projectId}/cases/bulk-delete`, {
+      method: 'POST',
+      body: JSON.stringify({ caseIds }),
+    });
+  },
+
   async recordManualResult(projectId: string, caseId: string, pass: boolean, notes: string): Promise<TestRun> {
     return request(`/api/projects/${projectId}/cases/${caseId}/manual-result`, {
       method: 'POST',
       body: JSON.stringify({ pass, notes }),
+    });
+  },
+
+  async getProjectRuns(projectId: string = 'all', limit: number = 200): Promise<{ runs: TestRun[]; total: number }> {
+    return request<{ runs: TestRun[]; total: number }>(`/api/projects/${projectId}/runs?limit=${limit}`);
+  },
+
+  async getProjectAnalytics(projectId: string = 'all', days: number = 14): Promise<AnalyticsDashboardData> {
+    return request<AnalyticsDashboardData>(`/api/projects/${projectId}/analytics?days=${days}`);
+  },
+
+  // Test Suite Scheduling & Automated Triggers
+  async getSchedules(projectId: string): Promise<TestSchedule[]> {
+    return request<TestSchedule[]>(`/api/projects/${projectId}/schedules`);
+  },
+
+  async createSchedule(projectId: string, schedule: Partial<TestSchedule>): Promise<TestSchedule> {
+    return request<TestSchedule>(`/api/projects/${projectId}/schedules`, {
+      method: 'POST',
+      body: JSON.stringify(schedule),
+    });
+  },
+
+  async updateSchedule(projectId: string, scheduleId: string, updates: Partial<TestSchedule>): Promise<TestSchedule> {
+    return request<TestSchedule>(`/api/projects/${projectId}/schedules/${scheduleId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  },
+
+  async deleteSchedule(projectId: string, scheduleId: string): Promise<{ ok: boolean }> {
+    return request<{ ok: boolean }>(`/api/projects/${projectId}/schedules/${scheduleId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  async toggleSchedule(projectId: string, scheduleId: string): Promise<TestSchedule> {
+    return request<TestSchedule>(`/api/projects/${projectId}/schedules/${scheduleId}/toggle`, {
+      method: 'POST',
+    });
+  },
+
+  async triggerSchedule(projectId: string, scheduleId: string): Promise<{
+    schedule: TestSchedule;
+    runs: TestRun[];
+    summary: { total: number; passed: number; failed: number };
+  }> {
+    return request<{
+      schedule: TestSchedule;
+      runs: TestRun[];
+      summary: { total: number; passed: number; failed: number };
+    }>(`/api/projects/${projectId}/schedules/${scheduleId}/trigger`, {
+      method: 'POST',
     });
   },
 
@@ -326,6 +413,55 @@ export const api = {
     });
   },
 
+  async getOrgSecurity(): Promise<{
+    securityConfig: OrgSecurityConfig;
+    auditLogs: SystemAuditLog[];
+  }> {
+    return request('/api/org/security');
+  },
+
+  async rotateOrgApiKey(params: {
+    keyType: 'test_execution' | 'ai_integration' | 'webhook_secret';
+    gracePeriodHours?: number;
+    reason?: string;
+    environment?: 'production' | 'staging' | 'all';
+  }): Promise<{
+    ok: boolean;
+    newKey: string;
+    apiKey: OrgApiKey;
+    rotation: KeyRotationHistory;
+    message: string;
+  }> {
+    return request('/api/org/security/rotate-key', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    });
+  },
+
+  async revokePreviousKeyGrace(keyType: 'test_execution' | 'ai_integration' | 'webhook_secret'): Promise<{
+    ok: boolean;
+    apiKey: OrgApiKey;
+    message: string;
+  }> {
+    return request('/api/org/security/revoke-previous-key', {
+      method: 'POST',
+      body: JSON.stringify({ keyType }),
+    });
+  },
+
+  async testOrgKeyConnectivity(keyType: 'test_execution' | 'ai_integration' | 'webhook_secret'): Promise<{
+    ok: boolean;
+    latencyMs: number;
+    message: string;
+    testedAt: string;
+  }> {
+    return request('/api/org/security/test-key', {
+      method: 'POST',
+      body: JSON.stringify({ keyType }),
+    });
+  },
+
+
   // Platform Superadmin
   async getAdminStats(): Promise<{
     orgCount: number;
@@ -370,5 +506,26 @@ export const api = {
 
   async getAdminAuditLogs(): Promise<SystemAuditLog[]> {
     return request('/api/admin/audit-logs');
+  },
+
+  async submitContact(data: {
+    name: string;
+    email: string;
+    company?: string;
+    category: string;
+    message: string;
+    priority?: string;
+  }): Promise<{ ok: boolean; ticketId: string; message: string; inquiry: any }> {
+    return request('/api/contact', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async getContactCategories(): Promise<{
+    categories: Array<{ id: string; label: string; sla: string }>;
+    supportChannels: Array<{ channel: string; email: string; hours: string }>;
+  }> {
+    return request('/api/contact/categories');
   },
 };

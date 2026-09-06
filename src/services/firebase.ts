@@ -26,7 +26,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
-import { Project, TestCase, TestRun, Suite, User } from '../types';
+import { Project, TestCase, TestRun, Suite, User, TestSchedule } from '../types';
 
 // Initialize Firebase App
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
@@ -470,6 +470,12 @@ export const testCaseService = {
   // Delete Test Case
   async deleteTestCase(id: string): Promise<void> {
     await deleteDoc(doc(db, 'test_cases', id));
+  },
+
+  // Bulk Delete Test Cases
+  async deleteTestCases(ids: string[]): Promise<void> {
+    const promises = ids.map(id => deleteDoc(doc(db, 'test_cases', id)));
+    await Promise.all(promises);
   }
 };
 
@@ -502,6 +508,39 @@ export const testRunService = {
     const snap = await getDocs(q);
     await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
   }
+};
+
+// ----------------------------------------------------------------------
+// SCHEDULE SERVICE (Firestore 'test_schedules')
+// ----------------------------------------------------------------------
+
+export const scheduleService = {
+  async getSchedules(projectId: string): Promise<TestSchedule[]> {
+    try {
+      const q = query(collection(db, 'test_schedules'), where('projectId', '==', projectId));
+      const snap = await getDocs(q);
+      return snap.docs.map(d => d.data() as TestSchedule);
+    } catch (err: any) {
+      console.warn('Firestore getSchedules notice:', err);
+      return [];
+    }
+  },
+
+  async saveSchedule(schedule: TestSchedule): Promise<void> {
+    try {
+      await setDoc(doc(db, 'test_schedules', schedule.id), schedule, { merge: true });
+    } catch (err: any) {
+      console.warn('Firestore saveSchedule notice:', err);
+    }
+  },
+
+  async deleteSchedule(scheduleId: string): Promise<void> {
+    try {
+      await deleteDoc(doc(db, 'test_schedules', scheduleId));
+    } catch (err: any) {
+      console.warn('Firestore deleteSchedule notice:', err);
+    }
+  },
 };
 
 // ----------------------------------------------------------------------

@@ -25,12 +25,18 @@ import { TestCoverageWidget } from './TestCoverageWidget';
 interface HomepageProps {
   onStartStudio: () => void;
   onOpenPricing: () => void;
+  onOpenFeatures?: () => void;
+  onOpenDocs?: () => void;
+  onOpenContact?: () => void;
   onSelectPersona: (role: string, email: string) => void;
 }
 
 export const Homepage: React.FC<HomepageProps> = ({
   onStartStudio,
   onOpenPricing,
+  onOpenFeatures,
+  onOpenDocs,
+  onOpenContact,
   onSelectPersona,
 }) => {
   const [playgroundUrl, setPlaygroundUrl] = useState('https://httpbin.org/get');
@@ -101,12 +107,31 @@ export const Homepage: React.FC<HomepageProps> = ({
               <span>Launch Interactive Studio</span>
             </button>
 
+            {onOpenFeatures && (
+              <button
+                onClick={onOpenFeatures}
+                className="flex items-center gap-2 rounded-xl border border-[#1E2235] bg-[#0F111A] px-5 py-3.5 text-sm font-semibold text-slate-200 transition hover:bg-[#131622] hover:border-emerald-500/40"
+              >
+                <Sparkles className="h-4 w-4 text-emerald-400" />
+                <span>Zero-Dummy Features</span>
+              </button>
+            )}
+
+            {onOpenContact && (
+              <button
+                onClick={onOpenContact}
+                className="flex items-center gap-2 rounded-xl border border-[#1E2235] bg-[#0F111A] px-5 py-3.5 text-sm font-semibold text-slate-200 transition hover:bg-[#131622] hover:border-emerald-500/40"
+              >
+                <span>Contact Engineering</span>
+              </button>
+            )}
+
             <button
               onClick={onOpenPricing}
-              className="flex items-center gap-2 rounded-xl border border-[#1E2235] bg-[#0F111A] px-6 py-3.5 text-sm font-semibold text-slate-200 transition hover:bg-[#131622] hover:border-[#2D334D]"
+              className="flex items-center gap-2 rounded-xl border border-[#1E2235] bg-[#0F111A] px-5 py-3.5 text-sm font-semibold text-slate-200 transition hover:bg-[#131622] hover:border-[#2D334D]"
             >
               <Download className="h-4 w-4 text-emerald-400" />
-              <span>Explore Standalone Package</span>
+              <span>Pricing ($0 Docker)</span>
             </button>
           </div>
         </div>

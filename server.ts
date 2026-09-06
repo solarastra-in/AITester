@@ -9,6 +9,7 @@ import { orgRouter } from './server/routes/orgRoutes.js';
 import { projectRouter } from './server/routes/projectRoutes.js';
 import { billingRouter } from './server/routes/billingRoutes.js';
 import { packageRouter } from './server/routes/packageRoutes.js';
+import { contactRouter } from './server/routes/contactRoutes.js';
 
 dotenv.config();
 
@@ -36,6 +37,7 @@ async function startServer() {
   app.use('/api/projects', projectRouter);
   app.use('/api/billing', billingRouter);
   app.use('/api/package', packageRouter);
+  app.use('/api/contact', contactRouter);
 
   // Error handling middleware
   app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

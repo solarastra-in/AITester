@@ -112,6 +112,28 @@
         "memberCount": { "type": "number", "description": "Active members" }
       },
       "required": ["id", "name"]
+    },
+    "TestSchedule": {
+      "title": "TestSchedule",
+      "description": "Automated daily, weekly, or cron-based test suite execution triggers",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Schedule ID" },
+        "projectId": { "type": "string", "description": "Associated project ID" },
+        "suiteId": { "type": "string", "description": "Target suite ID or 'all'" },
+        "name": { "type": "string", "description": "Schedule title" },
+        "scheduleType": { "type": "string", "description": "daily, weekly, or cron" },
+        "cronExpression": { "type": "string", "description": "Cron expression or calculated schedule" },
+        "timeOfDay": { "type": "string", "description": "Execution time e.g. 02:00" },
+        "dayOfWeek": { "type": "number", "description": "Day of week (0-6)" },
+        "executionMode": { "type": "string", "description": "preview or hosted" },
+        "enabled": { "type": "boolean", "description": "Active status" },
+        "notifyEmail": { "type": "string", "description": "Notification recipient" },
+        "lastRunAt": { "type": "string", "description": "Last run timestamp" },
+        "nextRunAt": { "type": "string", "description": "Next scheduled run timestamp" },
+        "createdAt": { "type": "string", "description": "Creation timestamp" }
+      },
+      "required": ["id", "projectId", "name", "scheduleType", "cronExpression"]
     }
   },
   "firestore": {
@@ -142,6 +164,10 @@
     "/organizations/{orgId}": {
       "schema": { "$ref": "#/entities/Organization" },
       "description": "Organizations"
+    },
+    "/test_schedules/{scheduleId}": {
+      "schema": { "$ref": "#/entities/TestSchedule" },
+      "description": "Scheduled triggers for test suites"
     }
   }
 }

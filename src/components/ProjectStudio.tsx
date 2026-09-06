@@ -28,17 +28,23 @@ import {
   Shield,
   Activity,
   ArrowRight,
+  TrendingUp,
   Tag,
   Eye,
   Server,
   Terminal,
   HelpCircle,
   Edit3,
-  X
+  X,
+  Menu,
+  Check,
+  CheckSquare,
+  Minus
 } from 'lucide-react';
 import { api, UrlAnalysisResult } from '../services/api';
 import { projectService, testCaseService, testRunService } from '../services/firebase';
-import { Project, TestCase, TestRun, User, Organization } from '../types';
+import { Project, TestCase, TestRun, User, Organization, Suite, TestSchedule } from '../types';
+import { AnalyticsDashboard } from './AnalyticsDashboard';
 import { InteractiveDataModal } from './InteractiveDataModal';
 import { CloudDeployModal } from './CloudDeployModal';
 import { TestDetailDrawer } from './TestDetailDrawer';
@@ -47,6 +53,7 @@ import { BatchExecutionModal } from './BatchExecutionModal';
 import { ConfirmModal } from './ConfirmModal';
 import { AlertModal } from './AlertModal';
 import { IntrospectionJourneyModal } from './IntrospectionJourneyModal';
+import { TestSchedulerTab } from './TestSchedulerTab';
 
 interface ProjectStudioProps {
   currentUser: User | null;
@@ -60,6 +67,8 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
   const [projectData, setProjectData] = useState<Project | null>(null);
 
   const [cases, setCases] = useState<TestCase[]>([]);
+  const [suites, setSuites] = useState<Suite[]>([]);
+  const [schedules, setSchedules] = useState<TestSchedule[]>([]);
   const [dataset, setDataset] = useState<Record<string, any>>({});
   const [missingProjectFields, setMissingProjectFields] = useState<string[]>([]);
   const [allNeededFields, setAllNeededFields] = useState<string[]>([]);
@@ -68,8 +77,14 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
   const [isRunningAll, setIsRunningAll] = useState(false);
   const [runningCaseId, setRunningCaseId] = useState<string | null>(null);
 
+  // Bulk action selection & execution states
+  const [selectedCaseIds, setSelectedCaseIds] = useState<string[]>([]);
+  const [isBulkRunning, setIsBulkRunning] = useState<boolean>(false);
+  const [bulkRunningMode, setBulkRunningMode] = useState<'preview' | 'hosted' | null>(null);
+
   // Active view tab inside Studio
-  const [activeTab, setActiveTab] = useState<'cases' | 'ingest' | 'dataset' | 'deploy'>('cases');
+  const [activeTab, setActiveTab] = useState<'cases' | 'analytics' | 'ingest' | 'dataset' | 'schedules' | 'deploy'>('cases');
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -259,6 +274,12 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
       if (casesResp.cases && casesResp.cases.length > 0) {
         setCases(casesResp.cases);
       }
+      if (casesResp.suites && casesResp.suites.length > 0) {
+        setSuites(casesResp.suites);
+      } else {
+        api.getSuites(id).then(setSuites).catch(() => {});
+      }
+      api.getSchedules(id).then(setSchedules).catch(() => {});
       if (casesResp.dataset) {
         setDataset(casesResp.dataset);
         setRawDatasetText(JSON.stringify(casesResp.dataset, null, 2));
@@ -274,6 +295,7 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
   };
 
   useEffect(() => {
+    setSelectedCaseIds([]);
     if (selectedProjectId) {
       loadSelectedProject(selectedProjectId);
     }
@@ -647,11 +669,138 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
           if (selectedDrawerCase && selectedDrawerCase.id === caseId) {
             setSelectedDrawerCase(null);
           }
+          setSelectedCaseIds(prev => prev.filter(id => id !== caseId));
         } catch (err: any) {
           showAlert(err.message || 'Failed to delete test case.');
         }
       },
     });
+  };
+
+  // 3b. Bulk Run Selected Test Cases (Simultaneously)
+  const handleBulkRun = async (mode: 'preview' | 'hosted' = 'preview') => {
+    if (!selectedProjectId || selectedCaseIds.length === 0) return;
+
+    const automatedSelected = cases.filter(c => selectedCaseIds.includes(c.id) && c.type !== 'manual');
+    if (automatedSelected.length === 0) {
+      showAlert('None of the selected test cases are automated (HTTP Functional or Load tests). Manual QA test cases must be verified manually.', 'No Automated Tests Selected', 'info');
+      return;
+    }
+
+    // Check if any selected cases have missing variables
+    const casesWithMissing = automatedSelected.filter(c => (c.missingDataFields || []).length > 0);
+    if (casesWithMissing.length > 0) {
+      const target = casesWithMissing[0];
+      setInteractivePrompt({
+        isOpen: true,
+        missingField: target.missingDataFields![0],
+        testCase: target,
+        targetMode: mode,
+      });
+      return;
+    }
+
+    try {
+      setIsBulkRunning(true);
+      setBulkRunningMode(mode);
+
+      const res = await api.bulkRunTestCases(selectedProjectId, automatedSelected.map(c => c.id), mode);
+      
+      const runMap = new Map<string, TestRun>();
+      res.runs.forEach(run => runMap.set(run.testCaseId, run));
+
+      setCases(prev => prev.map(c => {
+        const newRun = runMap.get(c.id);
+        return newRun ? { ...c, lastResult: newRun } : c;
+      }));
+
+      if (selectedDrawerCase && runMap.has(selectedDrawerCase.id)) {
+        setSelectedDrawerCase(prev => (prev ? { ...prev, lastResult: runMap.get(prev.id) } : null));
+      }
+
+      showAlert(
+        `Simultaneously executed ${res.count} test scenarios in ${mode === 'hosted' ? 'Cloud Runner' : 'Preview'}: ${res.passedCount} passed, ${res.failedCount} failed.`,
+        'Simultaneous Execution Complete',
+        res.failedCount === 0 ? 'success' : 'info'
+      );
+    } catch (err: any) {
+      if (err.capReached) {
+        showAlert(err.message, 'Execution Cap Reached');
+      } else if (err.insufficientCredits) {
+        setConfirmModalState({
+          isOpen: true,
+          title: 'Insufficient Cloud Credits',
+          message: 'Insufficient credits for hosted Cloud bulk execution. Would you like to top up credits now?',
+          confirmText: 'Top Up Credits',
+          variant: 'primary',
+          onConfirm: () => {
+            onOpenBilling();
+          },
+        });
+      } else {
+        showAlert(err.message || 'Bulk execution failed.');
+      }
+    } finally {
+      setIsBulkRunning(false);
+      setBulkRunningMode(null);
+    }
+  };
+
+  // 3c. Bulk Delete Selected Test Cases in One Click
+  const handleBulkDelete = () => {
+    if (!selectedProjectId || selectedCaseIds.length === 0) return;
+    const count = selectedCaseIds.length;
+
+    setConfirmModalState({
+      isOpen: true,
+      title: `Delete ${count} Test ${count === 1 ? 'Case' : 'Cases'}`,
+      message: `Are you sure you want to permanently delete the ${count} selected test ${count === 1 ? 'scenario' : 'scenarios'}? This will remove their specifications and test run history from both Verity and Firestore.`,
+      confirmText: `Delete ${count} ${count === 1 ? 'Case' : 'Cases'}`,
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          const idsToDelete = [...selectedCaseIds];
+          await api.bulkDeleteTestCases(selectedProjectId, idsToDelete);
+          try {
+            await testCaseService.deleteTestCases(idsToDelete);
+          } catch (fErr) {
+            console.warn('Firestore bulk delete sync note:', fErr);
+          }
+
+          const deleteSet = new Set(idsToDelete);
+          setCases(prev => prev.filter(c => !deleteSet.has(c.id)));
+          if (selectedDrawerCase && deleteSet.has(selectedDrawerCase.id)) {
+            setSelectedDrawerCase(null);
+          }
+          setSelectedCaseIds([]);
+          showAlert(`Successfully deleted ${count} test ${count === 1 ? 'case' : 'cases'}.`, 'Bulk Deletion Complete', 'success');
+        } catch (err: any) {
+          showAlert(err.message || 'Failed to delete selected test cases.');
+        }
+      },
+    });
+  };
+
+  // Selection toggle helpers
+  const handleToggleSelectCase = (caseId: string) => {
+    setSelectedCaseIds(prev =>
+      prev.includes(caseId) ? prev.filter(id => id !== caseId) : [...prev, caseId]
+    );
+  };
+
+  const handleToggleSelectAll = () => {
+    const isAllFilteredSelected = filteredCases.length > 0 && filteredCases.every(c => selectedCaseIds.includes(c.id));
+    if (isAllFilteredSelected) {
+      const filteredIdSet = new Set(filteredCases.map(c => c.id));
+      setSelectedCaseIds(prev => prev.filter(id => !filteredIdSet.has(id)));
+    } else {
+      const union = new Set([...selectedCaseIds, ...filteredCases.map(c => c.id)]);
+      setSelectedCaseIds(Array.from(union));
+    }
+  };
+
+  const handleClearSelection = () => {
+    setSelectedCaseIds([]);
   };
 
   // 4. Run Single Test Case (with Interactive Data check)
@@ -832,17 +981,22 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
   const failedCount = cases.filter(c => c.lastResult?.pass === false).length;
   const notRunCount = cases.filter(c => !c.lastResult).length;
 
+  // Selection metrics for bulk actions
+  const isAllFilteredSelected = filteredCases.length > 0 && filteredCases.every(c => selectedCaseIds.includes(c.id));
+  const isSomeFilteredSelected = !isAllFilteredSelected && filteredCases.some(c => selectedCaseIds.includes(c.id));
+  const automatedCountInSelection = cases.filter(c => selectedCaseIds.includes(c.id) && c.type !== 'manual').length;
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
       {/* Top Bar: Project Switcher & Actions */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#1E2235] pb-5">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-[#1E2235] pb-5">
+        <div className="flex flex-col sm:flex-row sm:items-center flex-wrap gap-3">
           {/* Project selector dropdown */}
-          <div className="relative">
+          <div className="relative w-full sm:w-auto">
             <select
               value={selectedProjectId || ''}
               onChange={(e) => setSelectedProjectId(e.target.value)}
-              className="rounded-xl border border-[#1E2235] bg-[#0F111A] px-3.5 py-2 text-sm font-bold text-white focus:border-emerald-500 focus:outline-none"
+              className="w-full sm:w-auto rounded-xl border border-[#1E2235] bg-[#0F111A] px-3.5 py-2 text-sm font-bold text-white focus:border-emerald-500 focus:outline-none cursor-pointer"
             >
               {projects.map(p => (
                 <option key={p.id} value={p.id}>{p.name}</option>
@@ -851,73 +1005,75 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
           </div>
 
           {projectData && (
-            <div className="hidden sm:flex items-center gap-2">
+            <div className="flex items-center gap-2 min-w-0">
               <a
                 href={projectData.siteUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="flex items-center gap-1.5 rounded-lg border border-[#1E2235] bg-[#06070B] px-2.5 py-1 font-mono text-xs text-emerald-300 transition hover:border-emerald-500/50"
+                className="flex items-center gap-1.5 rounded-lg border border-[#1E2235] bg-[#06070B] px-2.5 py-1 font-mono text-xs text-emerald-300 transition hover:border-emerald-500/50 truncate max-w-[240px] sm:max-w-xs"
               >
-                <span>{projectData.siteUrl}</span>
-                <ExternalLink className="h-3 w-3 text-slate-400" />
+                <span className="truncate">{projectData.siteUrl}</span>
+                <ExternalLink className="h-3 w-3 shrink-0 text-slate-400" />
               </a>
             </div>
           )}
 
-          {projectData && (
-            <>
-              <button
-                type="button"
-                onClick={() => {
-                  setEditProjName(projectData.name);
-                  setEditProjUrl(projectData.siteUrl);
-                  setEditProjDesc(projectData.description || '');
-                  setIsEditProjectModalOpen(true);
-                }}
-                className="flex items-center gap-1 rounded-xl border border-[#1E2235] bg-[#131622] px-3 py-1.5 text-xs font-semibold text-slate-300 transition hover:bg-[#1A1D2B] hover:text-white"
-                title="Edit project name, URL, or details in Firestore"
-              >
-                <Edit3 className="h-3.5 w-3.5 text-slate-400" />
-                <span>Edit</span>
-              </button>
+          <div className="flex items-center flex-wrap gap-2">
+            {projectData && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditProjName(projectData.name);
+                    setEditProjUrl(projectData.siteUrl);
+                    setEditProjDesc(projectData.description || '');
+                    setIsEditProjectModalOpen(true);
+                  }}
+                  className="flex items-center gap-1 rounded-xl border border-[#1E2235] bg-[#131622] px-3 py-1.5 text-xs font-semibold text-slate-300 transition hover:bg-[#1A1D2B] hover:text-white"
+                  title="Edit project name, URL, or details in Firestore"
+                >
+                  <Edit3 className="h-3.5 w-3.5 text-slate-400" />
+                  <span>Edit</span>
+                </button>
 
-              <button
-                type="button"
-                onClick={handleDeleteProject}
-                className="flex items-center gap-1 rounded-xl border border-rose-500/20 bg-rose-500/10 px-2.5 py-1.5 text-xs font-semibold text-rose-300 transition hover:bg-rose-500/20"
-                title="Delete project from Firestore"
-              >
-                <Trash2 className="h-3.5 w-3.5 text-rose-400" />
-              </button>
-            </>
-          )}
+                <button
+                  type="button"
+                  onClick={handleDeleteProject}
+                  className="flex items-center gap-1 rounded-xl border border-rose-500/20 bg-rose-500/10 px-2.5 py-1.5 text-xs font-semibold text-rose-300 transition hover:bg-rose-500/20"
+                  title="Delete project from Firestore"
+                >
+                  <Trash2 className="h-3.5 w-3.5 text-rose-400" />
+                </button>
+              </>
+            )}
 
-          <button
-            onClick={() => setIsNewProjectModalOpen(true)}
-            className="flex items-center gap-1 rounded-xl border border-[#1E2235] bg-[#131622] px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-[#1A1D2B] hover:border-[#2D334D]"
-          >
-            <Plus className="h-3.5 w-3.5 text-emerald-400" />
-            <span>New Site Project</span>
-          </button>
+            <button
+              onClick={() => setIsNewProjectModalOpen(true)}
+              className="flex items-center gap-1 rounded-xl border border-[#1E2235] bg-[#131622] px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-[#1A1D2B] hover:border-[#2D334D]"
+            >
+              <Plus className="h-3.5 w-3.5 text-emerald-400" />
+              <span>New Site Project</span>
+            </button>
 
-          <button
-            onClick={() => {
-              setJourneyModalInitialUrl(projectData?.siteUrl || 'https://ai.whyor.in');
-              setIsJourneyModalOpen(true);
-            }}
-            className="flex items-center gap-1.5 rounded-xl border border-emerald-500/40 bg-gradient-to-r from-emerald-500/15 to-teal-500/15 px-3 py-1.5 text-xs font-bold text-emerald-300 shadow-sm shadow-emerald-500/10 transition hover:from-emerald-500/25 hover:to-teal-500/25 hover:border-emerald-500/60"
-            title="Start guided URL Introspection Journey"
-          >
-            <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
-            <span>Introspect Journey</span>
-          </button>
+            <button
+              onClick={() => {
+                setJourneyModalInitialUrl(projectData?.siteUrl || 'https://ai.whyor.in');
+                setIsJourneyModalOpen(true);
+              }}
+              className="flex items-center gap-1.5 rounded-xl border border-emerald-500/40 bg-gradient-to-r from-emerald-500/15 to-teal-500/15 px-3 py-1.5 text-xs font-bold text-emerald-300 shadow-sm shadow-emerald-500/10 transition hover:from-emerald-500/25 hover:to-teal-500/25 hover:border-emerald-500/60"
+              title="Start guided URL Introspection Journey"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+              <span>Introspect Journey</span>
+            </button>
+          </div>
         </div>
 
         {/* Global Export & Deploy Action Buttons */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
           <button
             onClick={() => setIsDeployModalOpen(true)}
-            className="flex items-center gap-1.5 rounded-xl border border-[#1E2235] bg-[#131622] px-3.5 py-2 text-xs font-semibold text-slate-200 transition hover:bg-[#1A1D2B] hover:border-[#2D334D]"
+            className="flex items-center justify-center gap-1.5 rounded-xl border border-[#1E2235] bg-[#131622] px-3.5 py-2 text-xs font-semibold text-slate-200 transition hover:bg-[#1A1D2B] hover:border-[#2D334D] min-h-[40px] sm:min-h-0"
           >
             <Cloud className="h-4 w-4 text-emerald-400" />
             <span>Multi-Cloud Deploy</span>
@@ -925,7 +1081,7 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
 
           <button
             onClick={handleDownloadPackage}
-            className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-4 py-2 text-xs font-bold text-slate-950 shadow-md shadow-emerald-500/20 transition hover:from-emerald-400 hover:to-teal-500"
+            className="flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-4 py-2 text-xs font-bold text-slate-950 shadow-md shadow-emerald-500/20 transition hover:from-emerald-400 hover:to-teal-500 min-h-[40px] sm:min-h-0"
           >
             <Download className="h-4 w-4" />
             <span>Download Docker Bundle</span>
@@ -935,9 +1091,9 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
 
       {/* Missing Variables Alert Banner */}
       {missingProjectFields.length > 0 && (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/40 bg-amber-950/30 p-4 backdrop-blur-sm">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
+        <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-amber-500/40 bg-amber-950/30 p-4 backdrop-blur-sm">
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
               <Database className="h-5 w-5" />
             </div>
             <div>
@@ -955,18 +1111,190 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
           </div>
           <button
             onClick={() => setActiveTab('dataset')}
-            className="rounded-xl bg-amber-500 px-3.5 py-1.5 text-xs font-bold text-slate-950 transition hover:bg-amber-400"
+            className="self-start sm:self-center rounded-xl bg-amber-500 px-3.5 py-1.5 text-xs font-bold text-slate-950 transition hover:bg-amber-400"
           >
             Configure Dataset
           </button>
         </div>
       )}
 
-      {/* Main Studio Navigation Tabs */}
-      <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-b border-[#1E2235] pb-3">
+      {/* Mobile & Tablet Responsive Navigation Bar with Hamburger Menu (visible on screens < lg) */}
+      <div className="lg:hidden mt-4 rounded-2xl border border-[#1E2235] bg-[#0F111A] p-3 shadow-lg">
+        <div className="flex items-center justify-between gap-3">
+          {/* Current Active Section Badge & Title */}
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
+              {activeTab === 'cases' && <Layers className="h-4 w-4" />}
+              {activeTab === 'analytics' && <TrendingUp className="h-4 w-4" />}
+              {activeTab === 'ingest' && <Sparkles className="h-4 w-4" />}
+              {activeTab === 'dataset' && <Database className="h-4 w-4" />}
+              {activeTab === 'schedules' && <Clock className="h-4 w-4" />}
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-white truncate">
+                  {activeTab === 'cases' && 'Test Cases'}
+                  {activeTab === 'analytics' && 'Analytics & Trends'}
+                  {activeTab === 'ingest' && 'Import & AI Generate'}
+                  {activeTab === 'dataset' && 'Dataset Configurator'}
+                  {activeTab === 'schedules' && 'Scheduled Triggers'}
+                </span>
+                {activeTab === 'cases' && (
+                  <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-mono font-bold text-emerald-300 border border-emerald-500/30">
+                    {cases.length}
+                  </span>
+                )}
+                {activeTab === 'dataset' && (
+                  <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-mono font-bold text-emerald-300 border border-emerald-500/30">
+                    {Object.keys(dataset).length} Keys
+                  </span>
+                )}
+                {activeTab === 'schedules' && (
+                  <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-mono font-bold text-emerald-300 border border-emerald-500/30">
+                    {schedules.length}
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-400 truncate">
+                {activeTab === 'cases' && 'Runner, assertions & specs'}
+                {activeTab === 'analytics' && 'Execution telemetry & metrics'}
+                {activeTab === 'ingest' && 'Gemini AI suite & OpenAPI'}
+                {activeTab === 'dataset' && 'Environment & dynamic vars'}
+                {activeTab === 'schedules' && 'Daily, weekly & cron automation'}
+              </p>
+            </div>
+          </div>
+
+          {/* Hamburger Menu Toggle Button with >44px touch target */}
+          <button
+            type="button"
+            onClick={() => setIsMobileNavOpen(prev => !prev)}
+            aria-label={isMobileNavOpen ? "Close navigation menu" : "Open navigation menu"}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#2D334D] bg-[#141724] text-slate-200 hover:bg-[#1C2032] hover:text-white transition active:scale-95"
+          >
+            {isMobileNavOpen ? (
+              <X className="h-5 w-5 text-emerald-400" />
+            ) : (
+              <Menu className="h-5 w-5 text-emerald-400" />
+            )}
+          </button>
+        </div>
+
+        {/* Hamburger Dropdown Navigation Drawer (Vertical Stacked List) */}
+        {isMobileNavOpen && (
+          <div className="mt-3 border-t border-[#1E2235] pt-3 space-y-2">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1">
+              Studio Navigation
+            </div>
+
+            {/* Vertical Stacked Navigation Links */}
+            <div className="space-y-1">
+              {[
+                { id: 'cases', label: 'Test Cases & Live Runner', count: `${cases.length}`, icon: Layers, desc: 'Execute and inspect tests' },
+                { id: 'analytics', label: 'Analytics & Trends', icon: TrendingUp, desc: 'Execution telemetry & metrics' },
+                { id: 'schedules', label: 'Scheduled Triggers & Cron', count: `${schedules.length}`, icon: Clock, desc: 'Automated daily, weekly & cron runs' },
+                { id: 'ingest', label: 'Import / AI Generate', icon: Sparkles, desc: 'Gemini synthesis & OpenAPI upload' },
+                { id: 'dataset', label: 'Dataset Configurator', count: `${Object.keys(dataset).length} Keys`, icon: Database, desc: 'Tokens, IDs & environments' },
+              ].map(item => {
+                const Icon = item.icon;
+                const isActive = activeTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      setActiveTab(item.id as any);
+                      setIsMobileNavOpen(false);
+                    }}
+                    className={`flex w-full items-center justify-between rounded-xl p-3 text-left transition ${
+                      isActive
+                        ? 'bg-gradient-to-r from-emerald-500/20 to-teal-500/10 text-emerald-300 border border-emerald-500/30'
+                        : 'bg-[#06070B] text-slate-300 hover:bg-[#131622] hover:text-white border border-[#1E2235]'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+                        isActive ? 'bg-emerald-500/20 text-emerald-400' : 'bg-[#141724] text-slate-400'
+                      }`}>
+                        <Icon className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold truncate">{item.label}</div>
+                        <div className="text-[11px] text-slate-400 truncate">{item.desc}</div>
+                      </div>
+                    </div>
+                    {item.count && (
+                      <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-mono font-bold ${
+                        isActive ? 'bg-emerald-500/30 text-emerald-300' : 'bg-[#141724] text-slate-400'
+                      }`}>
+                        {item.count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Quick Actions Stacked Section inside Hamburger Drawer */}
+            <div className="pt-2 border-t border-[#1E2235]/60 space-y-1.5">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1">
+                Quick Actions
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <button
+                  onClick={() => {
+                    setIsMobileNavOpen(false);
+                    setBatchModalState({ isOpen: true, mode: 'preview' });
+                  }}
+                  className="flex items-center gap-2.5 rounded-xl border border-[#1E2235] bg-[#0A0C13] p-2.5 text-left text-xs font-semibold text-slate-200 hover:bg-[#131622]"
+                >
+                  <Play className="h-4 w-4 text-emerald-400 shrink-0" />
+                  <span>Run All Preview</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setIsMobileNavOpen(false);
+                    setBatchModalState({ isOpen: true, mode: 'hosted' });
+                  }}
+                  className="flex items-center gap-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-2.5 text-left text-xs font-bold text-emerald-300 hover:bg-emerald-500/20"
+                >
+                  <Cloud className="h-4 w-4 text-emerald-400 shrink-0" />
+                  <span>Run All Cloud (Verity Cloud Runner)</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setIsMobileNavOpen(false);
+                    setIsDeployModalOpen(true);
+                  }}
+                  className="flex items-center gap-2.5 rounded-xl border border-[#1E2235] bg-[#0A0C13] p-2.5 text-left text-xs font-semibold text-slate-200 hover:bg-[#131622]"
+                >
+                  <Server className="h-4 w-4 text-cyan-400 shrink-0" />
+                  <span>Multi-Cloud Deploy</span>
+                </button>
+
+                <a
+                  href={`/api/projects/${selectedProjectId}/export?format=csv&token=${encodeURIComponent(api.getToken() || '')}`}
+                  download={`${projectData?.name?.replace(/\W+/g, '_') || 'report'}-test-cases.csv`}
+                  onClick={() => setIsMobileNavOpen(false)}
+                  className="flex items-center gap-2.5 rounded-xl border border-[#1E2235] bg-[#0A0C13] p-2.5 text-left text-xs font-semibold text-slate-200 hover:bg-[#131622]"
+                >
+                  <Download className="h-4 w-4 text-emerald-400 shrink-0" />
+                  <span>Export Test Cases (CSV)</span>
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Main Studio Navigation Tabs (visible on desktop lg:flex) */}
+      <div className="mt-6 hidden lg:flex flex-wrap items-center justify-between gap-4 border-b border-[#1E2235] pb-3">
         <div className="flex items-center gap-2">
           {[
             { id: 'cases', label: `Test Cases (${cases.length})`, icon: Layers },
+            { id: 'analytics', label: 'Analytics & Trends', icon: TrendingUp },
+            { id: 'schedules', label: `Schedules & Cron (${schedules.length})`, icon: Clock },
             { id: 'ingest', label: 'Import / AI Generate', icon: Sparkles },
             { id: 'dataset', label: `Dataset (${Object.keys(dataset).length} Keys)`, icon: Database },
           ].map(tab => {
@@ -991,6 +1319,15 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
 
         {activeTab === 'cases' && (
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setActiveTab('schedules')}
+              className="flex items-center gap-1.5 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-3.5 py-1.5 text-xs font-semibold text-cyan-300 hover:bg-cyan-500/20 transition"
+              title="Configure automated daily, weekly, or cron triggers"
+            >
+              <Clock className="h-3.5 w-3.5 text-cyan-400" />
+              <span>Schedules ({schedules.length})</span>
+            </button>
+
             <a
               href={`/api/projects/${selectedProjectId}/export?format=csv&token=${encodeURIComponent(api.getToken() || '')}`}
               download={`${projectData?.name?.replace(/\W+/g, '_') || 'report'}-test-cases.csv`}
@@ -1034,61 +1371,86 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
       {/* TAB 1: Test Cases & Live Runner */}
       {activeTab === 'cases' && (
         <div className="mt-6 space-y-6">
-          {/* Status Metrics Bar */}
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <div className="rounded-2xl border border-[#1E2235] bg-[#0F111A] p-4 text-center">
+          {/* Status Metrics Bar - Vertically stacked on mobile, 2-col on tablet, 4-col on desktop */}
+          <div className="flex flex-col sm:grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="flex items-center justify-between sm:flex-col sm:justify-center rounded-2xl border border-[#1E2235] bg-[#0F111A] p-3.5 sm:p-4 text-left sm:text-center transition hover:border-[#2D334D]">
+              <div className="flex items-center gap-2 sm:flex-col sm:gap-1">
+                <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 sm:hidden shrink-0" />
+                <div className="text-xs sm:text-[11px] font-bold uppercase tracking-wider text-slate-400">Passed</div>
+              </div>
               <div className="text-2xl font-black text-emerald-400">{passedCount}</div>
-              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Passed</div>
             </div>
-            <div className="rounded-2xl border border-[#1E2235] bg-[#0F111A] p-4 text-center">
+            <div className="flex items-center justify-between sm:flex-col sm:justify-center rounded-2xl border border-[#1E2235] bg-[#0F111A] p-3.5 sm:p-4 text-left sm:text-center transition hover:border-[#2D334D]">
+              <div className="flex items-center gap-2 sm:flex-col sm:gap-1">
+                <span className="h-2.5 w-2.5 rounded-full bg-rose-400 sm:hidden shrink-0" />
+                <div className="text-xs sm:text-[11px] font-bold uppercase tracking-wider text-slate-400">Failed</div>
+              </div>
               <div className="text-2xl font-black text-rose-400">{failedCount}</div>
-              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Failed</div>
             </div>
-            <div className="rounded-2xl border border-[#1E2235] bg-[#0F111A] p-4 text-center">
-              <div className="text-2xl font-black text-slate-400">{notRunCount}</div>
-              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Not Run Yet</div>
+            <div className="flex items-center justify-between sm:flex-col sm:justify-center rounded-2xl border border-[#1E2235] bg-[#0F111A] p-3.5 sm:p-4 text-left sm:text-center transition hover:border-[#2D334D]">
+              <div className="flex items-center gap-2 sm:flex-col sm:gap-1">
+                <span className="h-2.5 w-2.5 rounded-full bg-slate-500 sm:hidden shrink-0" />
+                <div className="text-xs sm:text-[11px] font-bold uppercase tracking-wider text-slate-400">Not Run Yet</div>
+              </div>
+              <div className="text-2xl font-black text-slate-300">{notRunCount}</div>
             </div>
-            <div className="rounded-2xl border border-[#1E2235] bg-[#0F111A] p-4 text-center">
+            <div className="flex items-center justify-between sm:flex-col sm:justify-center rounded-2xl border border-[#1E2235] bg-[#0F111A] p-3.5 sm:p-4 text-left sm:text-center transition hover:border-[#2D334D]">
+              <div className="flex items-center gap-2 sm:flex-col sm:gap-1">
+                <span className="h-2.5 w-2.5 rounded-full bg-cyan-400 sm:hidden shrink-0" />
+                <div className="text-xs sm:text-[11px] font-bold uppercase tracking-wider text-slate-400">Total Scenarios</div>
+              </div>
               <div className="text-2xl font-black text-emerald-300">{cases.length}</div>
-              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Total Scenarios</div>
             </div>
           </div>
 
-          {/* Search & Filter Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="relative flex-1 min-w-[240px]">
+          {/* New Section: Recharts Test Execution Trends & Analytics Dashboard */}
+          <AnalyticsDashboard
+            isCompact={true}
+            projectId={selectedProjectId || 'all'}
+            project={projectData}
+            projects={projects}
+            onSelectProject={setSelectedProjectId}
+            onTriggerRunAll={() => setBatchModalState({ isOpen: true, mode: 'preview' })}
+            onExpandFull={() => setActiveTab('analytics')}
+          />
+
+          {/* Search & Filter Bar - Stacked on mobile/tablet */}
+          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+            <div className="relative w-full md:flex-1">
               <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-500" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search test ID, title, or category..."
-                className="w-full rounded-xl border border-[#1E2235] bg-[#06070B] pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none"
+                className="w-full rounded-xl border border-[#1E2235] bg-[#06070B] pl-10 pr-4 py-2.5 text-xs text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none"
               />
             </div>
 
-            <div className="flex items-center gap-2">
-              <select
-                value={filterType}
-                onChange={(e) => setFilterType(e.target.value)}
-                className="rounded-xl border border-[#1E2235] bg-[#06070B] px-3 py-2 text-xs text-slate-300 focus:border-emerald-500 focus:outline-none"
-              >
-                <option value="all">All Types</option>
-                <option value="http">HTTP Functional</option>
-                <option value="load">Load Test</option>
-                <option value="manual">Manual QA</option>
-              </select>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <div className="grid grid-cols-2 sm:flex sm:items-center gap-2">
+                <select
+                  value={filterType}
+                  onChange={(e) => setFilterType(e.target.value)}
+                  className="rounded-xl border border-[#1E2235] bg-[#06070B] px-3 py-2 text-xs text-slate-300 focus:border-emerald-500 focus:outline-none cursor-pointer min-h-[40px] sm:min-h-0"
+                >
+                  <option value="all">All Types</option>
+                  <option value="http">HTTP Functional</option>
+                  <option value="load">Load Test</option>
+                  <option value="manual">Manual QA</option>
+                </select>
 
-              <select
-                value={filterPriority}
-                onChange={(e) => setFilterPriority(e.target.value)}
-                className="rounded-xl border border-[#1E2235] bg-[#06070B] px-3 py-2 text-xs text-slate-300 focus:border-emerald-500 focus:outline-none"
-              >
-                <option value="all">All Priorities</option>
-                <option value="High">High Priority</option>
-                <option value="Medium">Medium Priority</option>
-                <option value="Low">Low Priority</option>
-              </select>
+                <select
+                  value={filterPriority}
+                  onChange={(e) => setFilterPriority(e.target.value)}
+                  className="rounded-xl border border-[#1E2235] bg-[#06070B] px-3 py-2 text-xs text-slate-300 focus:border-emerald-500 focus:outline-none cursor-pointer min-h-[40px] sm:min-h-0"
+                >
+                  <option value="all">All Priorities</option>
+                  <option value="High">High Priority</option>
+                  <option value="Medium">Medium Priority</option>
+                  <option value="Low">Low Priority</option>
+                </select>
+              </div>
 
               <button
                 type="button"
@@ -1103,7 +1465,7 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
                   setCaseFormTags('custom, api');
                   setIsNewCaseModalOpen(true);
                 }}
-                className="flex items-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3.5 py-2 text-xs font-bold text-emerald-300 hover:bg-emerald-500/20 transition"
+                className="flex items-center justify-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3.5 py-2 text-xs font-bold text-emerald-300 hover:bg-emerald-500/20 transition min-h-[40px] sm:min-h-0"
                 title="Create custom test scenario in Firestore"
               >
                 <Plus className="h-3.5 w-3.5 text-emerald-400" />
@@ -1112,6 +1474,131 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
             </div>
           </div>
 
+          {/* Bulk Actions Bar & Selection Header */}
+          {filteredCases.length > 0 && (
+            <div
+              className={`rounded-2xl border transition-all duration-200 ${
+                selectedCaseIds.length > 0
+                  ? 'border-emerald-500/40 bg-gradient-to-r from-[#0F1424] via-[#10172A] to-[#0D1322] p-3.5 sm:p-4 shadow-xl shadow-emerald-500/5'
+                  : 'border-[#1E2235]/70 bg-[#0B0D14]/80 px-4 py-2.5'
+              }`}
+            >
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                {/* Left: Master Checkbox & Selection Stats */}
+                <div className="flex items-center gap-3 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={handleToggleSelectAll}
+                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition cursor-pointer ${
+                      isAllFilteredSelected
+                        ? 'border-emerald-500 bg-emerald-500 text-slate-950'
+                        : isSomeFilteredSelected
+                        ? 'border-emerald-500/70 bg-emerald-500/20 text-emerald-400'
+                        : 'border-[#2D334D] bg-[#0A0C14] hover:border-emerald-500/60 text-transparent'
+                    }`}
+                    title={isAllFilteredSelected ? 'Deselect all filtered scenarios' : 'Select all filtered scenarios'}
+                    aria-label="Toggle selection of all test cases"
+                  >
+                    {isAllFilteredSelected ? (
+                      <Check className="h-3.5 w-3.5 stroke-[3]" />
+                    ) : isSomeFilteredSelected ? (
+                      <Minus className="h-3.5 w-3.5 stroke-[3]" />
+                    ) : null}
+                  </button>
+
+                  <div className="text-xs flex items-center gap-2 flex-wrap">
+                    {selectedCaseIds.length > 0 ? (
+                      <>
+                        <span className="font-bold text-white bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-md border border-emerald-500/30 font-mono text-[11px]">
+                          {selectedCaseIds.length} Selected
+                        </span>
+                        <span className="text-slate-300 font-medium">
+                          out of {filteredCases.length} scenario{filteredCases.length === 1 ? '' : 's'}
+                        </span>
+                        {automatedCountInSelection < selectedCaseIds.length && (
+                          <span className="text-[11px] text-slate-400 hidden sm:inline">
+                            ({automatedCountInSelection} automated, {selectedCaseIds.length - automatedCountInSelection} manual)
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-slate-400 font-medium">
+                        Showing <span className="font-bold text-slate-200">{filteredCases.length}</span> scenario{filteredCases.length === 1 ? '' : 's'}
+                      </span>
+                    )}
+                  </div>
+
+                  {selectedCaseIds.length > 0 ? (
+                    <button
+                      type="button"
+                      onClick={handleClearSelection}
+                      className="text-[11px] font-medium text-slate-400 hover:text-white underline underline-offset-2 ml-1 cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleToggleSelectAll}
+                      className="text-[11px] font-medium text-slate-400 hover:text-emerald-300 transition ml-1 cursor-pointer flex items-center gap-1"
+                    >
+                      <span>(Select All)</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Right: Bulk Action Controls */}
+                {selectedCaseIds.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* Trigger Simultaneously Preview */}
+                    <button
+                      type="button"
+                      onClick={() => handleBulkRun('preview')}
+                      disabled={isBulkRunning || automatedCountInSelection === 0}
+                      className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3.5 py-2 text-xs font-bold text-emerald-300 hover:bg-emerald-500/20 hover:border-emerald-500/60 transition disabled:opacity-50 min-h-[38px] cursor-pointer"
+                      title="Trigger all selected automated test cases simultaneously in free preview sandbox"
+                    >
+                      <Play className={`h-3.5 w-3.5 text-emerald-400 ${isBulkRunning && bulkRunningMode === 'preview' ? 'animate-spin' : ''}`} />
+                      <span>
+                        {isBulkRunning && bulkRunningMode === 'preview'
+                          ? 'Running Preview...'
+                          : `Run Preview (${automatedCountInSelection})`}
+                      </span>
+                    </button>
+
+                    {/* Trigger Simultaneously Cloud */}
+                    <button
+                      type="button"
+                      onClick={() => handleBulkRun('hosted')}
+                      disabled={isBulkRunning || automatedCountInSelection === 0}
+                      className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-3.5 py-2 text-xs font-bold text-slate-950 shadow-sm shadow-emerald-500/20 hover:from-emerald-400 hover:to-teal-500 transition disabled:opacity-50 min-h-[38px] cursor-pointer"
+                      title="Trigger all selected automated test cases simultaneously on Verity Cloud Runner"
+                    >
+                      <Cloud className="h-3.5 w-3.5 text-slate-950" />
+                      <span>
+                        {isBulkRunning && bulkRunningMode === 'hosted'
+                          ? 'Running Cloud...'
+                          : `Run Cloud (${automatedCountInSelection})`}
+                      </span>
+                    </button>
+
+                    {/* Bulk Delete in One Click */}
+                    <button
+                      type="button"
+                      onClick={handleBulkDelete}
+                      disabled={isBulkRunning}
+                      className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3.5 py-2 text-xs font-bold text-rose-300 hover:bg-rose-500/20 hover:border-rose-500/50 transition disabled:opacity-50 min-h-[38px] cursor-pointer"
+                      title="Delete all selected test cases in one click from Verity and Firestore"
+                    >
+                      <Trash2 className="h-3.5 w-3.5 text-rose-400" />
+                      <span>Delete Selected ({selectedCaseIds.length})</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Cases Grid */}
           {filteredCases.length > 0 ? (
             <div className="space-y-3">
@@ -1119,53 +1606,78 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
                 const result = testCase.lastResult;
                 const isRunningThis = runningCaseId === testCase.id;
                 const hasMissingData = (testCase.missingDataFields || []).length > 0;
+                const isSelected = selectedCaseIds.includes(testCase.id);
 
                 return (
                   <div
                     key={testCase.id}
-                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-[#1E2235] bg-[#0F111A] p-4 transition hover:border-[#2D334D] hover:bg-[#131622]"
+                    className={`flex flex-col lg:flex-row lg:items-center justify-between gap-4 rounded-2xl border p-4 transition ${
+                      isSelected
+                        ? 'border-emerald-500/50 bg-[#121626] shadow-md shadow-emerald-500/5'
+                        : 'border-[#1E2235] bg-[#0F111A] hover:border-[#2D334D] hover:bg-[#131622]'
+                    }`}
                   >
-                    <div
-                      onClick={() => setSelectedDrawerCase(testCase)}
-                      className="flex-1 cursor-pointer"
-                    >
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className="rounded bg-[#1A1D2B] px-2 py-0.5 font-mono font-bold text-emerald-300 border border-[#1E2235]">
-                          {testCase.extId}
-                        </span>
-                        <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${
-                          testCase.type === 'http' ? 'bg-emerald-500/20 text-emerald-300' :
-                          testCase.type === 'load' ? 'bg-amber-500/20 text-amber-300' :
-                          'bg-purple-500/20 text-purple-300'
-                        }`}>
-                          {testCase.type}
-                        </span>
-                        <span className="text-slate-500">•</span>
-                        <span className="text-slate-400">{testCase.category}</span>
-                        {hasMissingData && (
-                          <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300 border border-amber-500/30">
-                            Needs Data: {testCase.missingDataFields?.join(', ')}
+                    <div className="flex items-start gap-3.5 flex-1 min-w-0">
+                      {/* Individual Case Select Checkbox */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleSelectCase(testCase.id);
+                        }}
+                        className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition cursor-pointer ${
+                          isSelected
+                            ? 'border-emerald-500 bg-emerald-500 text-slate-950 shadow-xs'
+                            : 'border-[#2D334D] bg-[#06070B] hover:border-emerald-500/60 text-transparent'
+                        }`}
+                        title={isSelected ? `Deselect ${testCase.title}` : `Select ${testCase.title}`}
+                        aria-label={isSelected ? `Deselect ${testCase.title}` : `Select ${testCase.title}`}
+                      >
+                        <Check className="h-3.5 w-3.5 stroke-[3]" />
+                      </button>
+
+                      <div
+                        onClick={() => setSelectedDrawerCase(testCase)}
+                        className="flex-1 cursor-pointer min-w-0"
+                      >
+                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                          <span className="rounded bg-[#1A1D2B] px-2 py-0.5 font-mono font-bold text-emerald-300 border border-[#1E2235]">
+                            {testCase.extId}
                           </span>
-                        )}
-                      </div>
-
-                      <div className="mt-1.5 text-sm font-bold text-white hover:text-emerald-300 transition">
-                        {testCase.title}
-                      </div>
-
-                      {result && (
-                        <div className="mt-2 flex items-center gap-2 font-mono text-xs">
-                          <span className={result.pass ? 'text-emerald-400' : 'text-rose-400'}>
-                            {result.pass ? 'PASS' : 'FAIL'}
+                          <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${
+                            testCase.type === 'http' ? 'bg-emerald-500/20 text-emerald-300' :
+                            testCase.type === 'load' ? 'bg-amber-500/20 text-amber-300' :
+                            'bg-purple-500/20 text-purple-300'
+                          }`}>
+                            {testCase.type}
                           </span>
                           <span className="text-slate-500">•</span>
-                          <span className="text-slate-400 truncate max-w-md">{result.message}</span>
+                          <span className="text-slate-400">{testCase.category}</span>
+                          {hasMissingData && (
+                            <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300 border border-amber-500/30">
+                              Needs Data: {testCase.missingDataFields?.join(', ')}
+                            </span>
+                          )}
                         </div>
-                      )}
+
+                        <div className="mt-1.5 text-sm font-bold text-white hover:text-emerald-300 transition">
+                          {testCase.title}
+                        </div>
+
+                        {result && (
+                          <div className="mt-2 flex items-center gap-2 font-mono text-xs">
+                            <span className={result.pass ? 'text-emerald-400' : 'text-rose-400'}>
+                              {result.pass ? 'PASS' : 'FAIL'}
+                            </span>
+                            <span className="text-slate-500">•</span>
+                            <span className="text-slate-400 truncate max-w-md">{result.message}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
-                    {/* Action buttons */}
-                    <div className="flex items-center gap-2">
+                    {/* Action buttons - responsive stacked on mobile/tablet */}
+                    <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-[#1E2235]/60 lg:pt-0 lg:border-t-0 w-full lg:w-auto">
                       {testCase.type !== 'manual' ? (
                         <>
                           <button
@@ -1174,7 +1686,7 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
                               handleRunTestCase(testCase, 'preview', true);
                             }}
                             disabled={isRunningThis}
-                            className="flex items-center gap-1.5 rounded-xl border border-[#1E2235] bg-[#131622] px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-[#1A1D2B] hover:text-white disabled:opacity-50"
+                            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 rounded-xl border border-[#1E2235] bg-[#131622] px-3 py-2 text-xs font-semibold text-slate-200 transition hover:bg-[#1A1D2B] hover:text-white disabled:opacity-50 min-h-[42px] sm:min-h-0"
                             title="Execute locally in free sandbox preview"
                           >
                             <Play className="h-3 w-3 text-emerald-400" />
@@ -1187,7 +1699,7 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
                               handleRunTestCase(testCase, 'hosted', true);
                             }}
                             disabled={isRunningThis}
-                            className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-3.5 py-1.5 text-xs font-bold text-slate-950 shadow-sm shadow-emerald-500/20 hover:from-emerald-400 hover:to-teal-500 transition disabled:opacity-50"
+                            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-3.5 py-2 text-xs font-bold text-slate-950 shadow-sm shadow-emerald-500/20 hover:from-emerald-400 hover:to-teal-500 transition disabled:opacity-50 min-h-[42px] sm:min-h-0"
                             title="Execute on Verity Managed Cloud Runner in us-central1 (1 Credit)"
                           >
                             <Cloud className="h-3 w-3 text-slate-950" />
@@ -1199,17 +1711,17 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
                               e.stopPropagation();
                               setSelectedDrawerCase(testCase);
                             }}
-                            className="flex items-center gap-1 rounded-xl border border-[#1E2235] bg-[#0E1019] px-2.5 py-1.5 text-xs text-slate-400 hover:text-white transition"
+                            className="flex items-center justify-center gap-1 rounded-xl border border-[#1E2235] bg-[#0E1019] px-2.5 py-2 text-xs text-slate-400 hover:text-white transition min-h-[42px] sm:min-h-0"
                             title="Inspect specification, headers, assertions, and execution telemetry"
                           >
                             <Eye className="h-3.5 w-3.5" />
-                            <span>Inspect</span>
+                            <span className="sm:hidden lg:inline">Inspect</span>
                           </button>
                         </>
                       ) : (
                         <button
                           onClick={() => setSelectedDrawerCase(testCase)}
-                          className="flex items-center gap-1.5 rounded-xl bg-purple-500/20 px-3 py-1.5 text-xs font-bold text-purple-300 border border-purple-500/30 hover:bg-purple-500/30"
+                          className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 rounded-xl bg-purple-500/20 px-3 py-2 text-xs font-bold text-purple-300 border border-purple-500/30 hover:bg-purple-500/30 min-h-[42px] sm:min-h-0"
                         >
                           <CheckCircle2 className="h-3.5 w-3.5" />
                           <span>Manual QA</span>
@@ -1223,11 +1735,11 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
                           e.stopPropagation();
                           handleOpenEditCase(testCase);
                         }}
-                        className="flex items-center gap-1 rounded-xl border border-[#1E2235] bg-[#0E1019] px-2.5 py-1.5 text-xs text-slate-400 hover:text-white hover:border-[#2D334D] transition"
+                        className="flex items-center justify-center gap-1 rounded-xl border border-[#1E2235] bg-[#0E1019] px-2.5 py-2 text-xs text-slate-400 hover:text-white hover:border-[#2D334D] transition min-h-[42px] sm:min-h-0"
                         title="Edit test case in Firestore"
                       >
                         <Edit3 className="h-3.5 w-3.5" />
-                        <span>Edit</span>
+                        <span className="sm:hidden lg:inline">Edit</span>
                       </button>
 
                       {/* Delete Test Case (Firestore) */}
@@ -1237,7 +1749,7 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
                           e.stopPropagation();
                           handleDeleteTestCase(testCase.id, testCase.title);
                         }}
-                        className="flex items-center gap-1 rounded-xl border border-rose-500/20 bg-rose-500/10 p-1.5 text-xs text-rose-400 hover:bg-rose-500/20 transition"
+                        className="flex items-center justify-center gap-1 rounded-xl border border-rose-500/20 bg-rose-500/10 p-2 text-xs text-rose-400 hover:bg-rose-500/20 transition min-h-[42px] sm:min-h-0"
                         title="Delete test case from Firestore"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -1260,6 +1772,20 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* TAB: Full Analytics & Trends Dashboard */}
+      {activeTab === 'analytics' && (
+        <div className="mt-6 space-y-6">
+          <AnalyticsDashboard
+            isCompact={false}
+            projectId={selectedProjectId || 'all'}
+            project={projectData}
+            projects={projects}
+            onSelectProject={setSelectedProjectId}
+            onTriggerRunAll={() => setBatchModalState({ isOpen: true, mode: 'hosted' })}
+          />
         </div>
       )}
 
@@ -1482,21 +2008,21 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
                     <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
                       Auto-Fill Testing Archetypes:
                     </span>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <div className="flex flex-col sm:grid sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
                       <button
                         type="button"
                         onClick={() => handleApplyArchetype('security')}
-                        className={`flex flex-col items-start p-2.5 rounded-lg border text-left transition ${
+                        className={`flex flex-col items-start p-3 rounded-xl border text-left transition min-h-[44px] ${
                           appliedArchetype === 'security'
                             ? 'border-emerald-500 bg-emerald-500/20 text-white'
                             : 'border-[#1E2235] bg-[#0E1019] text-slate-300 hover:border-slate-700 hover:bg-[#131622]'
                         }`}
                       >
                         <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400">
-                          <Shield className="h-3.5 w-3.5" />
+                          <Shield className="h-4 w-4 shrink-0" />
                           <span>Security & Auth</span>
                         </div>
-                        <span className="text-[10px] text-slate-400 mt-1">
+                        <span className="text-[11px] text-slate-400 mt-1">
                           JWT, 401/403, RBAC & headers
                         </span>
                       </button>
@@ -1504,17 +2030,17 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
                       <button
                         type="button"
                         onClick={() => handleApplyArchetype('load')}
-                        className={`flex flex-col items-start p-2.5 rounded-lg border text-left transition ${
+                        className={`flex flex-col items-start p-3 rounded-xl border text-left transition min-h-[44px] ${
                           appliedArchetype === 'load'
                             ? 'border-emerald-500 bg-emerald-500/20 text-white'
                             : 'border-[#1E2235] bg-[#0E1019] text-slate-300 hover:border-slate-700 hover:bg-[#131622]'
                         }`}
                       >
                         <div className="flex items-center gap-1.5 text-xs font-bold text-cyan-400">
-                          <Activity className="h-3.5 w-3.5" />
+                          <Activity className="h-4 w-4 shrink-0" />
                           <span>Burst & Latency</span>
                         </div>
-                        <span className="text-[10px] text-slate-400 mt-1">
+                        <span className="text-[11px] text-slate-400 mt-1">
                           p95 &lt;500ms, concurrency
                         </span>
                       </button>
@@ -1522,17 +2048,17 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
                       <button
                         type="button"
                         onClick={() => handleApplyArchetype('crud')}
-                        className={`flex flex-col items-start p-2.5 rounded-lg border text-left transition ${
+                        className={`flex flex-col items-start p-3 rounded-xl border text-left transition min-h-[44px] ${
                           appliedArchetype === 'crud'
                             ? 'border-emerald-500 bg-emerald-500/20 text-white'
                             : 'border-[#1E2235] bg-[#0E1019] text-slate-300 hover:border-slate-700 hover:bg-[#131622]'
                         }`}
                       >
                         <div className="flex items-center gap-1.5 text-xs font-bold text-amber-400">
-                          <Database className="h-3.5 w-3.5" />
+                          <Database className="h-4 w-4 shrink-0" />
                           <span>Dynamic CRUD</span>
                         </div>
-                        <span className="text-[10px] text-slate-400 mt-1">
+                        <span className="text-[11px] text-slate-400 mt-1">
                           201 Create, ID mutations
                         </span>
                       </button>
@@ -1540,25 +2066,25 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
                       <button
                         type="button"
                         onClick={() => handleApplyArchetype('validation')}
-                        className={`flex flex-col items-start p-2.5 rounded-lg border text-left transition ${
+                        className={`flex flex-col items-start p-3 rounded-xl border text-left transition min-h-[44px] ${
                           appliedArchetype === 'validation'
                             ? 'border-emerald-500 bg-emerald-500/20 text-white'
                             : 'border-[#1E2235] bg-[#0E1019] text-slate-300 hover:border-slate-700 hover:bg-[#131622]'
                         }`}
                       >
                         <div className="flex items-center gap-1.5 text-xs font-bold text-purple-400">
-                          <AlertTriangle className="h-3.5 w-3.5" />
+                          <AlertTriangle className="h-4 w-4 shrink-0" />
                           <span>Negative & 422</span>
                         </div>
-                        <span className="text-[10px] text-slate-400 mt-1">
+                        <span className="text-[11px] text-slate-400 mt-1">
                           Malformed body & 404
                         </span>
                       </button>
                     </div>
                   </div>
 
-                  {/* Suggested Dynamic Variables & Scenarios */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  {/* Suggested Dynamic Variables & Scenarios - Stacked on mobile */}
+                  <div className="flex flex-col md:grid md:grid-cols-2 gap-3 pt-1">
                     {/* Variables */}
                     {urlAnalysis?.sampleVariables && urlAnalysis.sampleVariables.length > 0 && (
                       <div className="space-y-1">
@@ -1800,10 +2326,22 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
         </div>
       )}
 
+      {/* TAB 4: Test Suite Schedules & Autonomous Triggers */}
+      {activeTab === 'schedules' && projectData && (
+        <div className="mt-6">
+          <TestSchedulerTab
+            project={projectData}
+            suites={suites}
+            testCases={cases}
+            onTriggerRunAll={() => setBatchModalState({ isOpen: true, mode: 'preview' })}
+          />
+        </div>
+      )}
+
       {/* New Project Modal */}
       {isNewProjectModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-[#1E2235] bg-[#0F111A] p-6 shadow-2xl">
+          <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-[#1E2235] bg-[#0F111A] p-5 sm:p-6 shadow-2xl">
             <h3 className="text-base font-bold text-white">Create New Test Target Project</h3>
             <p className="mt-1 text-xs text-slate-400">Specify the website or API endpoint you want to automate.</p>
             <form onSubmit={handleCreateProject} className="mt-4 space-y-4">
@@ -1820,7 +2358,7 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
               </div>
 
               <div>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-1">
                   <label className="text-xs font-semibold text-slate-300">Target Site / API URL</label>
                   {newProjUrl && (
                     <button
@@ -1870,7 +2408,7 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
                 />
               </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#1E2235]/60 mt-3">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-3 border-t border-[#1E2235]/60 mt-3">
                 <button
                   type="button"
                   onClick={() => {
@@ -1879,7 +2417,7 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
                     setJourneyModalInitialUrl(urlToUse);
                     setIsJourneyModalOpen(true);
                   }}
-                  className="flex items-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs font-bold text-emerald-300 hover:bg-emerald-500/20 transition"
+                  className="flex items-center justify-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs font-bold text-emerald-300 hover:bg-emerald-500/20 transition min-h-[40px] sm:min-h-0"
                 >
                   <Sparkles className="h-3.5 w-3.5" />
                   <span>Launch Guided Journey</span>
@@ -1889,13 +2427,13 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
                   <button
                     type="button"
                     onClick={() => setIsNewProjectModalOpen(false)}
-                    className="rounded-xl border border-[#1E2235] bg-[#131622] px-4 py-2 text-xs font-semibold text-slate-300"
+                    className="flex-1 sm:flex-initial rounded-xl border border-[#1E2235] bg-[#131622] px-4 py-2 text-xs font-semibold text-slate-300 min-h-[40px] sm:min-h-0"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="rounded-xl bg-emerald-500 px-4 py-2 text-xs font-bold text-slate-950 hover:bg-emerald-400 transition"
+                    className="flex-1 sm:flex-initial rounded-xl bg-emerald-500 px-4 py-2 text-xs font-bold text-slate-950 hover:bg-emerald-400 transition min-h-[40px] sm:min-h-0"
                   >
                     Create Project
                   </button>
@@ -1909,7 +2447,7 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
       {/* Modal: Edit Project */}
       {isEditProjectModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-[#1E2235] bg-[#0F111A] p-6 shadow-2xl">
+          <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-[#1E2235] bg-[#0F111A] p-5 sm:p-6 shadow-2xl">
             <div className="flex items-center justify-between border-b border-[#1E2235] pb-3">
               <h3 className="text-base font-bold text-white">Edit Project Details</h3>
               <button
@@ -1954,13 +2492,13 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
                 <button
                   type="button"
                   onClick={() => setIsEditProjectModalOpen(false)}
-                  className="rounded-xl border border-[#1E2235] px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white"
+                  className="flex-1 sm:flex-initial rounded-xl border border-[#1E2235] px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white min-h-[40px] sm:min-h-0"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl bg-emerald-500 px-4 py-2 text-xs font-bold text-slate-950 hover:bg-emerald-400"
+                  className="flex-1 sm:flex-initial rounded-xl bg-emerald-500 px-4 py-2 text-xs font-bold text-slate-950 hover:bg-emerald-400 min-h-[40px] sm:min-h-0"
                 >
                   Save to Firestore
                 </button>
@@ -1973,7 +2511,7 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
       {/* Modal: Create Test Case */}
       {isNewCaseModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-2xl border border-[#1E2235] bg-[#0F111A] p-6 shadow-2xl space-y-4">
+          <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-[#1E2235] bg-[#0F111A] p-5 sm:p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-[#1E2235] pb-3">
               <div className="flex items-center gap-2">
                 <Plus className="h-5 w-5 text-emerald-400" />
@@ -2000,7 +2538,7 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col sm:grid sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">Category / Suite</label>
                   <input
@@ -2016,7 +2554,7 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
                   <select
                     value={caseFormPriority}
                     onChange={e => setCaseFormPriority(e.target.value as any)}
-                    className="w-full rounded-xl border border-[#1E2235] bg-[#06070B] px-3.5 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                    className="w-full rounded-xl border border-[#1E2235] bg-[#06070B] px-3.5 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none cursor-pointer min-h-[40px] sm:min-h-0"
                   >
                     <option value="High">High</option>
                     <option value="Medium">Medium</option>
@@ -2025,13 +2563,13 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="flex flex-col sm:grid sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">Type</label>
                   <select
                     value={caseFormType}
                     onChange={e => setCaseFormType(e.target.value as any)}
-                    className="w-full rounded-xl border border-[#1E2235] bg-[#06070B] px-3.5 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                    className="w-full rounded-xl border border-[#1E2235] bg-[#06070B] px-3.5 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none cursor-pointer min-h-[40px] sm:min-h-0"
                   >
                     <option value="http">HTTP Functional</option>
                     <option value="load">Load Test</option>
@@ -2043,7 +2581,7 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
                   <select
                     value={caseFormMethod}
                     onChange={e => setCaseFormMethod(e.target.value)}
-                    className="w-full rounded-xl border border-[#1E2235] bg-[#06070B] px-3.5 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                    className="w-full rounded-xl border border-[#1E2235] bg-[#06070B] px-3.5 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none cursor-pointer min-h-[40px] sm:min-h-0"
                   >
                     <option value="GET">GET</option>
                     <option value="POST">POST</option>
@@ -2086,17 +2624,17 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-[#1E2235]">
+              <div className="flex flex-col sm:flex-row justify-end gap-2 pt-3 border-t border-[#1E2235]">
                 <button
                   type="button"
                   onClick={() => setIsNewCaseModalOpen(false)}
-                  className="rounded-xl border border-[#1E2235] px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white"
+                  className="flex-1 sm:flex-initial rounded-xl border border-[#1E2235] px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white min-h-[40px] sm:min-h-0"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-5 py-2 text-xs font-bold text-slate-950 hover:from-emerald-400 hover:to-teal-500"
+                  className="flex-1 sm:flex-initial rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-5 py-2 text-xs font-bold text-slate-950 hover:from-emerald-400 hover:to-teal-500 min-h-[40px] sm:min-h-0"
                 >
                   Create in Firestore
                 </button>
@@ -2109,7 +2647,7 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
       {/* Modal: Edit Test Case */}
       {isEditCaseModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-2xl border border-[#1E2235] bg-[#0F111A] p-6 shadow-2xl space-y-4">
+          <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-[#1E2235] bg-[#0F111A] p-5 sm:p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-[#1E2235] pb-3">
               <div className="flex items-center gap-2">
                 <Edit3 className="h-5 w-5 text-emerald-400" />
@@ -2138,7 +2676,7 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col sm:grid sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">Category / Suite</label>
                   <input
@@ -2154,7 +2692,7 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
                   <select
                     value={caseFormPriority}
                     onChange={e => setCaseFormPriority(e.target.value as any)}
-                    className="w-full rounded-xl border border-[#1E2235] bg-[#06070B] px-3.5 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                    className="w-full rounded-xl border border-[#1E2235] bg-[#06070B] px-3.5 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none cursor-pointer min-h-[40px] sm:min-h-0"
                   >
                     <option value="High">High</option>
                     <option value="Medium">Medium</option>
@@ -2163,13 +2701,13 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="flex flex-col sm:grid sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">Type</label>
                   <select
                     value={caseFormType}
                     onChange={e => setCaseFormType(e.target.value as any)}
-                    className="w-full rounded-xl border border-[#1E2235] bg-[#06070B] px-3.5 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                    className="w-full rounded-xl border border-[#1E2235] bg-[#06070B] px-3.5 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none cursor-pointer min-h-[40px] sm:min-h-0"
                   >
                     <option value="http">HTTP Functional</option>
                     <option value="load">Load Test</option>
@@ -2181,7 +2719,7 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
                   <select
                     value={caseFormMethod}
                     onChange={e => setCaseFormMethod(e.target.value)}
-                    className="w-full rounded-xl border border-[#1E2235] bg-[#06070B] px-3.5 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                    className="w-full rounded-xl border border-[#1E2235] bg-[#06070B] px-3.5 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none cursor-pointer min-h-[40px] sm:min-h-0"
                   >
                     <option value="GET">GET</option>
                     <option value="POST">POST</option>
@@ -2222,20 +2760,20 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-[#1E2235]">
+              <div className="flex flex-col sm:flex-row justify-end gap-2 pt-3 border-t border-[#1E2235]">
                 <button
                   type="button"
                   onClick={() => {
                     setIsEditCaseModalOpen(false);
                     setEditingCaseId(null);
                   }}
-                  className="rounded-xl border border-[#1E2235] px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white"
+                  className="flex-1 sm:flex-initial rounded-xl border border-[#1E2235] px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white min-h-[40px] sm:min-h-0"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-5 py-2 text-xs font-bold text-slate-950 hover:from-emerald-400 hover:to-teal-500"
+                  className="flex-1 sm:flex-initial rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-5 py-2 text-xs font-bold text-slate-950 hover:from-emerald-400 hover:to-teal-500 min-h-[40px] sm:min-h-0"
                 >
                   Save Changes to Firestore
                 </button>
