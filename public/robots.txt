@@ -6,7 +6,9 @@ Allow: /docs
 Allow: /pricing
 Allow: /contact
 Allow: /about
-Allow: /studio
+Disallow: /studio
+Disallow: /org-admin
+Disallow: /super-admin
 Disallow: /api/
 Disallow: /admin
 

@@ -289,6 +289,53 @@ export const Homepage: React.FC<HomepageProps> = ({
         </div>
       </section>
 
+      {/* Platform Capabilities At A Glance — technical stack + business capability summary */}
+      <section id="platform-capabilities" className="border-t border-[#1E2235] bg-[#0F111A]/60 py-20">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="text-center">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-emerald-400">What Verity Actually Ships</h2>
+            <p className="mt-2 text-3xl font-extrabold text-white sm:text-4xl">Technical & Business Capabilities</p>
+            <p className="mx-auto mt-3 max-w-2xl text-sm text-slate-400">
+              Every capability below maps to a working part of the platform — the interactive Studio, the hosted API, or a Docker export — not a roadmap slide.
+            </p>
+          </div>
+
+          <div className="mt-10 grid grid-cols-1 gap-6 md:grid-cols-2">
+            {/* Technical capabilities */}
+            <div className="rounded-2xl border border-[#1E2235] bg-[#0F111A] p-6">
+              <div className="flex items-center gap-2 border-b border-[#1E2235] pb-4">
+                <Code2 className="h-4 w-4 text-emerald-400" />
+                <h3 className="text-sm font-bold text-white">Technical Capabilities</h3>
+              </div>
+              <ul className="mt-4 space-y-3 text-xs text-slate-300">
+                <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400" /><span><strong className="text-white">Live network introspection</strong> of a target URL — routes, headers, SSL config, sitemap/robots — used to build real parameter datasets instead of guessed ones.</span></li>
+                <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400" /><span><strong className="text-white">AI-assisted test generation</strong> from an uploaded spec, CSV, or Markdown table, parsed by the platform's spec parser into executable HTTP/load/manual test cases.</span></li>
+                <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400" /><span><strong className="text-white">Interactive dataset resolution</strong> — the Studio detects missing variables and asks for them, rather than silently substituting placeholder values.</span></li>
+                <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400" /><span><strong className="text-white">Self-contained Docker packaging</strong> with deploy instructions for Cloud Run, ECS/App Runner, Azure Container Apps, or Kubernetes — no vendor lock-in.</span></li>
+                <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400" /><span><strong className="text-white">Hosted execution engine</strong> (React 19 + Express/TypeScript) with persisted run history, scheduling (daily/weekly/cron), and CSV/report export.</span></li>
+                <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400" /><span><strong className="text-white">Real analytics</strong> — pass rate, latency percentiles, and flakiness computed from actual persisted test runs, with an honest zero-state when nothing has run yet.</span></li>
+              </ul>
+            </div>
+
+            {/* Business capabilities */}
+            <div className="rounded-2xl border border-[#1E2235] bg-[#0F111A] p-6">
+              <div className="flex items-center gap-2 border-b border-[#1E2235] pb-4">
+                <Building2 className="h-4 w-4 text-cyan-400" />
+                <h3 className="text-sm font-bold text-white">Business Capabilities</h3>
+              </div>
+              <ul className="mt-4 space-y-3 text-xs text-slate-300">
+                <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-400" /><span><strong className="text-white">Multi-tenant organizations</strong> with role-based access — platform superadmin, org admin, team member, and standalone developer.</span></li>
+                <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-400" /><span><strong className="text-white">Credit-based billing</strong> for hosted execution, with a full ledger, daily free-preview caps, and self-hosted Docker as a zero-cost unlimited alternative.</span></li>
+                <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-400" /><span><strong className="text-white">Customer onboarding journeys</strong> — seed an org, allocate team budgets, and invite engineers, end to end.</span></li>
+                <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-400" /><span><strong className="text-white">Security & governance controls</strong> — API key rotation history, org security configuration, and platform audit logs.</span></li>
+                <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-400" /><span><strong className="text-white">Two revenue paths</strong> — pay-per-execution hosted cloud, or a one-time export to self-hosted infrastructure the customer fully controls.</span></li>
+                <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-400" /><span><strong className="text-white">Transparent contact & support routing</strong> for engineering solutions and enterprise deployment questions.</span></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Cloud & Onboarding Roles Section */}
       <section className="py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">

@@ -15,6 +15,32 @@ import { api, clearStoredToken } from './services/api';
 import { subscribeAuthState, signOutGoogle, ensureFirestoreInitialized } from './services/firebase';
 import { User, Organization, AppView } from './types';
 
+const SITE_ORIGIN = 'https://ais-pre-zxirjfnjh6bl2ylg7svoja-4552824319.us-west2.run.app';
+
+// Real, crawlable path for every view (used for pushState routing, canonical
+// links, and og:url) instead of hash fragments, which search engines largely
+// don't index as distinct pages.
+const VIEW_PATHS: Record<AppView, string> = {
+  home: '/',
+  studio: '/studio',
+  features: '/features',
+  docs: '/docs',
+  pricing: '/pricing',
+  contact: '/contact',
+  about: '/about',
+  org_admin: '/org-admin',
+  super_admin: '/super-admin',
+};
+
+const PATH_TO_VIEW: Record<string, AppView> = Object.entries(VIEW_PATHS).reduce(
+  (acc, [view, path]) => ({ ...acc, [path]: view as AppView }),
+  {} as Record<string, AppView>
+);
+
+// Views that are real logged-in application surfaces rather than public
+// marketing/informational pages — these are excluded from indexing.
+const NOINDEX_VIEWS: AppView[] = ['studio', 'org_admin', 'super_admin'];
+
 const VIEW_TITLES: Record<AppView, string> = {
   home: 'Verity — Zero-Dummy-Data QA Automation, Live Network Introspection & Multi-Cloud Docker Delivery',
   studio: 'Interactive QA Studio — Verity Automated Test Platform',
@@ -27,6 +53,18 @@ const VIEW_TITLES: Record<AppView, string> = {
   super_admin: 'Platform Superadmin — Verity QA Platform',
 };
 
+const VIEW_DESCRIPTIONS: Record<AppView, string> = {
+  home: 'Zero-dummy-data automated test execution engine, live network URL introspection, dynamic dataset builder, multi-cloud Docker package generator, and multi-tenant admin platform.',
+  studio: 'Build and run automated test suites interactively: upload or AI-generate test cases, resolve live parameters, and execute against your real environment.',
+  features: 'Explore Verity\'s architecture: 0-gap parameterized datasets, live network introspection, and self-contained Docker packaging that replaces brittle mock-data test suites.',
+  docs: 'Developer documentation for Verity\'s test specification schema, live introspection API, and Docker export format.',
+  pricing: 'Verity pricing: run unlimited tests self-hosted via Docker for free, or use the hosted cloud runner billed per execution credit.',
+  contact: 'Contact Verity engineering and solutions support for onboarding, enterprise deployment, or technical questions.',
+  about: 'Verity\'s mission: eliminate flaky, dummy-data-driven test suites with real-time network introspection and zero-trust security architecture.',
+  org_admin: 'Organization administration for Verity customers: manage teams, credits, and security configuration.',
+  super_admin: 'Platform-wide administration for Verity operators.',
+};
+
 export function App() {
   const [currentView, setCurrentView] = useState<AppView>('home');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -35,41 +73,71 @@ export function App() {
   const [isBillingOpen, setIsBillingOpen] = useState(false);
   const [isLoadingUser, setIsLoadingUser] = useState(true);
 
-  // Sync currentView with URL hash for search engine crawlability and deep links
+  // Sync currentView with the real URL path (pushState-based routing) so every
+  // view is a distinct, crawlable, bookmarkable URL rather than a hash fragment.
   useEffect(() => {
-    const parseHash = (): AppView => {
+    const parseLocation = (): AppView => {
+      // Back-compat: old links may still use #studio etc. — honor them once,
+      // then normalize to the real path below.
       const hash = window.location.hash.replace('#', '').toLowerCase();
-      if (['studio', 'features', 'docs', 'pricing', 'contact', 'about', 'org_admin', 'super_admin'].includes(hash)) {
-        return hash as AppView;
+      if (hash && PATH_TO_VIEW[`/${hash}`]) {
+        return PATH_TO_VIEW[`/${hash}`];
       }
-      return 'home';
+      const path = window.location.pathname.replace(/\/+$/, '') || '/';
+      return PATH_TO_VIEW[path] || 'home';
     };
 
-    const initialView = parseHash();
+    const initialView = parseLocation();
     if (initialView !== 'home') {
       setCurrentView(initialView);
+      // Normalize any old hash-based URL to its real path immediately.
+      if (window.location.hash) {
+        history.replaceState(null, '', VIEW_PATHS[initialView]);
+      }
     }
 
-    const handleHashChange = () => {
-      setCurrentView(parseHash());
+    const handlePopState = () => {
+      setCurrentView(parseLocation());
     };
 
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  // Update browser document title when view changes
+  // Update document title + meta description/canonical/OG/Twitter tags and
+  // robots directives for the active view. This keeps SEO metadata accurate
+  // per-page instead of always showing the homepage's tags.
   useEffect(() => {
     document.title = VIEW_TITLES[currentView] || VIEW_TITLES.home;
+
+    const description = VIEW_DESCRIPTIONS[currentView] || VIEW_DESCRIPTIONS.home;
+    const url = `${SITE_ORIGIN}${VIEW_PATHS[currentView] || '/'}`;
+    const shouldIndex = !NOINDEX_VIEWS.includes(currentView);
+
+    const setMeta = (selector: string, attr: string, value: string) => {
+      const el = document.querySelector(selector);
+      if (el) el.setAttribute(attr, value);
+    };
+
+    setMeta('meta[name="description"]', 'content', description);
+    setMeta('meta[property="og:title"]', 'content', VIEW_TITLES[currentView]);
+    setMeta('meta[property="og:description"]', 'content', description);
+    setMeta('meta[property="og:url"]', 'content', url);
+    setMeta('meta[name="twitter:title"]', 'content', VIEW_TITLES[currentView]);
+    setMeta('meta[name="twitter:description"]', 'content', description);
+    setMeta(
+      'meta[name="robots"]',
+      'content',
+      shouldIndex ? 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1' : 'noindex, nofollow'
+    );
+
+    const canonical = document.querySelector('link[rel="canonical"]');
+    if (canonical) canonical.setAttribute('href', url);
   }, [currentView]);
 
   const handleNavigate = (view: AppView) => {
     setCurrentView(view);
-    if (view === 'home') {
-      history.pushState(null, '', ' ');
-    } else {
-      window.location.hash = view;
-    }
+    history.pushState(null, '', VIEW_PATHS[view] || '/');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 

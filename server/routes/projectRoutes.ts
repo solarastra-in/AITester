@@ -1063,56 +1063,11 @@ projectRouter.get('/:id/analytics', (req: Request, res: Response) => {
     ? db.data.testRuns.filter(r => r.projectId === projectId)
     : db.data.testRuns;
 
-  // If there are very few or no runs yet in the database, synthesize realistic historical runs
-  // for the actual test cases over the last N days so the user has immediate rich trend charts!
-  if (runs.length < 15 && cases.length > 0) {
-    const targetProjId = project ? project.id : (db.data.projects[0]?.id || 'proj_default');
-    const now = Date.now();
-    const seededRuns: TestRun[] = [];
-
-    // Generate daily runs for the past 'days' days
-    for (let d = days; d >= 0; d--) {
-      const dayDate = new Date(now - d * 24 * 3600 * 1000);
-      // Run count per day scales up closer to today
-      const dayRunCount = Math.min(cases.length, Math.floor(8 + (days - d) * 3 + Math.random() * 5));
-      const sampleCases = [...cases].sort(() => 0.5 - Math.random()).slice(0, dayRunCount);
-
-      sampleCases.forEach((tc, idx) => {
-        // High pass rate (90-98%) reflecting genuine system health
-        const isPass = Math.random() < (d === 0 ? 0.98 : 0.92);
-        const duration = Math.floor(45 + Math.random() * 180);
-        const hourOffset = (idx * 15) % (12 * 60); // spread across day
-        const runTimestamp = new Date(dayDate.getTime() + hourOffset * 60 * 1000).toISOString();
-
-        seededRuns.push({
-          id: `seed_run_${d}_${idx}_${tc.id.slice(-4)}`,
-          projectId: targetProjId,
-          testCaseId: tc.id,
-          ranAt: runTimestamp,
-          pass: isPass,
-          message: isPass ? `Assertions passed (${tc.spec?.requests?.[0]?.method || 'GET'} 200 OK)` : 'Response latency exceeded SLA threshold [P95 > 250ms]',
-          executedBy: idx % 3 === 0 ? 'hosted' : 'preview',
-          creditsCharged: idx % 3 === 0 ? 1 : 0,
-          runByUserId: 'usr_superadmin',
-          requests: [
-            {
-              name: tc.title,
-              method: tc.spec?.requests?.[0]?.method || 'GET',
-              url: `${project?.siteUrl || 'https://ai.whyor.in'}${tc.spec?.requests?.[0]?.path || '/'}`,
-              status: isPass ? 200 : 504,
-              durationMs: duration,
-              error: isPass ? null : 'Gateway Timeout SLA exceeded',
-            },
-          ],
-        });
-      });
-    }
-
-    // Add seeded runs to db
-    db.data.testRuns = [...runs, ...seededRuns];
-    db.save();
-    runs = projectId !== 'all' ? db.data.testRuns.filter(r => r.projectId === projectId) : db.data.testRuns;
-  }
+  // NOTE: This endpoint reports only real, persisted test-run history — it never
+  // fabricates runs. A project with no executions yet correctly returns zeroed/empty
+  // metrics below rather than synthetic data, in line with the platform's zero-dummy-data
+  // guarantee (previously this endpoint injected randomly-generated "seed" runs into the
+  // database whenever fewer than 15 real runs existed; that behavior has been removed).
 
   // Calculate high-level summary metrics
   const totalRuns = runs.length;
@@ -1133,7 +1088,7 @@ projectRouter.get('/:id/analytics', (req: Request, res: Response) => {
       });
     }
   });
-  const avgDurationMs = durationCount > 0 ? Math.round(totalDuration / durationCount) : 118;
+  const avgDurationMs = durationCount > 0 ? Math.round(totalDuration / durationCount) : 0;
 
   // Build daily trend over time
   const dayBuckets: Record<string, {
@@ -1181,8 +1136,8 @@ projectRouter.get('/:id/analytics', (req: Request, res: Response) => {
   });
 
   const trendOverTime = Object.values(dayBuckets).map(b => {
-    const rate = b.total > 0 ? parseFloat(((b.passed / b.total) * 100).toFixed(1)) : 100;
-    const avgMs = b.durationCount > 0 ? Math.round(b.totalDuration / b.durationCount) : Math.floor(80 + Math.random() * 40);
+    const rate = b.total > 0 ? parseFloat(((b.passed / b.total) * 100).toFixed(1)) : 0;
+    const avgMs = b.durationCount > 0 ? Math.round(b.totalDuration / b.durationCount) : 0;
     return {
       date: b.displayDate,
       fullDate: b.date,
@@ -1267,6 +1222,22 @@ projectRouter.get('/:id/analytics', (req: Request, res: Response) => {
     count,
   }));
 
+  // Flakiness: real percentage of executed test cases whose run history contains
+  // both a pass and a fail (i.e. non-deterministic outcomes), not a fixed constant.
+  const runsByCase = new Map<string, boolean[]>();
+  runs.forEach(r => {
+    const arr = runsByCase.get(r.testCaseId) || [];
+    arr.push(r.pass);
+    runsByCase.set(r.testCaseId, arr);
+  });
+  let flakyCaseCount = 0;
+  runsByCase.forEach(results => {
+    if (results.includes(true) && results.includes(false)) flakyCaseCount++;
+  });
+  const flakinessScore = runsByCase.size > 0
+    ? parseFloat(((flakyCaseCount / runsByCase.size) * 100).toFixed(1))
+    : 0;
+
   res.json({
     summary: {
       totalRuns,
@@ -1274,7 +1245,7 @@ projectRouter.get('/:id/analytics', (req: Request, res: Response) => {
       failedRuns,
       passRate,
       avgDurationMs,
-      flakinessScore: 2.1, // 2.1% low flakiness
+      flakinessScore,
       totalCases: cases.length,
       activeCasesRun: new Set(runs.map(r => r.testCaseId)).size,
     },

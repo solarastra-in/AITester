@@ -128,7 +128,7 @@ export const ContactView: React.FC<ContactViewProps> = ({ onStartStudio, onOpenP
       <div className="relative mx-auto max-w-7xl">
         {/* Breadcrumb Navigation for SEO */}
         <nav aria-label="Breadcrumb" className="mb-6 flex items-center gap-2 text-xs text-slate-400">
-          <a href="#home" className="hover:text-emerald-400 transition">Verity QA Platform</a>
+          <a href="/" className="hover:text-emerald-400 transition">Verity QA Platform</a>
           <span>/</span>
           <span className="text-emerald-400 font-semibold">Contact Solutions & Support</span>
         </nav>
