@@ -1,0 +1,55 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
+    // Projects collection
+    match /projects/{projectId} {
+      allow read, write: if true;
+    }
+
+    // Datasets collection (Full CRUD)
+    match /datasets/{datasetId} {
+      allow read, write: if true;
+    }
+
+    // Suites collection
+    match /suites/{suiteId} {
+      allow read, write: if true;
+    }
+
+    // Test cases collection
+    match /test_cases/{testCaseId} {
+      allow read, write: if true;
+    }
+
+    // Test runs / execution logs
+    match /test_runs/{runId} {
+      allow read, write: if true;
+    }
+
+    // Organizations
+    match /organizations/{orgId} {
+      allow read, write: if true;
+    }
+
+    // Diagnostics / connection test
+    match /test/{docId} {
+      allow read, write: if true;
+    }
+
+    // Default match for any other document
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}
+

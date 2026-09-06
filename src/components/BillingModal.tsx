@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CreditCard, Zap, CheckCircle2, ArrowRight, ShieldCheck, X, Sparkles, Clock } from 'lucide-react';
+import { CreditCard, Zap, CheckCircle2, ArrowRight, ShieldCheck, X, Sparkles, Clock, AlertCircle } from 'lucide-react';
 import { api } from '../services/api';
 import { PricingTier, CreditLedgerEntry } from '../types';
 
@@ -21,6 +21,7 @@ export const BillingModal: React.FC<BillingModalProps> = ({ isOpen, onClose, onB
   const [loading, setLoading] = useState(true);
   const [purchasingTierId, setPurchasingTierId] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const loadStatus = async () => {
     try {
@@ -43,13 +44,14 @@ export const BillingModal: React.FC<BillingModalProps> = ({ isOpen, onClose, onB
   const handleTopUp = async (tierId: string) => {
     try {
       setPurchasingTierId(tierId);
+      setErrorMessage(null);
       const res = await api.topUpCredits(tierId);
       setSuccessMessage(res.message);
       loadStatus();
       if (onBalanceUpdated) onBalanceUpdated();
       setTimeout(() => setSuccessMessage(null), 4000);
     } catch (err: any) {
-      alert(err.message || 'Payment simulation failed.');
+      setErrorMessage(err.message || 'Payment simulation failed.');
     } finally {
       setPurchasingTierId(null);
     }
@@ -83,6 +85,13 @@ export const BillingModal: React.FC<BillingModalProps> = ({ isOpen, onClose, onB
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {errorMessage && (
+            <div className="rounded-xl border border-rose-500/40 bg-rose-950/40 p-4 text-xs font-semibold text-rose-300 flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 text-rose-400 shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
+
           {successMessage && (
             <div className="rounded-xl border border-emerald-500/40 bg-emerald-950/40 p-4 text-xs font-semibold text-emerald-300 flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4 text-emerald-400" />

@@ -1,0 +1,147 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with role, credits balance, and Google authentication identity",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "description": "User Google email address" },
+        "name": { "type": "string", "description": "Display name" },
+        "photoURL": { "type": "string", "description": "Avatar photo URL" },
+        "role": { "type": "string", "description": "User role: platform_admin, org_admin, member, standalone" },
+        "creditsBalance": { "type": "number", "description": "Available cloud run credits" },
+        "createdAt": { "type": "string", "description": "ISO timestamp" },
+        "updatedAt": { "type": "string", "description": "ISO timestamp" }
+      },
+      "required": ["id", "email", "name"]
+    },
+    "Project": {
+      "title": "Project",
+      "description": "Automated testing projects with base URLs, datasets, and configurations",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique project identifier" },
+        "ownerUserId": { "type": "string", "description": "UID of the project creator" },
+        "name": { "type": "string", "description": "Project display title" },
+        "siteUrl": { "type": "string", "description": "Target base URL" },
+        "description": { "type": "string", "description": "Project overview" },
+        "dataset": { "type": "object", "description": "Key-value dynamic dataset variables" },
+        "createdAt": { "type": "string", "description": "Creation timestamp" },
+        "updatedAt": { "type": "string", "description": "Last update timestamp" }
+      },
+      "required": ["id", "name", "siteUrl"]
+    },
+    "Dataset": {
+      "title": "Dataset",
+      "description": "Dedicated dataset profiles and environment collections with full CRUD capability",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Dataset identifier" },
+        "projectId": { "type": "string", "description": "Target project reference" },
+        "name": { "type": "string", "description": "Dataset name e.g. Staging, Production, Local" },
+        "environment": { "type": "string", "description": "Target environment tag" },
+        "description": { "type": "string", "description": "Dataset description" },
+        "variables": { "type": "object", "description": "Map of key-value variables" },
+        "isDefault": { "type": "boolean", "description": "Whether this is the primary dataset" },
+        "ownerUserId": { "type": "string", "description": "Creator UID" },
+        "createdAt": { "type": "string", "description": "Creation timestamp" },
+        "updatedAt": { "type": "string", "description": "Update timestamp" }
+      },
+      "required": ["id", "name", "environment", "variables"]
+    },
+    "TestCase": {
+      "title": "TestCase",
+      "description": "Individual HTTP, Load, and Manual test case specifications",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Test case identifier" },
+        "projectId": { "type": "string", "description": "Associated project ID" },
+        "suiteId": { "type": "string", "description": "Associated suite ID" },
+        "extId": { "type": "string", "description": "External readable code e.g. TC-001" },
+        "category": { "type": "string", "description": "Category name" },
+        "title": { "type": "string", "description": "Scenario title" },
+        "priority": { "type": "string", "description": "High, Medium, or Low" },
+        "type": { "type": "string", "description": "http, load, or manual" },
+        "spec": { "type": "object", "description": "HTTP or Load request payload and expectation rules" },
+        "dataFields": { "type": "array", "description": "Referenced dynamic variables" },
+        "missingDataFields": { "type": "array", "description": "Missing variables" },
+        "lastResult": { "type": "object", "description": "Latest execution telemetry" },
+        "createdAt": { "type": "string", "description": "Creation timestamp" },
+        "updatedAt": { "type": "string", "description": "Update timestamp" }
+      },
+      "required": ["id", "title", "category", "type"]
+    },
+    "TestRun": {
+      "title": "TestRun",
+      "description": "Historical execution telemetry and test run assertions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Execution run ID" },
+        "projectId": { "type": "string", "description": "Project ID" },
+        "testCaseId": { "type": "string", "description": "Test case ID" },
+        "status": { "type": "string", "description": "passed, failed, or running" },
+        "durationMs": { "type": "number", "description": "Roundtrip execution latency in ms" },
+        "httpStatus": { "type": "number", "description": "Response status code" },
+        "mode": { "type": "string", "description": "preview or hosted" },
+        "timestamp": { "type": "string", "description": "Execution timestamp" }
+      },
+      "required": ["id", "status", "timestamp"]
+    },
+    "Suite": {
+      "title": "Suite",
+      "description": "Test suites grouping test cases",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Suite ID" },
+        "projectId": { "type": "string", "description": "Parent project ID" },
+        "name": { "type": "string", "description": "Suite name" },
+        "source": { "type": "string", "description": "uploaded, ai_generated, or manual" },
+        "createdAt": { "type": "string", "description": "Creation timestamp" }
+      },
+      "required": ["id", "name"]
+    },
+    "Organization": {
+      "title": "Organization",
+      "description": "Organizations for workspace and team member management",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Organization ID" },
+        "name": { "type": "string", "description": "Organization Name" },
+        "plan": { "type": "string", "description": "Subscription Plan" },
+        "memberCount": { "type": "number", "description": "Active members" }
+      },
+      "required": ["id", "name"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles"
+    },
+    "/projects/{projectId}": {
+      "schema": { "$ref": "#/entities/Project" },
+      "description": "Project collections"
+    },
+    "/datasets/{datasetId}": {
+      "schema": { "$ref": "#/entities/Dataset" },
+      "description": "Dataset environment profiles"
+    },
+    "/test_cases/{testCaseId}": {
+      "schema": { "$ref": "#/entities/TestCase" },
+      "description": "Test cases"
+    },
+    "/test_runs/{runId}": {
+      "schema": { "$ref": "#/entities/TestRun" },
+      "description": "Execution test runs"
+    },
+    "/suites/{suiteId}": {
+      "schema": { "$ref": "#/entities/Suite" },
+      "description": "Suites"
+    },
+    "/organizations/{orgId}": {
+      "schema": { "$ref": "#/entities/Organization" },
+      "description": "Organizations"
+    }
+  }
+}

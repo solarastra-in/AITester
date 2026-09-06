@@ -8,6 +8,7 @@ import { PricingView } from './components/PricingView';
 import { BillingModal } from './components/BillingModal';
 import { AuthModals } from './components/AuthModals';
 import { api, getStoredToken, clearStoredToken } from './services/api';
+import { subscribeAuthState, signOutGoogle, ensureFirestoreInitialized } from './services/firebase';
 import { User, Organization } from './types';
 
 export function App() {
@@ -17,6 +18,23 @@ export function App() {
   const [authMode, setAuthMode] = useState<'login' | 'register' | 'reset' | null>(null);
   const [isBillingOpen, setIsBillingOpen] = useState(false);
   const [isLoadingUser, setIsLoadingUser] = useState(true);
+
+  // Initialize Firestore datasets and listen to Google Auth state
+  useEffect(() => {
+    ensureFirestoreInitialized();
+
+    const unsubscribe = subscribeAuthState((googleUser) => {
+      if (googleUser) {
+        setCurrentUser(googleUser);
+        setIsLoadingUser(false);
+      } else {
+        // If not logged in via Firebase Google Auth, check backend session or default demo
+        fetchCurrentUser();
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   // Load initial authenticated user (or auto-seed first user)
   const fetchCurrentUser = async () => {
@@ -39,10 +57,6 @@ export function App() {
     }
   };
 
-  useEffect(() => {
-    fetchCurrentUser();
-  }, []);
-
   const handleSwitchPersona = async (role?: string, email?: string) => {
     try {
       const res = await api.switchPersona(role, email);
@@ -53,7 +67,12 @@ export function App() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await signOutGoogle();
+    } catch (e) {
+      console.warn('Firebase signout warning', e);
+    }
     clearStoredToken();
     setCurrentUser(null);
     setCurrentOrg(null);
@@ -61,7 +80,7 @@ export function App() {
   };
 
   const handleAuthSuccess = (user: User) => {
-    fetchCurrentUser();
+    setCurrentUser(user);
     if (currentView === 'home') {
       setCurrentView('studio');
     }

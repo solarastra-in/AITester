@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { User, Organization, Team, Project, CreditLedgerEntry } from '../types';
+import { AlertModal } from './AlertModal';
 
 interface OrgAdminViewProps {
   currentUser: User;
@@ -49,6 +50,7 @@ export const OrgAdminView: React.FC<OrgAdminViewProps> = ({ currentUser, onOpenB
   // Generated credential banner
   const [seededCredential, setSeededCredential] = useState<{ name: string; email: string; tempPass: string } | null>(null);
   const [copiedPass, setCopiedPass] = useState(false);
+  const [alertModal, setAlertModal] = useState<{ isOpen: boolean; message: string } | null>(null);
 
   const loadData = async () => {
     try {
@@ -76,7 +78,7 @@ export const OrgAdminView: React.FC<OrgAdminViewProps> = ({ currentUser, onOpenB
       setNewTeamName('');
       loadData();
     } catch (err: any) {
-      alert(err.message);
+      setAlertModal({ isOpen: true, message: err.message || 'Failed to create team.' });
     }
   };
 
@@ -95,7 +97,7 @@ export const OrgAdminView: React.FC<OrgAdminViewProps> = ({ currentUser, onOpenB
       setNewMemberEmail('');
       loadData();
     } catch (err: any) {
-      alert(err.message);
+      setAlertModal({ isOpen: true, message: err.message || 'Failed to seed member.' });
     }
   };
 
@@ -459,6 +461,15 @@ export const OrgAdminView: React.FC<OrgAdminViewProps> = ({ currentUser, onOpenB
             </form>
           </div>
         </div>
+      )}
+
+      {/* In-App Alert Modal */}
+      {alertModal && (
+        <AlertModal
+          isOpen={alertModal.isOpen}
+          message={alertModal.message}
+          onClose={() => setAlertModal(null)}
+        />
       )}
     </div>
   );

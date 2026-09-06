@@ -4,6 +4,7 @@ export interface User {
   id: string;
   email: string;
   name: string;
+  photoURL?: string;
   role: UserRole;
   orgId?: string | null;
   teamId?: string | null;
@@ -84,7 +85,8 @@ export interface TestCaseSpec {
 
 export interface TestCase {
   id: string;
-  suiteId: string;
+  projectId?: string;
+  suiteId?: string;
   suiteName?: string;
   extId: string;
   category: string;
@@ -97,6 +99,7 @@ export interface TestCase {
   missingDataFields?: string[];
   lastResult?: TestRun | null;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface TestRun {
@@ -157,3 +160,51 @@ export interface PricingTier {
   features: string[];
   popular?: boolean;
 }
+
+export interface IntrospectionQuestion {
+  id: string;
+  category: 'auth' | 'model' | 'data' | 'workflow' | 'edge_case';
+  title: string;
+  question: string;
+  explanation: string;
+  suggestedDefault: string;
+  variableKey: string;
+  placeholder: string;
+  required: boolean;
+}
+
+export interface DiscoveredEndpoint {
+  method: string;
+  path: string;
+  purpose: string;
+  requiresAuth: boolean;
+}
+
+export interface IntrospectedWebsiteData {
+  targetUrl: string;
+  probedStatus: number;
+  responseTimeMs: number;
+  serverHeaders: Record<string, string>;
+  title: string;
+  metaDescription: string;
+  techStack: string[];
+  detectedArchitecture: string;
+  discoveredEndpoints: DiscoveredEndpoint[];
+  securitySignals: string[];
+  suggestedSuiteName: string;
+  suggestedProjectName: string;
+  questions: IntrospectionQuestion[];
+  defaultDataset: Record<string, any>;
+  quickScenarios: string[];
+}
+
+export interface BuildJourneyResult {
+  ok: boolean;
+  projectId: string;
+  suiteId: string;
+  suiteName: string;
+  caseCount: number;
+  dataset: Record<string, any>;
+  cases: TestCase[];
+}
+

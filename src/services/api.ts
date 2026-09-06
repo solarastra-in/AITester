@@ -1,4 +1,16 @@
-import { User, Organization, Project, TestCase, TestRun, PricingTier, CreditLedgerEntry, SystemAuditLog, Team } from '../types';
+import {
+  User,
+  Organization,
+  Project,
+  TestCase,
+  TestRun,
+  PricingTier,
+  CreditLedgerEntry,
+  SystemAuditLog,
+  Team,
+  IntrospectedWebsiteData,
+  BuildJourneyResult,
+} from '../types';
 
 const TOKEN_KEY = 'verity_auth_token';
 
@@ -119,8 +131,35 @@ export const api = {
     return request<Project & { suites: any[]; caseCount: number }>(`/api/projects/${id}`);
   },
 
+  async updateProject(id: string, updates: Partial<Project>): Promise<Project> {
+    return request<Project>(`/api/projects/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  },
+
   async deleteProject(id: string): Promise<{ ok: boolean }> {
     return request<{ ok: boolean }>(`/api/projects/${id}`, { method: 'DELETE' });
+  },
+
+  async createTestCase(projectId: string, testCase: Partial<TestCase>): Promise<TestCase> {
+    return request<TestCase>(`/api/projects/${projectId}/cases`, {
+      method: 'POST',
+      body: JSON.stringify(testCase),
+    });
+  },
+
+  async updateTestCase(projectId: string, caseId: string, updates: Partial<TestCase>): Promise<TestCase> {
+    return request<TestCase>(`/api/projects/${projectId}/cases/${caseId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  },
+
+  async deleteTestCase(projectId: string, caseId: string): Promise<{ ok: boolean }> {
+    return request<{ ok: boolean }>(`/api/projects/${projectId}/cases/${caseId}`, {
+      method: 'DELETE',
+    });
   },
 
   async getProjectCases(id: string): Promise<{
@@ -158,6 +197,31 @@ export const api = {
     return request(endpoint, {
       method: 'POST',
       body: JSON.stringify({ url, hint }),
+    });
+  },
+
+  async introspectJourney(url: string, hint?: string, projectId?: string): Promise<IntrospectedWebsiteData> {
+    const endpoint = projectId ? `/api/projects/${projectId}/introspect-journey` : '/api/projects/introspect-journey';
+    return request<IntrospectedWebsiteData>(endpoint, {
+      method: 'POST',
+      body: JSON.stringify({ url, hint }),
+    });
+  },
+
+  async buildFromJourney(payload: {
+    url: string;
+    projectId?: string;
+    projectName?: string;
+    suiteName?: string;
+    answers: Record<string, string>;
+    customDetails?: string;
+    customEndpoints?: Array<{ method: string; path: string; purpose?: string }>;
+    introspectionData?: Partial<IntrospectedWebsiteData>;
+  }): Promise<BuildJourneyResult> {
+    const endpoint = payload.projectId ? `/api/projects/${payload.projectId}/build-journey` : '/api/projects/build-journey';
+    return request<BuildJourneyResult>(endpoint, {
+      method: 'POST',
+      body: JSON.stringify(payload),
     });
   },
 

@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { SystemAuditLog } from '../types';
+import { AlertModal } from './AlertModal';
 
 export const SuperAdminView: React.FC = () => {
   const [stats, setStats] = useState<any>(null);
@@ -51,6 +52,7 @@ export const SuperAdminView: React.FC = () => {
   const [adjustModalOrg, setAdjustModalOrg] = useState<any | null>(null);
   const [adjustAmount, setAdjustAmount] = useState(500);
   const [adjustReason, setAdjustReason] = useState('Quarterly SLA Enterprise Grant');
+  const [alertModal, setAlertModal] = useState<{ isOpen: boolean; message: string } | null>(null);
 
   const loadAll = async () => {
     try {
@@ -104,7 +106,7 @@ export const SuperAdminView: React.FC = () => {
       setAdminEmail('');
       loadAll();
     } catch (err: any) {
-      alert(err.message || 'Onboarding failed.');
+      setAlertModal({ isOpen: true, message: err.message || 'Onboarding failed.' });
     } finally {
       setIsSubmitting(false);
     }
@@ -118,7 +120,7 @@ export const SuperAdminView: React.FC = () => {
       setAdjustModalOrg(null);
       loadAll();
     } catch (err: any) {
-      alert(err.message);
+      setAlertModal({ isOpen: true, message: err.message || 'Credit adjustment failed.' });
     }
   };
 
@@ -555,6 +557,15 @@ export const SuperAdminView: React.FC = () => {
             </form>
           </div>
         </div>
+      )}
+
+      {/* In-App Alert Modal */}
+      {alertModal && (
+        <AlertModal
+          isOpen={alertModal.isOpen}
+          message={alertModal.message}
+          onClose={() => setAlertModal(null)}
+        />
       )}
     </div>
   );

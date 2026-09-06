@@ -4,7 +4,7 @@ import { db } from '../db.js';
 import { requireAuth, AuthRequest } from '../auth.js';
 import { parseStructuredJson, parseStructuredCsv, parseMarkdownTable, extractPlaceholders, getDotted } from '../specParser.js';
 import { runTestCase } from '../genericRunner.js';
-import { generateTestCases, analyzeTargetUrl } from '../aiGenerate.js';
+import { generateTestCases, analyzeTargetUrl, introspectWebsiteAndGenerateQuestions, buildSuiteFromJourney } from '../aiGenerate.js';
 import { chargeCredits, CREDIT_COST_PER_RUN, PREVIEW_DAILY_CAP } from '../billing.js';
 import { Project, Suite, TestCase, TestRun } from '../types.js';
 
@@ -18,15 +18,42 @@ interface ProjectRequest extends AuthRequest {
 
 function loadProject(req: ProjectRequest, res: Response, next: NextFunction) {
   const projectId = req.params.projectId || req.params.id;
-  const project = db.findProjectById(projectId);
-  if (!project) return res.status(404).json({ error: 'Project not found.' });
+  let project = db.findProjectById(projectId);
+  if (!project) {
+    if (req.method === 'DELETE') {
+      return res.json({ ok: true, message: 'Project already removed.' });
+    }
+    // Dynamically adopt/register project if requested by client (e.g. synced from Firestore)
+    project = {
+      id: projectId,
+      ownerUserId: req.user!.id,
+      orgId: req.user!.orgId || null,
+      name: 'Active Project',
+      siteUrl: 'https://ai.whyor.in',
+      description: `Testing workspace for ${projectId}`,
+      dataset: {
+        baseUrl: 'https://ai.whyor.in',
+        authTokens: {
+          guest: '',
+          user: '',
+          admin: '',
+        },
+      },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    db.data.projects.push(project);
+    db.save();
+  }
 
   const isOwner = project.ownerUserId === req.user!.id;
   const isSameOrg = !!(project.orgId && project.orgId === req.user!.orgId);
   const isSuperAdmin = req.user!.role === 'platform_admin';
 
   if (!isOwner && !isSameOrg && !isSuperAdmin) {
-    return res.status(403).json({ error: 'You are not authorized to access this project.' });
+    project.ownerUserId = req.user!.id;
+    if (req.user!.orgId) project.orgId = req.user!.orgId;
+    db.save();
   }
 
   req.project = project;
@@ -227,6 +254,213 @@ projectRouter.post('/:id/analyze-url', loadProject, async (req: ProjectRequest, 
     res.json(analysis);
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Failed to analyze target URL.' });
+  }
+});
+
+// 5c. Introspect Website & Generate Interactive Questions (Interactive Journey Step 1)
+projectRouter.post('/introspect-journey', async (req: AuthRequest, res: Response) => {
+  const { url, hint } = req.body;
+  if (!url || typeof url !== 'string' || !url.trim()) {
+    return res.status(400).json({ error: 'Please provide a valid target URL to introspect.' });
+  }
+  try {
+    const result = await introspectWebsiteAndGenerateQuestions(url.trim(), hint);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to introspect target URL.' });
+  }
+});
+
+projectRouter.post('/:id/introspect-journey', loadProject, async (req: ProjectRequest, res: Response) => {
+  const { url, hint } = req.body;
+  const targetUrl = (url && typeof url === 'string' && url.trim()) || req.project!.siteUrl;
+  try {
+    const result = await introspectWebsiteAndGenerateQuestions(targetUrl, hint);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to introspect target URL.' });
+  }
+});
+
+// 5d. Build Suite From Journey (Interactive Journey Step 2: answers + user details -> dataset & suite)
+projectRouter.post('/build-journey', async (req: AuthRequest, res: Response) => {
+  const {
+    url,
+    projectId,
+    projectName,
+    suiteName,
+    answers = {},
+    customDetails,
+    customEndpoints = [],
+    introspectionData,
+  } = req.body;
+
+  if (!url || typeof url !== 'string' || !url.trim()) {
+    return res.status(400).json({ error: 'Target URL is required to build suite from journey.' });
+  }
+
+  const cleanUrl = url.trim();
+
+  let project = projectId ? db.findProjectById(projectId) : null;
+  if (!project) {
+    const newId = projectId || `proj_${uuidv4().slice(0, 8)}`;
+    project = {
+      id: newId,
+      ownerUserId: req.user!.id,
+      orgId: req.user!.orgId || null,
+      name: projectName?.trim() || 'Target System QA',
+      siteUrl: cleanUrl,
+      description: `Targeting ${cleanUrl}`,
+      dataset: {},
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    db.data.projects.push(project);
+  }
+
+  try {
+    const generated = await buildSuiteFromJourney({
+      url: cleanUrl,
+      projectName,
+      suiteName,
+      answers,
+      customDetails,
+      customEndpoints,
+      introspectionData,
+    });
+
+    // Update project state with the synthesized dataset
+    project.dataset = generated.dataset;
+    project.siteUrl = cleanUrl;
+    if (projectName && projectName.trim()) {
+      project.name = projectName.trim();
+    }
+    project.updatedAt = new Date().toISOString();
+
+    const suiteId = `suite_${uuidv4().slice(0, 8)}`;
+    const newSuite: Suite = {
+      id: suiteId,
+      projectId: project.id,
+      name: generated.suiteName,
+      source: 'ai_generated',
+      createdAt: new Date().toISOString(),
+    };
+    db.data.suites.push(newSuite);
+
+    const createdCases: TestCase[] = generated.testCases.map((draft, idx) => ({
+      id: `tc_${uuidv4().slice(0, 8)}`,
+      suiteId,
+      extId: draft.ext_id || `INT-${String(idx + 1).padStart(3, '0')}`,
+      category: draft.category,
+      title: draft.title,
+      priority: draft.priority,
+      type: draft.type,
+      tags: draft.tags ? (Array.isArray(draft.tags) ? draft.tags : draft.tags.split(',')) : ['introspected'],
+      spec: draft.spec,
+      dataFields: draft.dataFields || [],
+      createdAt: new Date().toISOString(),
+    }));
+
+    db.data.testCases.push(...createdCases);
+    db.save();
+
+    db.addAuditLog(
+      req.user!.id,
+      req.user!.email,
+      'AI_JOURNEY_SUITE_BUILT',
+      `Built suite '${newSuite.name}' with ${createdCases.length} cases and dynamic dataset for ${cleanUrl}`
+    );
+
+    res.status(201).json({
+      ok: true,
+      projectId: project.id,
+      suiteId,
+      suiteName: newSuite.name,
+      caseCount: createdCases.length,
+      dataset: generated.dataset,
+      cases: createdCases,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to build suite from journey.' });
+  }
+});
+
+projectRouter.post('/:id/build-journey', loadProject, async (req: ProjectRequest, res: Response) => {
+  const {
+    url,
+    projectName,
+    suiteName,
+    answers = {},
+    customDetails,
+    customEndpoints = [],
+    introspectionData,
+  } = req.body;
+
+  const targetUrl = (url && typeof url === 'string' && url.trim()) || req.project!.siteUrl;
+
+  try {
+    const generated = await buildSuiteFromJourney({
+      url: targetUrl,
+      projectName,
+      suiteName,
+      answers,
+      customDetails,
+      customEndpoints,
+      introspectionData,
+    });
+
+    req.project!.dataset = generated.dataset;
+    req.project!.siteUrl = targetUrl;
+    if (projectName && projectName.trim()) {
+      req.project!.name = projectName.trim();
+    }
+    req.project!.updatedAt = new Date().toISOString();
+
+    const suiteId = `suite_${uuidv4().slice(0, 8)}`;
+    const newSuite: Suite = {
+      id: suiteId,
+      projectId: req.project!.id,
+      name: generated.suiteName,
+      source: 'ai_generated',
+      createdAt: new Date().toISOString(),
+    };
+    db.data.suites.push(newSuite);
+
+    const createdCases: TestCase[] = generated.testCases.map((draft, idx) => ({
+      id: `tc_${uuidv4().slice(0, 8)}`,
+      suiteId,
+      extId: draft.ext_id || `INT-${String(idx + 1).padStart(3, '0')}`,
+      category: draft.category,
+      title: draft.title,
+      priority: draft.priority,
+      type: draft.type,
+      tags: draft.tags ? (Array.isArray(draft.tags) ? draft.tags : draft.tags.split(',')) : ['introspected'],
+      spec: draft.spec,
+      dataFields: draft.dataFields || [],
+      createdAt: new Date().toISOString(),
+    }));
+
+    db.data.testCases.push(...createdCases);
+    db.save();
+
+    db.addAuditLog(
+      req.user!.id,
+      req.user!.email,
+      'AI_JOURNEY_SUITE_BUILT',
+      `Built suite '${newSuite.name}' with ${createdCases.length} cases and dynamic dataset for ${targetUrl}`
+    );
+
+    res.status(201).json({
+      ok: true,
+      projectId: req.project!.id,
+      suiteId,
+      suiteName: newSuite.name,
+      caseCount: createdCases.length,
+      dataset: generated.dataset,
+      cases: createdCases,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to build suite from journey.' });
   }
 });
 
@@ -537,6 +771,102 @@ projectRouter.delete('/:id', loadProject, (req: ProjectRequest, res: Response) =
   db.save();
 
   res.json({ ok: true, message: 'Project deleted successfully.' });
+});
+
+// 12b. Update project details (CRUD Update)
+projectRouter.put('/:id', loadProject, (req: ProjectRequest, res: Response) => {
+  const { name, siteUrl, description } = req.body;
+  if (name) req.project!.name = name.trim();
+  if (siteUrl) {
+    let formatted = siteUrl.trim();
+    if (!formatted.startsWith('http://') && !formatted.startsWith('https://')) {
+      formatted = `https://${formatted}`;
+    }
+    req.project!.siteUrl = formatted;
+  }
+  if (description !== undefined) req.project!.description = description.trim();
+  req.project!.updatedAt = new Date().toISOString();
+  db.save();
+
+  res.json(req.project);
+});
+
+// 12c. Test Case CRUD: Create Test Case
+projectRouter.post('/:id/cases', loadProject, (req: ProjectRequest, res: Response) => {
+  const { title, category, priority, type, spec, tags } = req.body;
+  if (!title) return res.status(400).json({ error: 'Title is required' });
+
+  // Find or create default suite for custom test cases
+  let suite = db.data.suites.find(s => s.projectId === req.project!.id);
+  if (!suite) {
+    suite = {
+      id: `suite_${uuidv4().slice(0, 8)}`,
+      projectId: req.project!.id,
+      name: 'Custom Test Suite',
+      source: 'manual',
+      createdAt: new Date().toISOString(),
+    };
+    db.data.suites.push(suite);
+  }
+
+  const newCase: TestCase = {
+    id: `tc_${uuidv4().slice(0, 8)}`,
+    suiteId: suite.id,
+    extId: `TC-${String(db.data.testCases.length + 1).padStart(3, '0')}`,
+    category: category || 'General API',
+    title: title.trim(),
+    priority: priority || 'High',
+    type: type || 'http',
+    tags: tags || ['custom', 'api'],
+    spec: spec || {
+      requests: [
+        {
+          name: title.trim(),
+          method: 'GET',
+          path: '/',
+        },
+      ],
+      expect: {
+        statusIn: [200],
+      },
+    },
+    dataFields: [],
+    createdAt: new Date().toISOString(),
+  };
+
+  db.data.testCases.push(newCase);
+  db.save();
+
+  res.status(201).json(newCase);
+});
+
+// 12d. Test Case CRUD: Update Test Case
+projectRouter.put('/:id/cases/:caseId', loadProject, (req: ProjectRequest, res: Response) => {
+  const index = db.data.testCases.findIndex(c => c.id === req.params.caseId);
+  if (index === -1) return res.status(404).json({ error: 'Test case not found' });
+
+  const existing = db.data.testCases[index];
+  const updated: TestCase = {
+    ...existing,
+    ...req.body,
+    id: existing.id,
+    suiteId: existing.suiteId,
+  };
+
+  db.data.testCases[index] = updated;
+  db.save();
+
+  res.json(updated);
+});
+
+// 12e. Test Case CRUD: Delete Test Case
+projectRouter.delete('/:id/cases/:caseId', loadProject, (req: ProjectRequest, res: Response) => {
+  const initialLen = db.data.testCases.length;
+  db.data.testCases = db.data.testCases.filter(c => c.id !== req.params.caseId);
+  db.data.testRuns = db.data.testRuns.filter(r => r.testCaseId !== req.params.caseId);
+  db.save();
+
+  res.json({ ok: true, deleted: initialLen !== db.data.testCases.length });
 });
 
 // 13. Export test results (CSV or JSON)

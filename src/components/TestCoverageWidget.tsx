@@ -13,7 +13,8 @@ import {
   Filter,
   BarChart3,
   Calendar,
-  Sparkles
+  Sparkles,
+  Download
 } from 'lucide-react';
 
 type TimeRange = '24h' | '7d' | '30d';
@@ -32,6 +33,7 @@ export const TestCoverageWidget: React.FC = () => {
   const [timeRange, setTimeRange] = useState<TimeRange>('7d');
   const [hoveredPointIndex, setHoveredPointIndex] = useState<number | null>(null);
   const [activeCategory, setActiveCategory] = useState<'all' | 'critical' | 'api' | 'auth'>('all');
+  const [downloadSuccess, setDownloadSuccess] = useState(false);
 
   // Dynamic mock metrics adjusted by timeframe
   const metrics = useMemo(() => {
@@ -172,6 +174,75 @@ export const TestCoverageWidget: React.FC = () => {
 
   const areaD = `${pathD} L ${points[points.length - 1].x} ${chartHeight} L ${points[0].x} ${chartHeight} Z`;
 
+  // Client-side CSV Download for current mock metrics
+  const handleDownloadReport = () => {
+    const timeRangeLabel = timeRange === '24h' ? 'Last 24 Hours' : timeRange === '7d' ? 'Last 7 Days' : 'Last 30 Days';
+    const timestamp = new Date().toISOString();
+
+    const rows: (string | number)[][] = [
+      ['=== VERITY TEST COVERAGE & TELEMETRY REPORT ==='],
+      ['Generated At', timestamp],
+      ['Time Window', `${timeRange} (${timeRangeLabel})`],
+      [],
+      ['--- SUMMARY KPI METRICS ---'],
+      ['Metric', 'Current Value', 'Delta / Classification'],
+      ['Total Scenarios Executed', metrics.totalRuns, '0 dropped runs'],
+      ['Test Success Rate', metrics.passRate, metrics.passRateDelta],
+      ['Verified Passed Count', metrics.passedCount, 'Verified Status & Schema'],
+      ['Flaky / Retries Count', metrics.flakyCount, 'Automatic Dynamic Dataset Recovery'],
+      ['Failed Assertions Count', metrics.failedCount, 'Critical Threshold Breaches'],
+      ['Average Execution Latency', metrics.avgLatency, metrics.avgLatencyDelta],
+      ['p95 Latency Threshold', metrics.p95Latency, 'High Load SLA'],
+      ['p99 Latency Threshold', metrics.p99Latency, 'Tail Response SLA'],
+      ['API Contract Coverage Score', metrics.coverageScore, 'Paths, Schema & Headers'],
+      [],
+      ['--- EXECUTION LATENCY & HEALTH TREND SERIES ---'],
+      ['Interval Label', 'Avg Latency (ms)', 'Success Rate (%)', 'Executions / Runs'],
+      ...metrics.trendPoints.map((pt) => [
+        pt.label,
+        pt.latency,
+        `${pt.success}%`,
+        pt.runs,
+      ]),
+      [],
+      ['--- MONITORED API ENDPOINTS & CONTRACT HEALTH ---'],
+      ['HTTP Method', 'Endpoint Route', 'Coverage (%)', `Executions (${timeRange})`, 'Pass Rate (%)', 'Avg Latency (ms)', 'Health Status'],
+      ...endpointBreakdowns.map((item) => [
+        item.method,
+        item.endpoint,
+        `${item.coverage}%`,
+        item.totalRuns,
+        `${item.successRate}%`,
+        `${item.avgLatency}ms`,
+        item.status === 'passed' ? 'Healthy' : item.status === 'warning' ? 'Warning' : 'Critical',
+      ]),
+    ];
+
+    const csvString = rows
+      .map((row) =>
+        row
+          .map((cell) => {
+            const str = cell === null || cell === undefined ? '' : String(cell);
+            return `"${str.replace(/"/g, '""')}"`;
+          })
+          .join(',')
+      )
+      .join('\r\n');
+
+    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `test-coverage-report-${timeRange}-${timestamp.slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    setDownloadSuccess(true);
+    setTimeout(() => setDownloadSuccess(false), 2500);
+  };
+
   return (
     <section id="test-coverage-analytics-section" className="border-t border-[#1E2235] bg-[#07090E] py-20">
       <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
@@ -196,22 +267,50 @@ export const TestCoverageWidget: React.FC = () => {
             </p>
           </div>
 
-          {/* Time Range Selector */}
-          <div id="test-coverage-time-filters" className="flex items-center gap-1 rounded-xl border border-[#1E2235] bg-[#0F111A] p-1 self-start md:self-auto">
-            {(['24h', '7d', '30d'] as TimeRange[]).map((range) => (
-              <button
-                key={range}
-                id={`time-range-btn-${range}`}
-                onClick={() => setTimeRange(range)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                  timeRange === range
-                    ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                    : 'text-slate-400 hover:text-white hover:bg-[#131622]'
-                }`}
-              >
-                {range === '24h' ? 'Last 24 Hours' : range === '7d' ? 'Last 7 Days' : 'Last 30 Days'}
-              </button>
-            ))}
+          {/* Actions & Filters */}
+          <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+            {/* Time Range Selector */}
+            <div id="test-coverage-time-filters" className="flex items-center gap-1 rounded-xl border border-[#1E2235] bg-[#0F111A] p-1">
+              {(['24h', '7d', '30d'] as TimeRange[]).map((range) => (
+                <button
+                  key={range}
+                  id={`time-range-btn-${range}`}
+                  onClick={() => setTimeRange(range)}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                    timeRange === range
+                      ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                      : 'text-slate-400 hover:text-white hover:bg-[#131622]'
+                  }`}
+                >
+                  {range === '24h' ? 'Last 24 Hours' : range === '7d' ? 'Last 7 Days' : 'Last 30 Days'}
+                </button>
+              ))}
+            </div>
+
+            {/* Download Report Button */}
+            <button
+              type="button"
+              id="download-report-btn"
+              onClick={handleDownloadReport}
+              className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-1.5 text-xs font-semibold transition shadow-sm ${
+                downloadSuccess
+                  ? 'border-emerald-500/60 bg-emerald-950/40 text-emerald-300'
+                  : 'border-[#1E2235] bg-[#0F111A] text-slate-200 hover:border-emerald-500/40 hover:bg-[#131622] hover:text-white'
+              }`}
+              title="Download client-side CSV of current coverage metrics"
+            >
+              {downloadSuccess ? (
+                <>
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                  <span>Report Downloaded</span>
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4 text-emerald-400" />
+                  <span>Download Report</span>
+                </>
+              )}
+            </button>
           </div>
         </div>
 

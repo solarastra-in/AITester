@@ -13,6 +13,20 @@ export function getDotted(obj: any, dottedPath: string, fallback: any = ''): any
   return cur === undefined ? fallback : cur;
 }
 
+export function setDotted(obj: any, dottedPath: string, value: any): void {
+  if (!obj || typeof obj !== 'object') return;
+  const parts = dottedPath.split('.');
+  let cur = obj;
+  for (let i = 0; i < parts.length - 1; i++) {
+    const p = parts[i];
+    if (cur[p] == null || typeof cur[p] !== 'object' || Array.isArray(cur[p])) {
+      cur[p] = {};
+    }
+    cur = cur[p];
+  }
+  cur[parts[parts.length - 1]] = value;
+}
+
 export function extractPlaceholders(...inputs: any[]): string[] {
   const found = new Set<string>();
   for (const item of inputs) {

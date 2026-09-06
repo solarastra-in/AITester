@@ -21,9 +21,15 @@ import {
   Copy,
   Check,
   Zap,
-  Sliders
+  Sliders,
+  Edit2,
+  FolderPlus,
+  X
 } from 'lucide-react';
 import { TestCase, Project } from '../types';
+import { datasetService, FirestoreDataset } from '../services/firebase';
+import { ConfirmModal } from './ConfirmModal';
+import { AlertModal } from './AlertModal';
 
 interface DatasetConfiguratorProps {
   project: Project;
@@ -78,12 +84,169 @@ export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
   const [selectedSimCaseId, setSelectedSimCaseId] = useState<string>(testCases[0]?.id || '');
   const [activeTabFilter, setActiveTabFilter] = useState<'all' | 'missing' | 'auth' | 'ids'>('all');
 
+  // Firestore Datasets Management State (Full CRUD)
+  const [firestoreDatasets, setFirestoreDatasets] = useState<FirestoreDataset[]>([]);
+  const [selectedDatasetId, setSelectedDatasetId] = useState<string>('');
+  const [isNewDatasetModalOpen, setIsNewDatasetModalOpen] = useState(false);
+  const [isEditDatasetModalOpen, setIsEditDatasetModalOpen] = useState(false);
+  const [datasetFormName, setDatasetFormName] = useState('');
+  const [datasetFormEnv, setDatasetFormEnv] = useState('staging');
+  const [datasetFormDesc, setDatasetFormDesc] = useState('');
+  const [cloneCurrentVars, setCloneCurrentVars] = useState(true);
+
+  // In-app Confirm & Alert Modals (avoids window.confirm/alert in sandboxed iframe)
+  const [confirmModalState, setConfirmModalState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmText?: string;
+    variant?: 'danger' | 'warning' | 'primary';
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
+  const [alertModalState, setAlertModalState] = useState<{
+    isOpen: boolean;
+    title?: string;
+    message: string;
+    type?: 'error' | 'success' | 'info';
+  }>({
+    isOpen: false,
+    message: '',
+  });
+
+  const showAlert = (message: string, title?: string, type: 'error' | 'success' | 'info' = 'error') => {
+    setAlertModalState({
+      isOpen: true,
+      title,
+      message,
+      type,
+    });
+  };
+
   // Sync state when props change
   useEffect(() => {
     setLocalDataset(dataset || {});
     setRawJsonText(JSON.stringify(dataset || {}, null, 2));
     setJsonError(null);
   }, [dataset]);
+
+  // Subscribe to real-time Firestore Datasets for this project
+  useEffect(() => {
+    if (!project?.id) return;
+    const unsubscribe = datasetService.subscribeDatasets(project.id, (list) => {
+      setFirestoreDatasets(list);
+      if (list.length > 0) {
+        // If no dataset selected or current is invalid, select the default or first
+        setSelectedDatasetId(prev => {
+          if (prev && list.some(d => d.id === prev)) {
+            return prev;
+          }
+          const def = list.find(d => d.isDefault) || list[0];
+          return def.id;
+        });
+      }
+    });
+
+    return () => unsubscribe();
+  }, [project?.id]);
+
+  // Handle switching active dataset from Firestore
+  const handleSwitchDataset = (id: string) => {
+    setSelectedDatasetId(id);
+    const target = firestoreDatasets.find(d => d.id === id);
+    if (target) {
+      setLocalDataset(target.variables || {});
+      setRawJsonText(JSON.stringify(target.variables || {}, null, 2));
+      onSaveDataset(target.variables || {});
+    }
+  };
+
+  // Firestore CRUD: Create New Dataset
+  const handleCreateNewDataset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!datasetFormName.trim()) return;
+    try {
+      setIsSaving(true);
+      const newDs = await datasetService.createDataset({
+        projectId: project.id,
+        name: datasetFormName.trim(),
+        environment: datasetFormEnv,
+        description: datasetFormDesc.trim(),
+        variables: cloneCurrentVars ? localDataset : { baseUrl: project.siteUrl },
+        isDefault: firestoreDatasets.length === 0,
+      });
+      setSelectedDatasetId(newDs.id);
+      setLocalDataset(newDs.variables);
+      setRawJsonText(JSON.stringify(newDs.variables, null, 2));
+      await onSaveDataset(newDs.variables);
+      setIsNewDatasetModalOpen(false);
+      setDatasetFormName('');
+      setDatasetFormDesc('');
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err: any) {
+      showAlert('Failed to create dataset in Firestore: ' + err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Firestore CRUD: Update Dataset Metadata
+  const handleUpdateDatasetMeta = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedDatasetId || !datasetFormName.trim()) return;
+    try {
+      setIsSaving(true);
+      await datasetService.updateDataset(selectedDatasetId, {
+        name: datasetFormName.trim(),
+        environment: datasetFormEnv,
+        description: datasetFormDesc.trim(),
+      });
+      setIsEditDatasetModalOpen(false);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err: any) {
+      showAlert('Failed to update dataset in Firestore: ' + err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Firestore CRUD: Delete Dataset (In-App Confirm)
+  const handleDeleteDataset = () => {
+    if (!selectedDatasetId) return;
+    if (firestoreDatasets.length <= 1) {
+      showAlert('A project must have at least one active dataset in Firestore.', 'Cannot Delete Default Dataset');
+      return;
+    }
+    const current = firestoreDatasets.find(d => d.id === selectedDatasetId);
+    setConfirmModalState({
+      isOpen: true,
+      title: 'Delete Dataset',
+      message: `Are you sure you want to delete dataset "${current?.name || 'this dataset'}" from Firestore?`,
+      confirmText: 'Delete Dataset',
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          setIsSaving(true);
+          await datasetService.deleteDataset(selectedDatasetId);
+          const remaining = firestoreDatasets.filter(d => d.id !== selectedDatasetId);
+          if (remaining.length > 0) {
+            handleSwitchDataset(remaining[0].id);
+          }
+        } catch (err: any) {
+          showAlert('Failed to delete dataset: ' + err.message);
+        } finally {
+          setIsSaving(false);
+        }
+      },
+    });
+  };
 
   // Helper to read dotted path from object
   const getNestedValue = (obj: any, path: string): any => {
@@ -267,11 +430,19 @@ export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
     setRawJsonText(JSON.stringify(updated, null, 2));
   };
 
-  // Handle delete variable
-  const handleDeleteVariable = (key: string) => {
+  // Handle delete variable (CRUD Delete)
+  const handleDeleteVariable = async (key: string) => {
     const updated = deleteNestedValue(localDataset, key);
     setLocalDataset(updated);
     setRawJsonText(JSON.stringify(updated, null, 2));
+    if (selectedDatasetId) {
+      try {
+        await datasetService.deleteVariable(selectedDatasetId, key);
+      } catch (err) {
+        console.warn('Firestore variable deletion notice:', err);
+      }
+    }
+    await onSaveDataset(updated);
   };
 
   // Auto-fill all missing variables with realistic synthetic mocks
@@ -339,7 +510,7 @@ export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
     setIsAddingVariable(false);
   };
 
-  // Save changes to backend
+  // Save changes to backend and Firestore
   const handleSave = async () => {
     setIsSaving(true);
     setJsonError(null);
@@ -348,6 +519,9 @@ export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
       if (editorMode === 'json') {
         finalDataset = JSON.parse(rawJsonText);
         setLocalDataset(finalDataset);
+      }
+      if (selectedDatasetId) {
+        await datasetService.updateDataset(selectedDatasetId, { variables: finalDataset });
       }
       await onSaveDataset(finalDataset);
       setSaveSuccess(true);
@@ -404,6 +578,89 @@ export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
           <span>{jsonError}</span>
         </div>
       )}
+
+      {/* Firestore Dataset Profile Management Bar (Full CRUD) */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-2xl border border-[#1E2235] bg-[#0C0E17] p-4 shadow-lg">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-slate-400">Dataset Profile:</span>
+            <select
+              value={selectedDatasetId}
+              onChange={(e) => handleSwitchDataset(e.target.value)}
+              className="rounded-xl border border-[#2A2F45] bg-[#141724] px-3 py-1.5 text-xs font-bold text-white focus:outline-none focus:border-emerald-500 cursor-pointer"
+            >
+              {firestoreDatasets.map(d => (
+                <option key={d.id} value={d.id}>
+                  {d.name} ({d.environment?.toUpperCase() || 'STAGING'}) {d.isDefault ? '★ Default' : ''}
+                </option>
+              ))}
+              {firestoreDatasets.length === 0 && (
+                <option value="">Default Project Environment</option>
+              )}
+            </select>
+          </div>
+
+          {/* Current dataset environment badge */}
+          {selectedDatasetId && firestoreDatasets.find(d => d.id === selectedDatasetId) && (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-400">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              Firestore Synced • {firestoreDatasets.find(d => d.id === selectedDatasetId)?.environment?.toUpperCase() || 'STAGING'}
+            </span>
+          )}
+        </div>
+
+        {/* Dataset Profile CRUD Actions */}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setDatasetFormName('');
+              setDatasetFormEnv('staging');
+              setDatasetFormDesc('');
+              setIsNewDatasetModalOpen(true);
+            }}
+            className="flex items-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-bold text-emerald-300 hover:bg-emerald-500/20 transition"
+            title="Create a new dataset profile in Firestore"
+          >
+            <FolderPlus className="h-3.5 w-3.5 text-emerald-400" />
+            <span>+ New Profile</span>
+          </button>
+
+          {selectedDatasetId && (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  const cur = firestoreDatasets.find(d => d.id === selectedDatasetId);
+                  if (cur) {
+                    setDatasetFormName(cur.name);
+                    setDatasetFormEnv(cur.environment || 'staging');
+                    setDatasetFormDesc(cur.description || '');
+                    setIsEditDatasetModalOpen(true);
+                  }
+                }}
+                className="flex items-center gap-1.5 rounded-xl border border-[#2A2F45] bg-[#141724] px-3 py-1.5 text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#1E2235] transition"
+                title="Edit dataset name, environment, and metadata in Firestore"
+              >
+                <Edit2 className="h-3.5 w-3.5 text-slate-400" />
+                <span>Edit Profile</span>
+              </button>
+
+              {firestoreDatasets.length > 1 && (
+                <button
+                  type="button"
+                  onClick={handleDeleteDataset}
+                  className="flex items-center gap-1.5 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-300 hover:bg-rose-500/20 transition"
+                  title="Delete this dataset profile from Firestore"
+                >
+                  <Trash2 className="h-3.5 w-3.5 text-rose-400" />
+                  <span>Delete Profile</span>
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      </div>
 
       {/* Main Header & Controls Bar */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-2xl border border-[#1E2235] bg-[#0F111A] p-6 shadow-xl">
@@ -948,6 +1205,205 @@ export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
           />
         </div>
       )}
+
+      {/* Modal: Create New Dataset Profile */}
+      {isNewDatasetModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-[#1E2235] bg-[#0F111A] p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-[#1E2235] pb-3">
+              <div className="flex items-center gap-2">
+                <FolderPlus className="h-5 w-5 text-emerald-400" />
+                <h3 className="text-base font-bold text-white">Create Dataset Profile</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsNewDatasetModalOpen(false)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-[#1E2235] hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateNewDataset} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Profile Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Staging Environment, Production Canary"
+                  value={datasetFormName}
+                  onChange={e => setDatasetFormName(e.target.value)}
+                  className="w-full rounded-xl border border-[#1E2235] bg-[#06070B] px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Target Environment
+                </label>
+                <select
+                  value={datasetFormEnv}
+                  onChange={e => setDatasetFormEnv(e.target.value)}
+                  className="w-full rounded-xl border border-[#1E2235] bg-[#06070B] px-3.5 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                >
+                  <option value="staging">Staging (QA)</option>
+                  <option value="production">Production</option>
+                  <option value="sandbox">Sandbox</option>
+                  <option value="development">Development / Local</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Description (Optional)
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Variables and authorization keys for this environment..."
+                  value={datasetFormDesc}
+                  onChange={e => setDatasetFormDesc(e.target.value)}
+                  className="w-full rounded-xl border border-[#1E2235] bg-[#06070B] px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="cloneVars"
+                  checked={cloneCurrentVars}
+                  onChange={e => setCloneCurrentVars(e.target.checked)}
+                  className="rounded border-[#1E2235] bg-[#06070B] text-emerald-500 focus:ring-0"
+                />
+                <label htmlFor="cloneVars" className="text-xs text-slate-300 cursor-pointer">
+                  Clone variables from currently active dataset
+                </label>
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-[#1E2235]">
+                <button
+                  type="button"
+                  onClick={() => setIsNewDatasetModalOpen(false)}
+                  className="rounded-xl border border-[#1E2235] bg-[#141724] px-4 py-2 text-xs font-semibold text-slate-300 hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSaving || !datasetFormName.trim()}
+                  className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-5 py-2 text-xs font-bold text-slate-950 hover:from-emerald-400 hover:to-teal-500 disabled:opacity-50"
+                >
+                  {isSaving ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                  <span>Create in Firestore</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Edit Dataset Profile */}
+      {isEditDatasetModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-[#1E2235] bg-[#0F111A] p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-[#1E2235] pb-3">
+              <div className="flex items-center gap-2">
+                <Edit2 className="h-5 w-5 text-emerald-400" />
+                <h3 className="text-base font-bold text-white">Edit Dataset Profile</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsEditDatasetModalOpen(false)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-[#1E2235] hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateDatasetMeta} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Profile Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={datasetFormName}
+                  onChange={e => setDatasetFormName(e.target.value)}
+                  className="w-full rounded-xl border border-[#1E2235] bg-[#06070B] px-3.5 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Target Environment
+                </label>
+                <select
+                  value={datasetFormEnv}
+                  onChange={e => setDatasetFormEnv(e.target.value)}
+                  className="w-full rounded-xl border border-[#1E2235] bg-[#06070B] px-3.5 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                >
+                  <option value="staging">Staging (QA)</option>
+                  <option value="production">Production</option>
+                  <option value="sandbox">Sandbox</option>
+                  <option value="development">Development / Local</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Description
+                </label>
+                <textarea
+                  rows={2}
+                  value={datasetFormDesc}
+                  onChange={e => setDatasetFormDesc(e.target.value)}
+                  className="w-full rounded-xl border border-[#1E2235] bg-[#06070B] px-3.5 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-[#1E2235]">
+                <button
+                  type="button"
+                  onClick={() => setIsEditDatasetModalOpen(false)}
+                  className="rounded-xl border border-[#1E2235] bg-[#141724] px-4 py-2 text-xs font-semibold text-slate-300 hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSaving || !datasetFormName.trim()}
+                  className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-5 py-2 text-xs font-bold text-slate-950 hover:from-emerald-400 hover:to-teal-500 disabled:opacity-50"
+                >
+                  {isSaving ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                  <span>Save Changes</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* In-App Confirmation Modal */}
+      <ConfirmModal
+        isOpen={confirmModalState.isOpen}
+        title={confirmModalState.title}
+        message={confirmModalState.message}
+        confirmText={confirmModalState.confirmText}
+        variant={confirmModalState.variant}
+        onConfirm={confirmModalState.onConfirm}
+        onClose={() => setConfirmModalState(prev => ({ ...prev, isOpen: false }))}
+      />
+
+      {/* In-App Alert Modal */}
+      <AlertModal
+        isOpen={alertModalState.isOpen}
+        title={alertModalState.title}
+        message={alertModalState.message}
+        type={alertModalState.type}
+        onClose={() => setAlertModalState(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 };
