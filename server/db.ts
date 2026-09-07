@@ -255,7 +255,7 @@ function getInitialDb(): DatabaseSchema {
           },
         ],
         expect: {
-          statusIn: [401, 403, 404],
+          statusIn: [401, 403],
           bodyContains: ['message'],
         },
       },
@@ -493,6 +493,11 @@ class Database {
 
   public save() {
     this.saveDirect(this.db);
+  }
+
+  public reload(): DatabaseSchema {
+    this.db = this.load();
+    return this.db;
   }
 
   public get data(): DatabaseSchema {

@@ -398,14 +398,26 @@ async function runHttp(testCase, dataset, siteUrl) {
     pass = false;
     message = errored.length + ' request(s) failed to connect: ' + errored.map(e => e.name + ' (' + e.error + ')').join(', ');
   } else {
-    const expectedStatus = expect.statusIn || [200];
-    const statusOk = responses.every(r => expectedStatus.includes(r.status));
+    const title = testCase.title || '';
+    const isExplicit404 = /\b(404|not found|nonexistent|non-existent)\b/i.test(title)
+      || (expect.statusIn?.length === 1 && expect.statusIn[0] === 404);
+    let expectedStatus = expect.statusIn || [200];
+    if (!isExplicit404 && expectedStatus.some(s => s >= 200 && s < 400)) {
+      expectedStatus = expectedStatus.filter(s => s !== 404);
+      if (!expectedStatus.length) expectedStatus = [200];
+    }
+    const unrouted404 = !isExplicit404 && responses.some(r => r.status === 404);
+    const statusOk = !unrouted404 && responses.every(r => expectedStatus.includes(r.status));
     const bodies = responses.map(r => bodyToString(r.data).toLowerCase());
     const containsOk = (expect.bodyContains || []).every(needle => bodies.some(b => b.includes(needle.toLowerCase())));
     const notContainsOk = (expect.bodyNotContains || []).every(needle => bodies.every(b => !b.includes(needle.toLowerCase())));
     pass = statusOk && containsOk && notContainsOk;
     const parts = [];
-    parts.push(statusOk ? 'Status OK (' + responses.map(r => r.status).join(',') + ')' : 'Status MISMATCH (expected ' + JSON.stringify(expectedStatus) + ', got ' + responses.map(r => r.status).join(',') + ')');
+    if (unrouted404) {
+      parts.push('Endpoint Not Found (HTTP 404; expected ' + JSON.stringify(expectedStatus) + ')');
+    } else {
+      parts.push(statusOk ? 'Status OK (' + responses.map(r => r.status).join(',') + ')' : 'Status MISMATCH (expected ' + JSON.stringify(expectedStatus) + ', got ' + responses.map(r => r.status).join(',') + ')');
+    }
     if ((expect.bodyContains || []).length) parts.push(containsOk ? 'Required substrings found' : 'Missing substrings');
     message = parts.join('; ');
   }

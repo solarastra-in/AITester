@@ -167,7 +167,7 @@ const rawTestCases = [
         },
       ],
       expect: {
-        statusIn: [200, 404],
+        statusIn: [200],
       },
     },
     dataFields: [],
@@ -195,7 +195,7 @@ const rawTestCases = [
         },
       ],
       expect: {
-        statusIn: [200, 201, 404],
+        statusIn: [200, 201],
       },
     },
     dataFields: ['authTokens.user', 'prompt_samples.simple_query'],
@@ -223,7 +223,7 @@ const rawTestCases = [
         },
       ],
       expect: {
-        statusIn: [200, 201, 404],
+        statusIn: [200, 201],
       },
     },
     dataFields: ['authTokens.user', 'prompt_samples.complex_query'],
@@ -250,7 +250,7 @@ const rawTestCases = [
         },
       ],
       expect: {
-        statusIn: [200, 201, 404],
+        statusIn: [200, 201],
       },
     },
     dataFields: ['authTokens.user', 'prompt_samples.code_query', 'models.smart_model'],
@@ -276,7 +276,7 @@ const rawTestCases = [
         },
       ],
       expect: {
-        statusIn: [400, 422, 404],
+        statusIn: [400, 422],
       },
     },
     dataFields: ['authTokens.user', 'prompt_samples.invalid_empty'],
@@ -303,7 +303,7 @@ const rawTestCases = [
         },
       ],
       expect: {
-        statusIn: [200, 201, 404],
+        statusIn: [200, 201],
       },
     },
     dataFields: ['authTokens.user', 'prompt_samples.simple_query'],
@@ -330,7 +330,7 @@ const rawTestCases = [
         },
       ],
       expect: {
-        statusIn: [200, 201, 404],
+        statusIn: [200, 201],
       },
     },
     dataFields: ['authTokens.user', 'prompt_samples.simple_query'],
@@ -358,7 +358,7 @@ const rawTestCases = [
         },
       ],
       expect: {
-        statusIn: [200, 201, 404],
+        statusIn: [200, 201],
       },
     },
     dataFields: ['authTokens.user'],
@@ -387,7 +387,7 @@ const rawTestCases = [
         },
       ],
       expect: {
-        statusIn: [200, 201, 404],
+        statusIn: [200, 201],
       },
     },
     dataFields: ['authTokens.user', 'session_id', 'prompt_samples.code_query'],
@@ -409,7 +409,7 @@ const rawTestCases = [
         },
       ],
       expect: {
-        statusIn: [200, 404],
+        statusIn: [200],
       },
     },
     dataFields: ['authTokens.user', 'session_id'],
@@ -431,7 +431,7 @@ const rawTestCases = [
         },
       ],
       expect: {
-        statusIn: [200, 404],
+        statusIn: [200],
       },
     },
     dataFields: [],
@@ -452,7 +452,7 @@ const rawTestCases = [
         },
       ],
       expect: {
-        statusIn: [200, 404],
+        statusIn: [200],
       },
     },
     dataFields: [],
@@ -479,7 +479,7 @@ const rawTestCases = [
         },
       ],
       expect: {
-        statusIn: [200, 400, 422, 404],
+        statusIn: [200],
       },
     },
     dataFields: ['authTokens.user', 'credentials_test.provider', 'credentials_test.masked_key'],
@@ -506,7 +506,7 @@ const rawTestCases = [
         },
       ],
       expect: {
-        statusIn: [400, 422, 404],
+        statusIn: [400, 422],
       },
     },
     dataFields: ['authTokens.user', 'credentials_test.provider', 'credentials_test.invalid_key'],
@@ -528,7 +528,7 @@ const rawTestCases = [
         },
       ],
       expect: {
-        statusIn: [200, 404],
+        statusIn: [200],
       },
     },
     dataFields: ['authTokens.user'],
@@ -553,7 +553,7 @@ const rawTestCases = [
         },
       ],
       expect: {
-        statusIn: [200, 201, 400, 404],
+        statusIn: [200, 201],
       },
     },
     dataFields: ['trial_email'],
@@ -575,7 +575,7 @@ const rawTestCases = [
         },
       ],
       expect: {
-        statusIn: [200, 404],
+        statusIn: [200],
       },
     },
     dataFields: ['authTokens.user'],
@@ -597,7 +597,7 @@ const rawTestCases = [
         },
       ],
       expect: {
-        statusIn: [200, 401, 403, 404],
+        statusIn: [200],
       },
     },
     dataFields: ['authTokens.team_lead', 'team_id'],
@@ -619,7 +619,7 @@ const rawTestCases = [
         },
       ],
       expect: {
-        statusIn: [401, 403, 404],
+        statusIn: [401, 403],
       },
     },
     dataFields: [],

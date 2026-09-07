@@ -585,7 +585,7 @@ function generateSmartFallbackCases(
             headers: { Accept: 'application/json' },
           },
         ],
-        expected_status: '200, 404',
+        expected_status: '200',
       },
       {
         id: 'WHYO-ROUT-006',
@@ -608,7 +608,7 @@ function generateSmartFallbackCases(
             },
           },
         ],
-        expected_status: '200, 201, 404',
+        expected_status: '200, 201',
       },
       {
         id: 'WHYO-ROUT-007',
@@ -631,7 +631,7 @@ function generateSmartFallbackCases(
             },
           },
         ],
-        expected_status: '200, 201, 404',
+        expected_status: '200, 201',
       },
       {
         id: 'WHYO-ROUT-008',
@@ -653,7 +653,7 @@ function generateSmartFallbackCases(
             },
           },
         ],
-        expected_status: '200, 201, 404',
+        expected_status: '200, 201',
       },
       {
         id: 'WHYO-ROUT-009',
@@ -674,7 +674,7 @@ function generateSmartFallbackCases(
             },
           },
         ],
-        expected_status: '400, 422, 404',
+        expected_status: '400, 422',
       },
       {
         id: 'WHYO-CORR-010',
@@ -696,7 +696,7 @@ function generateSmartFallbackCases(
             },
           },
         ],
-        expected_status: '200, 201, 404',
+        expected_status: '200, 201',
       },
       {
         id: 'WHYO-CHAT-011',
@@ -718,7 +718,7 @@ function generateSmartFallbackCases(
             },
           },
         ],
-        expected_status: '200, 201, 404',
+        expected_status: '200, 201',
       },
       {
         id: 'WHYO-FILE-012',
@@ -741,7 +741,7 @@ function generateSmartFallbackCases(
             },
           },
         ],
-        expected_status: '200, 201, 404',
+        expected_status: '200, 201',
       },
       {
         id: 'WHYO-LEDG-013',
@@ -765,7 +765,7 @@ function generateSmartFallbackCases(
             },
           },
         ],
-        expected_status: '200, 201, 404',
+        expected_status: '200, 201',
       },
       {
         id: 'WHYO-LEDG-014',
@@ -782,7 +782,7 @@ function generateSmartFallbackCases(
             auth_persona: 'user',
           },
         ],
-        expected_status: '200, 404',
+        expected_status: '200',
       },
       {
         id: 'WHYO-CAT-015',
@@ -799,7 +799,7 @@ function generateSmartFallbackCases(
             headers: { Accept: 'application/json' },
           },
         ],
-        expected_status: '200, 404',
+        expected_status: '200',
       },
       {
         id: 'WHYO-CAT-016',
@@ -815,7 +815,7 @@ function generateSmartFallbackCases(
             path: '/api/models/availability',
           },
         ],
-        expected_status: '200, 404',
+        expected_status: '200',
       },
       {
         id: 'WHYO-BYOK-017',
@@ -837,7 +837,7 @@ function generateSmartFallbackCases(
             },
           },
         ],
-        expected_status: '200, 400, 422, 404',
+        expected_status: '200',
       },
       {
         id: 'WHYO-BYOK-018',
@@ -859,7 +859,7 @@ function generateSmartFallbackCases(
             },
           },
         ],
-        expected_status: '400, 422, 404',
+        expected_status: '400, 422',
       },
       {
         id: 'WHYO-GATE-019',
@@ -876,7 +876,7 @@ function generateSmartFallbackCases(
             auth_persona: 'user',
           },
         ],
-        expected_status: '200, 404',
+        expected_status: '200',
       },
       {
         id: 'WHYO-TRL-020',
@@ -896,7 +896,7 @@ function generateSmartFallbackCases(
             },
           },
         ],
-        expected_status: '200, 201, 400, 404',
+        expected_status: '200, 201',
       },
       {
         id: 'WHYO-TRL-021',
@@ -913,7 +913,7 @@ function generateSmartFallbackCases(
             auth_persona: 'user',
           },
         ],
-        expected_status: '200, 404',
+        expected_status: '200',
       },
       {
         id: 'WHYO-TEAM-022',
@@ -930,7 +930,7 @@ function generateSmartFallbackCases(
             auth_persona: 'team_lead',
           },
         ],
-        expected_status: '200, 401, 403, 404',
+        expected_status: '200',
       },
       {
         id: 'WHYO-ADM-023',
@@ -947,7 +947,7 @@ function generateSmartFallbackCases(
             auth_persona: null,
           },
         ],
-        expected_status: '401, 403, 404',
+        expected_status: '401, 403',
       },
       {
         id: 'WHYO-LOAD-024',
@@ -1009,7 +1009,7 @@ function generateSmartFallbackCases(
             },
           },
         ],
-        expected_status: '200, 201, 404',
+        expected_status: '200, 201',
         expected_body_contains: 'response|result|output|status|id',
       },
       {
@@ -1027,7 +1027,7 @@ function generateSmartFallbackCases(
             auth_persona: 'user',
           },
         ],
-        expected_status: '200, 404',
+        expected_status: '200',
       },
       {
         id: 'AI-SEC-004',
@@ -1044,7 +1044,7 @@ function generateSmartFallbackCases(
             auth_persona: null,
           },
         ],
-        expected_status: '401, 403, 404',
+        expected_status: '401, 403',
       },
       {
         id: 'AI-VAL-005',
@@ -1063,7 +1063,7 @@ function generateSmartFallbackCases(
             body: { prompt: '' },
           },
         ],
-        expected_status: '400, 422, 404',
+        expected_status: '400, 422',
       },
       {
         id: 'AI-LOAD-006',
@@ -1123,7 +1123,7 @@ function generateSmartFallbackCases(
             },
           },
         ],
-        expected_status: '200, 201, 404',
+        expected_status: '200, 201',
         expected_body_contains: 'token|accessToken|user|id',
       },
       {
@@ -1141,7 +1141,7 @@ function generateSmartFallbackCases(
             auth_persona: 'user',
           },
         ],
-        expected_status: '200, 401, 404',
+        expected_status: '200',
       },
       {
         id: 'AUTH-004',
@@ -1158,7 +1158,7 @@ function generateSmartFallbackCases(
             auth_persona: 'user',
           },
         ],
-        expected_status: '401, 403, 404',
+        expected_status: '401, 403',
       },
       {
         id: 'AUTH-005',
@@ -1179,7 +1179,7 @@ function generateSmartFallbackCases(
             },
           },
         ],
-        expected_status: '400, 401, 422, 404',
+        expected_status: '400, 401, 422',
       },
       {
         id: 'AUTH-006',
@@ -1235,7 +1235,7 @@ function generateSmartFallbackCases(
             headers: { 'Content-Type': 'application/json' },
           },
         ],
-        expected_status: '200, 404',
+        expected_status: '200',
       },
       {
         id: 'STORE-003',
@@ -1251,7 +1251,7 @@ function generateSmartFallbackCases(
             path: '/api/products/{{sample_id}}',
           },
         ],
-        expected_status: '200, 404',
+        expected_status: '200',
       },
       {
         id: 'STORE-004',
@@ -1273,7 +1273,7 @@ function generateSmartFallbackCases(
             },
           },
         ],
-        expected_status: '200, 201, 404',
+        expected_status: '200, 201',
       },
       {
         id: 'STORE-005',
@@ -1345,7 +1345,7 @@ function generateSmartFallbackCases(
           auth_persona: 'user',
         },
       ],
-      expected_status: '200, 404',
+      expected_status: '200',
       expected_body_contains: 'id',
     },
     {
@@ -1363,12 +1363,12 @@ function generateSmartFallbackCases(
           auth_persona: null,
         },
       ],
-      expected_status: '401, 403, 404',
+      expected_status: '401, 403',
     },
     {
       id: 'VAL-004',
       category: 'Validation',
-      title: 'Verify invalid endpoint parameter returns 400 Bad Request or 404',
+      title: 'Verify invalid endpoint parameter returns 400 Bad Request or 422',
       priority: 'Medium',
       tags: ['validation', 'negative'],
       type: 'http',
@@ -1379,7 +1379,7 @@ function generateSmartFallbackCases(
           path: '/api/v1/items/invalid-id-format-!@#$',
         },
       ],
-      expected_status: '400, 404',
+      expected_status: '400, 422',
     },
     {
       id: 'LOAD-005',

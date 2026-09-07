@@ -128,9 +128,29 @@ export async function runHttp(testCase: { spec: TestCaseSpec }, dataset: Record<
     pass = false;
     assertionParts.push(`${errored.length} request(s) failed to connect: ${errored.map(e => `${e.name} (${e.error})`).join(', ')}`);
   } else {
-    const expectedStatuses = expect.statusIn || [200];
-    const statusOk = responses.every(r => r.status != null && expectedStatuses.includes(r.status));
-    if (!statusOk) {
+    // Detect explicit 404 test intent (e.g. testing nonexistent IDs or missing endpoints)
+    const title = (testCase as any).title || '';
+    const isExplicit404Test = /\b(404|not found|nonexistent|non-existent|unknown endpoint|missing route)\b/i.test(title)
+      || (expect.statusIn?.length === 1 && expect.statusIn[0] === 404);
+
+    let expectedStatuses = (expect.statusIn && expect.statusIn.length > 0) ? [...expect.statusIn] : [200];
+
+    // CRITICAL: Prevent false-positive passes!
+    // A positive functional test (expecting 2xx or 3xx) MUST NEVER accept 404 (Not Found) or 5xx (Server Error).
+    if (!isExplicit404Test && expectedStatuses.some(s => s >= 200 && s < 400)) {
+      expectedStatuses = expectedStatuses.filter(s => s !== 404 && s < 500);
+      if (expectedStatuses.length === 0) {
+        expectedStatuses = [200];
+      }
+    }
+
+    const unrouted404 = !isExplicit404Test && responses.filter(r => r.status === 404);
+    const statusOk = !unrouted404 && responses.every(r => r.status != null && expectedStatuses.includes(r.status));
+
+    if (unrouted404 && unrouted404.length > 0) {
+      pass = false;
+      assertionParts.push(`Endpoint Not Found (HTTP 404): ${unrouted404.map(u => `${u.method} ${u.url}`).join(', ')} returned 404. Expected status [${expectedStatuses.join(', ')}]`);
+    } else if (!statusOk) {
       pass = false;
       assertionParts.push(`Status mismatch: expected [${expectedStatuses.join(', ')}], got [${responses.map(r => r.status).join(', ')}]`);
     } else {
@@ -138,6 +158,18 @@ export async function runHttp(testCase: { spec: TestCaseSpec }, dataset: Record<
     }
 
     const bodies = responses.map(r => bodyToString(r.data).toLowerCase());
+
+    // Also detect router / cloud gateway 404 payloads on positive functional tests
+    if (!isExplicit404Test) {
+      const notFoundPayloads = responses.filter(r => {
+        const bodyStr = bodyToString(r.data).toLowerCase();
+        return bodyStr.includes('"code":"404"') || bodyStr.includes('the page could not be found') || bodyStr.includes('cannot post ') || bodyStr.includes('cannot get ');
+      });
+      if (notFoundPayloads.length > 0) {
+        pass = false;
+        assertionParts.push(`Route Error: Target server responded with "The page could not be found" or route not registered`);
+      }
+    }
 
     if (expect.bodyContains && expect.bodyContains.length > 0) {
       const missingContains = expect.bodyContains.filter(needle => !bodies.some(b => b.includes(needle.toLowerCase())));

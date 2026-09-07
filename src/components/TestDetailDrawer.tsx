@@ -127,7 +127,22 @@ export const TestDetailDrawer: React.FC<TestDetailDrawerProps> = ({
           </div>
 
           {result?.message && (
-            <div className="mt-3 rounded-lg border border-[#1E2235] bg-[#06070B] p-2.5 text-xs font-mono text-slate-300">
+            <div className={`mt-3 rounded-xl border p-3 text-xs font-mono ${
+              result.pass
+                ? 'border-emerald-500/30 bg-emerald-950/20 text-emerald-300'
+                : 'border-rose-500/40 bg-rose-950/30 text-rose-300 font-semibold'
+            }`}>
+              <div className="flex items-center gap-2 mb-1 text-[11px] uppercase tracking-wider font-bold">
+                {result.pass ? (
+                  <span className="text-emerald-400 flex items-center gap-1">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Assertion Success:
+                  </span>
+                ) : (
+                  <span className="text-rose-400 flex items-center gap-1">
+                    <XCircle className="h-3.5 w-3.5" /> Assertion Failure:
+                  </span>
+                )}
+              </div>
               {result.message}
             </div>
           )}
@@ -232,8 +247,8 @@ export const TestDetailDrawer: React.FC<TestDetailDrawerProps> = ({
                       <Server className="h-4 w-4 text-emerald-400" />
                       <span className="text-slate-400">Runner:</span>
                       <span className="font-semibold text-white">
-                        {result.executedBy === 'hosted_runner'
-                          ? 'Cloud Runner us-central1 (Serverless Container)'
+                        {result.executedBy === 'hosted' || result.executedBy === 'hosted_runner'
+                          ? 'Cloud Hosted Runner (Serverless Container)'
                           : 'Local Sandbox Preview Runner'}
                       </span>
                     </div>
@@ -242,8 +257,22 @@ export const TestDetailDrawer: React.FC<TestDetailDrawerProps> = ({
                       <span className="text-slate-500">•</span>
                       <span className="text-slate-400">Time: <strong className="text-white">{result.ranAt ? new Date(result.ranAt).toLocaleTimeString() : 'Just now'}</strong></span>
                       <span className="text-slate-500">•</span>
-                      <span className="rounded bg-emerald-500/20 px-2 py-0.5 font-bold text-emerald-300">
-                        {result.pass ? 'VERDICT: PASS' : 'VERDICT: FAIL'}
+                      <span className={`inline-flex items-center gap-1.5 rounded px-2 py-0.5 font-mono text-xs font-bold border ${
+                        result.pass
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                          : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                      }`}>
+                        {result.pass ? (
+                          <>
+                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                            <span>VERDICT: PASS</span>
+                          </>
+                        ) : (
+                          <>
+                            <XCircle className="h-3.5 w-3.5 text-rose-400" />
+                            <span>VERDICT: FAIL</span>
+                          </>
+                        )}
                       </span>
                     </div>
                   </div>
@@ -306,8 +335,12 @@ export const TestDetailDrawer: React.FC<TestDetailDrawerProps> = ({
                         {r.dataPreview && (
                           <div className="mt-3">
                             <div className="text-[11px] font-semibold text-slate-400 flex items-center justify-between">
-                              <span>Production Response Payload Sample:</span>
-                              <span className="text-[10px] text-emerald-400 font-mono">200 OK</span>
+                              <span>Response Body Telemetry Sample:</span>
+                              <span className={`text-[10px] font-mono font-bold ${
+                                r.status && r.status < 400 ? 'text-emerald-400' : 'text-rose-400'
+                              }`}>
+                                {r.status ? `HTTP ${r.status}` : 'ERR_NETWORK'}
+                              </span>
                             </div>
                             <pre className="mt-1 max-h-48 overflow-y-auto rounded-xl bg-[#0F111A] p-3 font-mono text-[11px] text-slate-300 leading-relaxed border border-[#1E2235]">
                               {r.dataPreview}

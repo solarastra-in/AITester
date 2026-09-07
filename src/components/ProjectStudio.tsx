@@ -1827,12 +1827,21 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({
                         </div>
 
                         {result && (
-                          <div className="mt-2 flex items-center gap-2 font-mono text-xs">
-                            <span className={result.pass ? 'text-emerald-400' : 'text-rose-400'}>
-                              {result.pass ? 'PASS' : 'FAIL'}
+                          <div className="mt-2.5 flex flex-wrap items-center gap-2 text-xs">
+                            {result.pass ? (
+                              <span className="inline-flex items-center gap-1.5 rounded-md bg-emerald-500/15 px-2.5 py-0.5 font-bold text-emerald-300 border border-emerald-500/30">
+                                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                                <span>PASSED</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 rounded-md bg-rose-500/15 px-2.5 py-0.5 font-bold text-rose-300 border border-rose-500/30">
+                                <XCircle className="h-3.5 w-3.5 text-rose-400" />
+                                <span>FAILED</span>
+                              </span>
+                            )}
+                            <span className="font-mono text-[11px] text-slate-400 truncate max-w-md">
+                              {result.message}
                             </span>
-                            <span className="text-slate-500">•</span>
-                            <span className="text-slate-400 truncate max-w-md">{result.message}</span>
                           </div>
                         )}
                       </div>

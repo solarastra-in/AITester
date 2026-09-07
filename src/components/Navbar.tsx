@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Layers,
   Play,
@@ -12,10 +12,13 @@ import {
   Zap,
   CheckCircle2,
   ExternalLink,
-  Code2
+  Code2,
+  Server
 } from 'lucide-react';
 import { signInWithGoogle } from '../services/firebase';
 import { User, Organization, AppView } from '../types';
+import { testApiConnection, getApiBaseUrl } from '../services/api';
+import { EngineSettingsModal } from './EngineSettingsModal';
 
 interface NavbarProps {
   currentView: AppView;
@@ -49,6 +52,35 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const [personaMenuOpen, setPersonaMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [isEngineModalOpen, setIsEngineModalOpen] = useState(false);
+  const [engineStatus, setEngineStatus] = useState<{ checked: boolean; ok: boolean; latencyMs?: number }>({
+    checked: false,
+    ok: false,
+  });
+
+  useEffect(() => {
+    let mounted = true;
+    const checkStatus = async () => {
+      try {
+        const res = await testApiConnection();
+        if (mounted) {
+          setEngineStatus({ checked: true, ok: res.ok, latencyMs: res.latencyMs });
+        }
+      } catch {
+        if (mounted) setEngineStatus({ checked: true, ok: false });
+      }
+    };
+    checkStatus();
+
+    const handleUrlChanged = () => {
+      checkStatus();
+    };
+    window.addEventListener('verity_api_url_changed', handleUrlChanged);
+    return () => {
+      mounted = false;
+      window.removeEventListener('verity_api_url_changed', handleUrlChanged);
+    };
+  }, []);
 
   const isPlatformAdmin = currentUser?.role === 'platform_admin';
   const isOrgAdmin = currentUser?.role === 'org_admin' || isPlatformAdmin;
@@ -178,8 +210,34 @@ export const Navbar: React.FC<NavbarProps> = ({
           </nav>
         </div>
 
-        {/* Right Section: Persona Switcher, Balance, Profile */}
-        <div className="flex items-center gap-3">
+        {/* Right Section: Persona Switcher, Engine Config, Balance, Profile */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* API Engine Runner Status & Config Button */}
+          <button
+            type="button"
+            onClick={() => setIsEngineModalOpen(true)}
+            data-testid="api-engine-button"
+            className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition ${
+              engineStatus.checked && engineStatus.ok
+                ? 'border-emerald-500/30 bg-[#0F111A] text-slate-200 hover:border-emerald-500/60 hover:bg-[#131622]'
+                : 'border-amber-500/30 bg-[#0F111A] text-amber-200 hover:border-amber-500/60 hover:bg-[#131622]'
+            }`}
+            title="Configure Verity API Engine Runner URL"
+          >
+            <Server className="h-3.5 w-3.5 text-slate-400" />
+            <span className="hidden md:inline text-slate-400">Engine:</span>
+            <span className="flex items-center gap-1 font-semibold">
+              <span className={`h-2 w-2 rounded-full ${
+                engineStatus.checked && engineStatus.ok
+                  ? 'bg-emerald-400 animate-pulse'
+                  : 'bg-amber-400'
+              }`} />
+              <span className={engineStatus.checked && engineStatus.ok ? 'text-emerald-400' : 'text-amber-400'}>
+                {engineStatus.checked ? (engineStatus.ok ? 'Online' : 'Offline') : 'Checking...'}
+              </span>
+            </span>
+          </button>
+
           {/* Quick Persona Switcher for Live Demo & Review */}
           <div className="relative">
             <button
@@ -354,6 +412,11 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
         </div>
       </div>
+
+      <EngineSettingsModal
+        isOpen={isEngineModalOpen}
+        onClose={() => setIsEngineModalOpen(false)}
+      />
     </header>
   );
 };

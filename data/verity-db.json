@@ -6,7 +6,7 @@
       "name": "Platform Superadmin",
       "passwordHash": "$2b$10$PFPsH20p0oIpjkUfZ/Duce/Kt4o2hH9hIczBl3cECNRhoCtb4iVGW",
       "role": "platform_admin",
-      "creditsBalance": 9997,
+      "creditsBalance": 9994,
       "createdAt": "2026-08-03T17:05:24.722Z"
     },
     {
@@ -70,6 +70,24 @@
     }
   ],
   "projects": [
+    {
+      "id": "proj_a4456523",
+      "ownerUserId": "usr_org_admin_a",
+      "orgId": "org_acme_corp",
+      "name": "Acme Secret API",
+      "siteUrl": "https://api.acme.corp",
+      "description": "Acme internal services",
+      "dataset": {
+        "baseUrl": "https://api.acme.corp",
+        "authTokens": {
+          "guest": "",
+          "user": "",
+          "admin": ""
+        }
+      },
+      "createdAt": "2026-09-07T09:46:46.649Z",
+      "updatedAt": "2026-09-07T09:46:46.649Z"
+    },
     {
       "id": "proj_1dfe3491",
       "ownerUserId": "usr_org_admin_a",
@@ -463,6 +481,13 @@
       "name": "Custom Test Suite",
       "source": "manual",
       "createdAt": "2026-09-07T09:35:01.209Z"
+    },
+    {
+      "id": "suite_c696ecf6",
+      "projectId": "proj_a4456523",
+      "name": "Custom Test Suite",
+      "source": "manual",
+      "createdAt": "2026-09-07T09:46:46.670Z"
     }
   ],
   "testCases": [
@@ -707,8 +732,7 @@
         ],
         "expect": {
           "statusIn": [
-            200,
-            404
+            200
           ],
           "bodyContains": [],
           "bodyNotContains": [],
@@ -925,8 +949,7 @@
         ],
         "expect": {
           "statusIn": [
-            200,
-            404
+            200
           ],
           "bodyContains": [],
           "bodyNotContains": [],
@@ -1225,8 +1248,7 @@
         ],
         "expect": {
           "statusIn": [
-            200,
-            404
+            200
           ]
         }
       },
@@ -1269,8 +1291,7 @@
         "expect": {
           "statusIn": [
             200,
-            201,
-            404
+            201
           ]
         }
       },
@@ -1316,8 +1337,7 @@
         "expect": {
           "statusIn": [
             200,
-            201,
-            404
+            201
           ]
         }
       },
@@ -1362,8 +1382,7 @@
         "expect": {
           "statusIn": [
             200,
-            201,
-            404
+            201
           ]
         }
       },
@@ -1457,8 +1476,7 @@
         "expect": {
           "statusIn": [
             200,
-            201,
-            404
+            201
           ]
         }
       },
@@ -1503,8 +1521,7 @@
         "expect": {
           "statusIn": [
             200,
-            201,
-            404
+            201
           ]
         }
       },
@@ -1550,8 +1567,7 @@
         "expect": {
           "statusIn": [
             200,
-            201,
-            404
+            201
           ]
         }
       },
@@ -1600,8 +1616,7 @@
         "expect": {
           "statusIn": [
             200,
-            201,
-            404
+            201
           ]
         }
       },
@@ -1639,8 +1654,7 @@
         ],
         "expect": {
           "statusIn": [
-            200,
-            404
+            200
           ]
         }
       },
@@ -1679,8 +1693,7 @@
         ],
         "expect": {
           "statusIn": [
-            200,
-            404
+            200
           ]
         }
       },
@@ -1713,8 +1726,7 @@
         ],
         "expect": {
           "statusIn": [
-            200,
-            404
+            200
           ]
         }
       },
@@ -1757,8 +1769,7 @@
           "statusIn": [
             200,
             400,
-            422,
-            404
+            422
           ]
         }
       },
@@ -1843,8 +1854,7 @@
         ],
         "expect": {
           "statusIn": [
-            200,
-            404
+            200
           ]
         }
       },
@@ -1887,8 +1897,7 @@
           "statusIn": [
             200,
             201,
-            400,
-            404
+            400
           ]
         }
       },
@@ -1924,8 +1933,7 @@
         ],
         "expect": {
           "statusIn": [
-            200,
-            404
+            200
           ]
         }
       },
@@ -1963,8 +1971,7 @@
           "statusIn": [
             200,
             401,
-            403,
-            404
+            403
           ]
         }
       },
@@ -2224,8 +2231,7 @@
         ],
         "expect": {
           "statusIn": [
-            200,
-            404
+            200
           ]
         }
       },
@@ -2268,8 +2274,7 @@
         "expect": {
           "statusIn": [
             200,
-            201,
-            404
+            201
           ]
         }
       },
@@ -2315,8 +2320,7 @@
         "expect": {
           "statusIn": [
             200,
-            201,
-            404
+            201
           ]
         }
       },
@@ -2361,8 +2365,7 @@
         "expect": {
           "statusIn": [
             200,
-            201,
-            404
+            201
           ]
         }
       },
@@ -2456,8 +2459,7 @@
         "expect": {
           "statusIn": [
             200,
-            201,
-            404
+            201
           ]
         }
       },
@@ -2502,8 +2504,7 @@
         "expect": {
           "statusIn": [
             200,
-            201,
-            404
+            201
           ]
         }
       },
@@ -2549,8 +2550,7 @@
         "expect": {
           "statusIn": [
             200,
-            201,
-            404
+            201
           ]
         }
       },
@@ -2599,8 +2599,7 @@
         "expect": {
           "statusIn": [
             200,
-            201,
-            404
+            201
           ]
         }
       },
@@ -2638,8 +2637,7 @@
         ],
         "expect": {
           "statusIn": [
-            200,
-            404
+            200
           ]
         }
       },
@@ -2678,8 +2676,7 @@
         ],
         "expect": {
           "statusIn": [
-            200,
-            404
+            200
           ]
         }
       },
@@ -2712,8 +2709,7 @@
         ],
         "expect": {
           "statusIn": [
-            200,
-            404
+            200
           ]
         }
       },
@@ -2756,8 +2752,7 @@
           "statusIn": [
             200,
             400,
-            422,
-            404
+            422
           ]
         }
       },
@@ -2842,8 +2837,7 @@
         ],
         "expect": {
           "statusIn": [
-            200,
-            404
+            200
           ]
         }
       },
@@ -2886,8 +2880,7 @@
           "statusIn": [
             200,
             201,
-            400,
-            404
+            400
           ]
         }
       },
@@ -2923,8 +2916,7 @@
         ],
         "expect": {
           "statusIn": [
-            200,
-            404
+            200
           ]
         }
       },
@@ -2962,8 +2954,7 @@
           "statusIn": [
             200,
             401,
-            403,
-            404
+            403
           ]
         }
       },
@@ -3223,8 +3214,7 @@
         ],
         "expect": {
           "statusIn": [
-            200,
-            404
+            200
           ]
         }
       },
@@ -3267,8 +3257,7 @@
         "expect": {
           "statusIn": [
             200,
-            201,
-            404
+            201
           ]
         }
       },
@@ -3314,8 +3303,7 @@
         "expect": {
           "statusIn": [
             200,
-            201,
-            404
+            201
           ]
         }
       },
@@ -3360,8 +3348,7 @@
         "expect": {
           "statusIn": [
             200,
-            201,
-            404
+            201
           ]
         }
       },
@@ -3455,8 +3442,7 @@
         "expect": {
           "statusIn": [
             200,
-            201,
-            404
+            201
           ]
         }
       },
@@ -3501,8 +3487,7 @@
         "expect": {
           "statusIn": [
             200,
-            201,
-            404
+            201
           ]
         }
       },
@@ -3548,8 +3533,7 @@
         "expect": {
           "statusIn": [
             200,
-            201,
-            404
+            201
           ]
         }
       },
@@ -3598,8 +3582,7 @@
         "expect": {
           "statusIn": [
             200,
-            201,
-            404
+            201
           ]
         }
       },
@@ -3637,8 +3620,7 @@
         ],
         "expect": {
           "statusIn": [
-            200,
-            404
+            200
           ]
         }
       },
@@ -3677,8 +3659,7 @@
         ],
         "expect": {
           "statusIn": [
-            200,
-            404
+            200
           ]
         }
       },
@@ -3711,8 +3692,7 @@
         ],
         "expect": {
           "statusIn": [
-            200,
-            404
+            200
           ]
         }
       },
@@ -3755,8 +3735,7 @@
           "statusIn": [
             200,
             400,
-            422,
-            404
+            422
           ]
         }
       },
@@ -3841,8 +3820,7 @@
         ],
         "expect": {
           "statusIn": [
-            200,
-            404
+            200
           ]
         }
       },
@@ -3885,8 +3863,7 @@
           "statusIn": [
             200,
             201,
-            400,
-            404
+            400
           ]
         }
       },
@@ -3922,8 +3899,7 @@
         ],
         "expect": {
           "statusIn": [
-            200,
-            404
+            200
           ]
         }
       },
@@ -3961,8 +3937,7 @@
           "statusIn": [
             200,
             401,
-            403,
-            404
+            403
           ]
         }
       },
@@ -4263,8 +4238,7 @@
         ],
         "expect": {
           "statusIn": [
-            200,
-            404
+            200
           ],
           "bodyContains": [],
           "bodyNotContains": [],
@@ -4307,8 +4281,7 @@
         "expect": {
           "statusIn": [
             200,
-            201,
-            404
+            201
           ],
           "bodyContains": [],
           "bodyNotContains": [],
@@ -4353,8 +4326,7 @@
         "expect": {
           "statusIn": [
             200,
-            201,
-            404
+            201
           ],
           "bodyContains": [],
           "bodyNotContains": [],
@@ -4398,8 +4370,7 @@
         "expect": {
           "statusIn": [
             200,
-            201,
-            404
+            201
           ],
           "bodyContains": [],
           "bodyNotContains": [],
@@ -4491,8 +4462,7 @@
         "expect": {
           "statusIn": [
             200,
-            201,
-            404
+            201
           ],
           "bodyContains": [],
           "bodyNotContains": [],
@@ -4536,8 +4506,7 @@
         "expect": {
           "statusIn": [
             200,
-            201,
-            404
+            201
           ],
           "bodyContains": [],
           "bodyNotContains": [],
@@ -4582,8 +4551,7 @@
         "expect": {
           "statusIn": [
             200,
-            201,
-            404
+            201
           ],
           "bodyContains": [],
           "bodyNotContains": [],
@@ -4630,8 +4598,7 @@
         "expect": {
           "statusIn": [
             200,
-            201,
-            404
+            201
           ],
           "bodyContains": [],
           "bodyNotContains": [],
@@ -4669,8 +4636,7 @@
         ],
         "expect": {
           "statusIn": [
-            200,
-            404
+            200
           ],
           "bodyContains": [],
           "bodyNotContains": [],
@@ -4709,8 +4675,7 @@
         ],
         "expect": {
           "statusIn": [
-            200,
-            404
+            200
           ],
           "bodyContains": [],
           "bodyNotContains": [],
@@ -4745,8 +4710,7 @@
         ],
         "expect": {
           "statusIn": [
-            200,
-            404
+            200
           ],
           "bodyContains": [],
           "bodyNotContains": [],
@@ -4789,8 +4753,7 @@
           "statusIn": [
             200,
             400,
-            422,
-            404
+            422
           ],
           "bodyContains": [],
           "bodyNotContains": [],
@@ -4874,8 +4837,7 @@
         ],
         "expect": {
           "statusIn": [
-            200,
-            404
+            200
           ],
           "bodyContains": [],
           "bodyNotContains": [],
@@ -4917,8 +4879,7 @@
           "statusIn": [
             200,
             201,
-            400,
-            404
+            400
           ],
           "bodyContains": [],
           "bodyNotContains": [],
@@ -4955,8 +4916,7 @@
         ],
         "expect": {
           "statusIn": [
-            200,
-            404
+            200
           ],
           "bodyContains": [],
           "bodyNotContains": [],
@@ -4993,8 +4953,7 @@
           "statusIn": [
             200,
             401,
-            403,
-            404
+            403
           ],
           "bodyContains": [],
           "bodyNotContains": [],
@@ -5128,16 +5087,113 @@
       "spec": "GET https://api.acme.corp/pay",
       "dataFields": [],
       "createdAt": "2026-09-07T09:35:01.209Z"
+    },
+    {
+      "id": "tc_e15d93d4",
+      "suiteId": "suite_c696ecf6",
+      "extId": "TC-118",
+      "category": "General API",
+      "title": "Confidential Payment Flow Test",
+      "priority": "High",
+      "type": "api",
+      "tags": [
+        "custom",
+        "api"
+      ],
+      "spec": "GET https://api.acme.corp/pay",
+      "dataFields": [],
+      "createdAt": "2026-09-07T09:46:46.670Z"
     }
   ],
   "testRuns": [
+    {
+      "id": "run_5149dee8",
+      "projectId": "proj_mg9jb8xuq",
+      "testCaseId": "tc_whyo_8xuq_06",
+      "ranAt": "2026-09-07T10:50:16.660Z",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): POST https://ai.whyor.in/api/dispatch returned 404. Expected status [200, 201] | Route Error: Target server responded with \"The page could not be found\" or route not registered",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "usr_superadmin",
+      "requests": [
+        {
+          "name": "Low Complexity Prompt Dispatch",
+          "method": "POST",
+          "url": "https://ai.whyor.in/api/dispatch",
+          "status": 404,
+          "durationMs": 103,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {
+            "Authorization": "Bearer why_usr_tok_live_72948a",
+            "Content-Type": "application/json"
+          },
+          "requestBody": "{\"prompt\":\"What is the capital of France?\",\"routingMode\":\"cheapest\",\"stream\":false}"
+        }
+      ]
+    },
+    {
+      "id": "run_cdbe6c36",
+      "projectId": "proj_mg9jb8xuq",
+      "testCaseId": "tc_whyo_8xuq_06",
+      "ranAt": "2026-09-07T10:42:36.817Z",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): Target endpoint returned 404 Not Found. Expected status [200, 201]",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "usr_superadmin",
+      "requests": [
+        {
+          "name": "Low Complexity Prompt Dispatch",
+          "method": "POST",
+          "url": "https://ai.whyor.in/api/dispatch",
+          "status": 404,
+          "durationMs": 77,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {
+            "Authorization": "Bearer why_usr_tok_live_72948a",
+            "Content-Type": "application/json"
+          },
+          "requestBody": "{\"prompt\":\"What is the capital of France?\",\"routingMode\":\"cheapest\",\"stream\":false}"
+        }
+      ]
+    },
+    {
+      "id": "run_c6f68cc3",
+      "projectId": "proj_dc801b4a",
+      "testCaseId": "tc_f7e81e86",
+      "ranAt": "2026-09-07T10:41:05.603Z",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): Target endpoint returned 404 Not Found. Expected status [200, 201]",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "usr_superadmin",
+      "requests": [
+        {
+          "name": "Low Complexity Prompt Dispatch",
+          "method": "POST",
+          "url": "https://ai.whyor.in/api/dispatch",
+          "status": 404,
+          "durationMs": 90,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {
+            "Authorization": "Bearer why_usr_tok_live_72948a",
+            "Content-Type": "application/json"
+          },
+          "requestBody": "{\"prompt\":\"What is the capital of France?\",\"routingMode\":\"cheapest\",\"stream\":false}"
+        }
+      ]
+    },
     {
       "id": "run_4890bae7",
       "projectId": "proj_dc801b4a",
       "testCaseId": "tc_f7e81e86",
       "ranAt": "2026-09-07T09:29:56.667Z",
-      "pass": true,
-      "message": "Status code verified [404]",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): Target endpoint returned 404 Not Found. Expected status [200, 201]",
       "executedBy": "hosted",
       "creditsCharged": 1,
       "runByUserId": "usr_superadmin",
@@ -5163,8 +5219,8 @@
       "projectId": "proj_dc801b4a",
       "testCaseId": "tc_f7e81e86",
       "ranAt": "2026-09-07T09:29:49.503Z",
-      "pass": true,
-      "message": "Status code verified [404]",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): Target endpoint returned 404 Not Found. Expected status [200, 201]",
       "executedBy": "preview",
       "creditsCharged": 0,
       "runByUserId": "usr_superadmin",
@@ -5215,8 +5271,8 @@
       "projectId": "proj_90fec6ba",
       "testCaseId": "tc_whyo_c6ba_22",
       "ranAt": "2026-09-06T19:36:37.901Z",
-      "pass": true,
-      "message": "Status code verified [404]",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): Target endpoint returned 404 Not Found. Expected status [200, 401, 403]",
       "executedBy": "preview",
       "creditsCharged": 0,
       "runByUserId": "usr_superadmin",
@@ -5240,8 +5296,8 @@
       "projectId": "proj_90fec6ba",
       "testCaseId": "tc_whyo_c6ba_07",
       "ranAt": "2026-09-06T19:36:06.075Z",
-      "pass": true,
-      "message": "Status code verified [404]",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): Target endpoint returned 404 Not Found. Expected status [200, 201]",
       "executedBy": "preview",
       "creditsCharged": 0,
       "runByUserId": "usr_superadmin",
@@ -15181,6 +15237,30 @@
   ],
   "creditLedger": [
     {
+      "id": "cdee5559-44b8-41b9-90f4-c09a7026e13a",
+      "userId": "usr_superadmin",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-ROUT-006 on AI Whyor",
+      "balanceAfter": 9994,
+      "createdAt": "2026-09-07T10:50:16.543Z"
+    },
+    {
+      "id": "1a41efd6-8a01-4acf-8329-da908ac85aaf",
+      "userId": "usr_superadmin",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-ROUT-006 on AI Whyor",
+      "balanceAfter": 9995,
+      "createdAt": "2026-09-07T10:42:36.733Z"
+    },
+    {
+      "id": "3b6b466c-6718-4b0c-8e48-89618805e95d",
+      "userId": "usr_superadmin",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-ROUT-006 on AI for whyor",
+      "balanceAfter": 9996,
+      "createdAt": "2026-09-07T10:41:05.506Z"
+    },
+    {
       "id": "75b3ca37-e716-4116-867b-00892dc31ba4",
       "userId": "usr_superadmin",
       "delta": -1,
@@ -15222,6 +15302,14 @@
     }
   ],
   "auditLogs": [
+    {
+      "id": "ec7d02b7-1744-48fd-8984-cdbbbc871973",
+      "userId": "usr_org_admin_a",
+      "userEmail": "qa.lead@acmecorp.com",
+      "action": "PROJECT_CREATED",
+      "details": "Created testing project \"Acme Secret API\" targeting URL https://api.acme.corp",
+      "timestamp": "2026-09-07T09:46:46.649Z"
+    },
     {
       "id": "f4938379-9181-4b03-8eb4-2cc0914a977d",
       "userId": "usr_org_admin_a",

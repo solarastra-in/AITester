@@ -121,9 +121,23 @@ export interface FirestoreDataset {
 // ----------------------------------------------------------------------
 
 export async function signInWithGoogle(): Promise<User> {
-  const result = await signInWithPopup(auth, googleProvider);
-  const fbUser = result.user;
-  return await syncGoogleUserToFirestore(fbUser);
+  try {
+    const result = await signInWithPopup(auth, googleProvider);
+    const fbUser = result.user;
+    return await syncGoogleUserToFirestore(fbUser);
+  } catch (err: any) {
+    if (err?.code === 'auth/unauthorized-domain' || err?.message?.includes('unauthorized-domain')) {
+      const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'this domain';
+      const friendlyErr: any = new Error(
+        `Firebase Authentication: '${currentHost}' is not in Firebase's Authorized Domains list. Please add '${currentHost}' in Firebase Console -> Authentication -> Settings -> Authorized domains tab.`
+      );
+      friendlyErr.code = 'auth/unauthorized-domain';
+      friendlyErr.domain = currentHost;
+      console.error(friendlyErr.message);
+      throw friendlyErr;
+    }
+    throw err;
+  }
 }
 
 export async function signOutGoogle(): Promise<void> {

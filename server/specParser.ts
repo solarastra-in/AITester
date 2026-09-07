@@ -132,9 +132,17 @@ export function normalizeStructuredRow(row: any, index: number): ParsedCaseDraft
     body: row.body || undefined,
   }];
 
-  const statusIn = row.expected_status
+  const rawStatusIn = row.expected_status
     ? String(row.expected_status).split(',').map(s => Number(s.trim())).filter(n => !isNaN(n))
     : (Array.isArray(row.expect?.statusIn) ? row.expect.statusIn : [200]);
+
+  // Strip 404 from positive status codes (2xx/3xx) unless explicitly intended as a 404/not-found test
+  const isExplicit404 = /\b(404|not found|nonexistent|non-existent)\b/i.test(title);
+  let statusIn = rawStatusIn;
+  if (!isExplicit404 && statusIn.some((s: number) => s >= 200 && s < 400)) {
+    statusIn = statusIn.filter((s: number) => s !== 404);
+    if (statusIn.length === 0) statusIn = [200];
+  }
 
   const bodyContains = row.expected_body_contains
     ? String(row.expected_body_contains).split('|').map(s => s.trim()).filter(Boolean)
