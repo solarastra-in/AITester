@@ -234,35 +234,52 @@ export const datasetService = {
       updatedAt: now,
     };
 
-    await setDoc(doc(db, 'datasets', id), newDataset);
-    return newDataset;
+    if (!auth.currentUser) {
+      return newDataset;
+    }
+
+    try {
+      await setDoc(doc(db, 'datasets', id), newDataset);
+      return newDataset;
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, `datasets/${id}`);
+    }
   },
 
   // Read all datasets (optionally filtered by project)
   async getDatasets(projectId?: string): Promise<FirestoreDataset[]> {
-    let q;
-    if (projectId) {
-      q = query(collection(db, 'datasets'), where('projectId', '==', projectId));
-    } else {
-      q = query(collection(db, 'datasets'));
+    if (!auth.currentUser) return [];
+    try {
+      let q;
+      if (projectId) {
+        q = query(collection(db, 'datasets'), where('projectId', '==', projectId));
+      } else {
+        q = query(collection(db, 'datasets'));
+      }
+      const snap = await getDocs(q);
+      return snap.docs.map(d => d.data() as FirestoreDataset);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.GET, 'datasets');
     }
-    const snap = await getDocs(q);
-    return snap.docs.map(d => d.data() as FirestoreDataset);
   },
 
   // Subscribe to real-time updates for datasets
-  subscribeDatasets(projectId: string | undefined, callback: (datasets: FirestoreDataset[]) => void) {
-    let q;
-    if (projectId) {
-      q = query(collection(db, 'datasets'), where('projectId', '==', projectId));
-    } else {
-      q = query(collection(db, 'datasets'));
+  subscribeDatasets(
+    projectId: string | undefined,
+    userOrCallback: User | null | ((datasets: FirestoreDataset[]) => void),
+    maybeCallback?: (datasets: FirestoreDataset[]) => void
+  ) {
+    const callback = typeof userOrCallback === 'function' ? userOrCallback : (maybeCallback || (() => {}));
+    if (!projectId || !auth.currentUser) {
+      callback([]);
+      return () => {};
     }
+    const q = query(collection(db, 'datasets'), where('projectId', '==', projectId));
     return onSnapshot(q, (snap) => {
       const list = snap.docs.map(d => d.data() as FirestoreDataset);
       callback(list);
     }, (err) => {
-      console.warn('Datasets snapshot error:', err);
+      console.warn('Datasets snapshot notice:', err);
     });
   },
 
@@ -322,6 +339,7 @@ export const projectService = {
   }): Promise<Project> {
     const id = data.id || ('proj_' + Math.random().toString(36).substr(2, 9));
     const now = new Date().toISOString();
+    const effectiveOwner = auth.currentUser?.uid || data.ownerUserId || 'google_user';
     const newProject: Project = {
       id,
       name: data.name.trim(),
@@ -332,42 +350,74 @@ export const projectService = {
         baseUrl: data.siteUrl.trim(),
         authTokens: {},
       },
-      ownerUserId: data.ownerUserId || auth.currentUser?.uid || 'google_user',
+      ownerUserId: effectiveOwner,
       createdAt: now,
       updatedAt: now,
     };
 
-    await setDoc(doc(db, 'projects', id), newProject);
+    if (!auth.currentUser) {
+      // In guest / non-Firebase auth mode, project persistence is managed via the backend REST API
+      return newProject;
+    }
 
-    // Also auto-create a matching default Firestore dataset entity
-    await datasetService.createDataset({
-      projectId: id,
-      name: `${newProject.name} Default Dataset`,
-      environment: 'production',
-      description: `Primary dynamic variables for ${newProject.name}`,
-      variables: newProject.dataset,
-      isDefault: true,
-      ownerUserId: newProject.ownerUserId,
-    });
+    try {
+      await setDoc(doc(db, 'projects', id), newProject);
 
-    return newProject;
+      // Also auto-create a matching default Firestore dataset entity
+      await datasetService.createDataset({
+        projectId: id,
+        name: `${newProject.name} Default Dataset`,
+        environment: 'production',
+        description: `Primary dynamic variables for ${newProject.name}`,
+        variables: newProject.dataset,
+        isDefault: true,
+        ownerUserId: newProject.ownerUserId,
+      });
+
+      return newProject;
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, `projects/${id}`);
+    }
   },
 
   // Read all projects
-  async getProjects(): Promise<Project[]> {
-    const q = query(collection(db, 'projects'));
-    const snap = await getDocs(q);
-    return snap.docs.map(d => d.data() as Project);
+  async getProjects(user?: User | null): Promise<Project[]> {
+    if (!user || !auth.currentUser) return [];
+    try {
+      let q;
+      if (user.role === 'platform_admin') {
+        q = query(collection(db, 'projects'));
+      } else if (user.orgId) {
+        q = query(collection(db, 'projects'), where('orgId', '==', user.orgId));
+      } else {
+        q = query(collection(db, 'projects'), where('ownerUserId', '==', auth.currentUser.uid));
+      }
+      const snap = await getDocs(q);
+      return snap.docs.map(d => d.data() as Project);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.GET, 'projects');
+    }
   },
 
   // Subscribe to real-time projects
-  subscribeProjects(callback: (projects: Project[]) => void) {
-    const q = query(collection(db, 'projects'));
+  subscribeProjects(user: User | null, callback: (projects: Project[]) => void) {
+    if (!user || !auth.currentUser) {
+      callback([]);
+      return () => {};
+    }
+    let q;
+    if (user.role === 'platform_admin') {
+      q = query(collection(db, 'projects'));
+    } else if (user.orgId) {
+      q = query(collection(db, 'projects'), where('orgId', '==', user.orgId));
+    } else {
+      q = query(collection(db, 'projects'), where('ownerUserId', '==', auth.currentUser.uid));
+    }
     return onSnapshot(q, (snap) => {
       const list = snap.docs.map(d => d.data() as Project);
       callback(list);
     }, (err) => {
-      console.warn('Projects snapshot error:', err);
+      console.warn('Projects snapshot notice:', err);
     });
   },
 
@@ -436,25 +486,46 @@ export const testCaseService = {
       createdAt: data.createdAt || now,
       updatedAt: now,
     };
-    await setDoc(doc(db, 'test_cases', id), newCase);
-    return newCase;
+    if (!auth.currentUser) {
+      return newCase;
+    }
+    try {
+      await setDoc(doc(db, 'test_cases', id), newCase);
+      return newCase;
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, `test_cases/${id}`);
+    }
   },
 
   // Read test cases for a project
-  async getTestCases(projectId: string): Promise<TestCase[]> {
-    const q = query(collection(db, 'test_cases'), where('projectId', '==', projectId));
-    const snap = await getDocs(q);
-    return snap.docs.map(d => d.data() as TestCase);
+  async getTestCases(projectId: string, user?: User | null): Promise<TestCase[]> {
+    if (!user || !projectId || !auth.currentUser) return [];
+    try {
+      const q = query(collection(db, 'test_cases'), where('projectId', '==', projectId));
+      const snap = await getDocs(q);
+      return snap.docs.map(d => d.data() as TestCase);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.GET, 'test_cases');
+    }
   },
 
   // Subscribe to real-time test cases for project
-  subscribeTestCases(projectId: string, callback: (cases: TestCase[]) => void) {
+  subscribeTestCases(
+    projectId: string,
+    userOrCallback: User | null | ((cases: TestCase[]) => void),
+    maybeCallback?: (cases: TestCase[]) => void
+  ) {
+    const callback = typeof userOrCallback === 'function' ? userOrCallback : (maybeCallback || (() => {}));
+    if (!projectId || !auth.currentUser) {
+      callback([]);
+      return () => {};
+    }
     const q = query(collection(db, 'test_cases'), where('projectId', '==', projectId));
     return onSnapshot(q, (snap) => {
       const list = snap.docs.map(d => d.data() as TestCase);
       callback(list);
     }, (err) => {
-      console.warn('TestCases snapshot error:', err);
+      console.warn('TestCases snapshot notice:', err);
     });
   },
 
@@ -486,8 +557,15 @@ export const testCaseService = {
 export const testRunService = {
   // Create / Record Run
   async recordRun(run: TestRun): Promise<TestRun> {
-    await setDoc(doc(db, 'test_runs', run.id), run);
-    return run;
+    if (!auth.currentUser) {
+      return run;
+    }
+    try {
+      await setDoc(doc(db, 'test_runs', run.id), run);
+      return run;
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, `test_runs/${run.id}`);
+    }
   },
 
   // Read runs for project
@@ -548,18 +626,31 @@ export const scheduleService = {
 // ----------------------------------------------------------------------
 
 export async function ensureFirestoreInitialized() {
+  // Only authenticated Firebase Auth users can and should perform Firestore seeding
+  if (!auth.currentUser) {
+    return;
+  }
+
   try {
-    const existing = await projectService.getProjects();
+    const existing = await projectService.getProjects({
+      id: auth.currentUser.uid,
+      email: auth.currentUser.email || '',
+      name: auth.currentUser.displayName || 'User',
+      role: 'standalone',
+      creditsBalance: 100,
+      createdAt: new Date().toISOString(),
+    });
     if (existing.length > 0) {
       return; // Already initialized
     }
 
-    console.log('Seeding initial Firestore datasets & projects...');
+    const currentUid = auth.currentUser.uid;
+    console.log('Seeding initial Firestore datasets & projects for user:', currentUid);
 
     // 1. Seed GitHub REST Project
     const ghProject: Project = {
-      id: 'proj_github_api',
-      ownerUserId: 'system_admin',
+      id: `proj_gh_${currentUid.substring(0, 8)}`,
+      ownerUserId: currentUid,
       name: 'GitHub Public REST API Suite',
       siteUrl: 'https://api.github.com',
       description: 'Automated functional test suite verifying public GitHub rate-limits, repositories, and user search APIs.',
@@ -586,7 +677,7 @@ export async function ensureFirestoreInitialized() {
       description: 'Dynamic parameters and header variables for GitHub API test cases',
       variables: ghProject.dataset,
       isDefault: true,
-      ownerUserId: 'system_admin',
+      ownerUserId: currentUid,
     });
 
     // Seed GH Secondary Dataset (Production Rate-Limit Testing)
@@ -602,13 +693,13 @@ export async function ensureFirestoreInitialized() {
         test_repo: 'linux',
       },
       isDefault: false,
-      ownerUserId: 'system_admin',
+      ownerUserId: currentUid,
     });
 
     // Seed GH Test Cases
     const ghCases: TestCase[] = [
       {
-        id: 'tc_gh_01',
+        id: `tc_gh_01_${currentUid.substring(0, 8)}`,
         projectId: ghProject.id,
         extId: 'GH-001',
         category: 'System & Rate Limits',
@@ -637,7 +728,7 @@ export async function ensureFirestoreInitialized() {
         createdAt: new Date().toISOString(),
       },
       {
-        id: 'tc_gh_02',
+        id: `tc_gh_02_${currentUid.substring(0, 8)}`,
         projectId: ghProject.id,
         extId: 'GH-002',
         category: 'Repository Endpoints',
@@ -665,7 +756,7 @@ export async function ensureFirestoreInitialized() {
         createdAt: new Date().toISOString(),
       },
       {
-        id: 'tc_gh_03',
+        id: `tc_gh_03_${currentUid.substring(0, 8)}`,
         projectId: ghProject.id,
         extId: 'GH-003',
         category: 'Rate Limiting & Concurrency',
@@ -697,8 +788,8 @@ export async function ensureFirestoreInitialized() {
 
     // 2. Seed JSONPlaceholder REST Project
     const jpProject: Project = {
-      id: 'proj_json_placeholder',
-      ownerUserId: 'system_admin',
+      id: `proj_jp_${currentUid.substring(0, 8)}`,
+      ownerUserId: currentUid,
       name: 'JSONPlaceholder Live REST API',
       siteUrl: 'https://jsonplaceholder.typicode.com',
       description: 'Zero-config CRUD functional tests verifying JSON REST endpoints with parameter substitution.',
@@ -721,12 +812,12 @@ export async function ensureFirestoreInitialized() {
       description: 'CRUD fixture values for post and comment endpoints',
       variables: jpProject.dataset,
       isDefault: true,
-      ownerUserId: 'system_admin',
+      ownerUserId: currentUid,
     });
 
     const jpCases: TestCase[] = [
       {
-        id: 'tc_jp_01',
+        id: `tc_jp_01_${currentUid.substring(0, 8)}`,
         projectId: jpProject.id,
         extId: 'JP-001',
         category: 'Posts CRUD',
@@ -751,7 +842,7 @@ export async function ensureFirestoreInitialized() {
         createdAt: new Date().toISOString(),
       },
       {
-        id: 'tc_jp_02',
+        id: `tc_jp_02_${currentUid.substring(0, 8)}`,
         projectId: jpProject.id,
         extId: 'JP-002',
         category: 'Posts CRUD',
@@ -787,10 +878,6 @@ export async function ensureFirestoreInitialized() {
 
     console.log('Firestore seed completed successfully.');
   } catch (err: any) {
-    if (err?.message?.includes('Missing or insufficient permissions') || err?.code === 'permission-denied') {
-      handleFirestoreError(err, OperationType.WRITE, 'projects');
-    } else {
-      console.warn('Firestore initialization notice:', err?.message || err);
-    }
+    console.warn('Firestore initialization notice:', err?.message || err);
   }
 }

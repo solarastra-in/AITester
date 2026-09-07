@@ -71,6 +71,24 @@
   ],
   "projects": [
     {
+      "id": "proj_3b44ff5f",
+      "ownerUserId": "usr_org_admin_a",
+      "orgId": "org_acme_corp",
+      "name": "Acme Payments Service",
+      "siteUrl": "https://pay.acmecorp.com",
+      "description": "Automated testing platform for https://pay.acmecorp.com",
+      "dataset": {
+        "baseUrl": "https://pay.acmecorp.com",
+        "authTokens": {
+          "guest": "",
+          "user": "",
+          "admin": ""
+        }
+      },
+      "createdAt": "2026-09-07T08:04:29.650Z",
+      "updatedAt": "2026-09-07T08:04:29.650Z"
+    },
+    {
       "id": "proj_90fec6ba",
       "ownerUserId": "usr_superadmin",
       "orgId": null,
@@ -13869,6 +13887,14 @@
   ],
   "auditLogs": [
     {
+      "id": "703d409c-4ed5-4a61-9fb0-96b29fbb1cf8",
+      "userId": "usr_org_admin_a",
+      "userEmail": "qa.lead@acmecorp.com",
+      "action": "PROJECT_CREATED",
+      "details": "Created testing project \"Acme Payments Service\" targeting URL https://pay.acmecorp.com",
+      "timestamp": "2026-09-07T08:04:29.650Z"
+    },
+    {
       "id": "d90ed092-e576-46f8-9671-0d805e81bc5c",
       "userId": "system",
       "userEmail": "sarah.lead@enterprise.com",
@@ -13955,6 +13981,28 @@
       "action": "TEAM_SEEDED",
       "details": "Created team Backend Core QA Team and seeded team member Alex Rivera.",
       "timestamp": "2026-08-15T17:05:25.029Z"
+    }
+  ],
+  "testSchedules": [
+    {
+      "id": "sched_daily_smoke",
+      "projectId": "proj_github_api",
+      "suiteId": "all",
+      "suiteName": "All Suites",
+      "name": "Daily Smoke & Health Ping",
+      "scheduleType": "daily",
+      "cronExpression": "0 2 * * *",
+      "timeOfDay": "02:00",
+      "dayOfWeek": 1,
+      "executionMode": "preview",
+      "enabled": true,
+      "notifyEmail": "qa.lead@acmecorp.com",
+      "lastRunAt": "2026-09-07T02:03:06.030Z",
+      "lastRunPass": true,
+      "lastRunMessage": "Completed: 3 passed, 0 failed (3 total)",
+      "nextRunAt": "2026-09-08T02:03:06.030Z",
+      "createdAt": "2026-08-28T08:03:06.030Z",
+      "updatedAt": "2026-09-07T02:03:06.030Z"
     }
   ]
 }

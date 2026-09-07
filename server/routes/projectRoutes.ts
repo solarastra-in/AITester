@@ -18,42 +18,22 @@ interface ProjectRequest extends AuthRequest {
 
 function loadProject(req: ProjectRequest, res: Response, next: NextFunction) {
   const projectId = req.params.projectId || req.params.id;
-  let project = db.findProjectById(projectId);
+  const project = db.findProjectById(projectId);
   if (!project) {
     if (req.method === 'DELETE') {
       return res.json({ ok: true, message: 'Project already removed.' });
     }
-    // Dynamically adopt/register project if requested by client (e.g. synced from Firestore)
-    project = {
-      id: projectId,
-      ownerUserId: req.user!.id,
-      orgId: req.user!.orgId || null,
-      name: 'Active Project',
-      siteUrl: 'https://ai.whyor.in',
-      description: `Testing workspace for ${projectId}`,
-      dataset: {
-        baseUrl: 'https://ai.whyor.in',
-        authTokens: {
-          guest: '',
-          user: '',
-          admin: '',
-        },
-      },
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    db.data.projects.push(project);
-    db.save();
+    return res.status(404).json({ error: 'Project not found.' });
   }
 
   const isOwner = project.ownerUserId === req.user!.id;
-  const isSameOrg = !!(project.orgId && project.orgId === req.user!.orgId);
+  const isSameOrg = !!(project.orgId && req.user!.orgId && project.orgId === req.user!.orgId);
   const isSuperAdmin = req.user!.role === 'platform_admin';
 
   if (!isOwner && !isSameOrg && !isSuperAdmin) {
-    project.ownerUserId = req.user!.id;
-    if (req.user!.orgId) project.orgId = req.user!.orgId;
-    db.save();
+    return res.status(403).json({
+      error: 'Access denied. You do not have permission to view or manage this project.',
+    });
   }
 
   req.project = project;
@@ -1032,36 +1012,80 @@ projectRouter.get('/:id/export', loadProject, (req: ProjectRequest, res: Respons
 });
 
 // 14. Get raw test runs for a project or all projects
-projectRouter.get('/:id/runs', (req: Request, res: Response) => {
+projectRouter.get('/:id/runs', (req: AuthRequest, res: Response) => {
+  const user = req.user!;
   const projectId = req.params.id;
   const limit = parseInt(req.query.limit as string, 10) || 200;
-  
-  let runs = db.data.testRuns;
+
+  // Determine allowed project IDs based on user persona and privileges
+  let allowedProjectIds: string[] = [];
+  if (user.role === 'platform_admin') {
+    allowedProjectIds = db.data.projects.map(p => p.id);
+  } else if (user.orgId) {
+    allowedProjectIds = db.data.projects
+      .filter(p => p.orgId === user.orgId || p.ownerUserId === user.id)
+      .map(p => p.id);
+  } else {
+    allowedProjectIds = db.data.projects
+      .filter(p => p.ownerUserId === user.id)
+      .map(p => p.id);
+  }
+
+  if (projectId !== 'all') {
+    if (!allowedProjectIds.includes(projectId)) {
+      return res.status(403).json({ error: 'Access denied. You do not have permission to view runs for this project.' });
+    }
+  }
+
+  let runs = db.data.testRuns.filter(r => allowedProjectIds.includes(r.projectId));
   if (projectId !== 'all') {
     runs = runs.filter(r => r.projectId === projectId);
   }
-  
+
   // Sort descending by ranAt
   const sorted = [...runs].sort((a, b) => new Date(b.ranAt).getTime() - new Date(a.ranAt).getTime());
   res.json({ runs: sorted.slice(0, limit), total: sorted.length });
 });
 
 // 15. Get aggregated analytics & trend data for Recharts visualization
-projectRouter.get('/:id/analytics', (req: Request, res: Response) => {
+projectRouter.get('/:id/analytics', (req: AuthRequest, res: Response) => {
+  const user = req.user!;
   const projectId = req.params.id;
   const days = parseInt(req.query.days as string, 10) || 14;
 
-  let project = projectId !== 'all' ? db.data.projects.find(p => p.id === projectId) : null;
+  let allowedProjectIds: string[] = [];
+  if (user.role === 'platform_admin') {
+    allowedProjectIds = db.data.projects.map(p => p.id);
+  } else if (user.orgId) {
+    allowedProjectIds = db.data.projects
+      .filter(p => p.orgId === user.orgId || p.ownerUserId === user.id)
+      .map(p => p.id);
+  } else {
+    allowedProjectIds = db.data.projects
+      .filter(p => p.ownerUserId === user.id)
+      .map(p => p.id);
+  }
+
+  if (projectId !== 'all') {
+    if (!allowedProjectIds.includes(projectId)) {
+      return res.status(403).json({ error: 'Access denied. You do not have permission to view analytics for this project.' });
+    }
+  }
+
+  let project = projectId !== 'all' ? db.data.projects.find(p => p.id === projectId && allowedProjectIds.includes(p.id)) : null;
   let cases = projectId !== 'all' 
     ? db.data.testCases.filter(c => {
         const suite = db.data.suites.find(s => s.id === c.suiteId);
         return suite && suite.projectId === projectId;
       })
-    : db.data.testCases;
+    : db.data.testCases.filter(c => {
+        const suite = db.data.suites.find(s => s.id === c.suiteId);
+        return suite && allowedProjectIds.includes(suite.projectId);
+      });
 
   let runs = projectId !== 'all'
     ? db.data.testRuns.filter(r => r.projectId === projectId)
-    : db.data.testRuns;
+    : db.data.testRuns.filter(r => allowedProjectIds.includes(r.projectId));
 
   // NOTE: This endpoint reports only real, persisted test-run history — it never
   // fabricates runs. A project with no executions yet correctly returns zeroed/empty

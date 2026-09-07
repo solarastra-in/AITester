@@ -42,7 +42,7 @@ import {
   Minus
 } from 'lucide-react';
 import { api, UrlAnalysisResult } from '../services/api';
-import { projectService, testCaseService, testRunService } from '../services/firebase';
+import { projectService, testCaseService, testRunService, signInWithGoogle } from '../services/firebase';
 import { Project, TestCase, TestRun, User, Organization, Suite, TestSchedule } from '../types';
 import { AnalyticsDashboard } from './AnalyticsDashboard';
 import { InteractiveDataModal } from './InteractiveDataModal';
@@ -55,13 +55,28 @@ import { AlertModal } from './AlertModal';
 import { IntrospectionJourneyModal } from './IntrospectionJourneyModal';
 import { TestSchedulerTab } from './TestSchedulerTab';
 
+const DEMO_PERSONAS = [
+  { role: 'platform_admin', label: 'Platform Superadmin', email: 'admin@verity.dev', badge: 'Superadmin', color: 'bg-rose-500/20 text-rose-300 border-rose-500/30' },
+  { role: 'org_admin', label: 'Customer Admin (Sarah)', email: 'qa.lead@acmecorp.com', badge: 'Org Admin', color: 'bg-amber-500/20 text-amber-300 border-amber-500/30' },
+  { role: 'member', label: 'Team Member (Alex)', email: 'alex.engineer@acmecorp.com', badge: 'Engineer', color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' },
+  { role: 'standalone', label: 'Standalone Developer', email: 'developer@indie.io', badge: 'Standalone', color: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30' },
+];
+
 interface ProjectStudioProps {
   currentUser: User | null;
   currentOrg: Organization | null;
   onOpenBilling: () => void;
+  onOpenAuth?: (mode: 'login' | 'register') => void;
+  onSwitchPersona?: (role?: string, email?: string) => void;
 }
 
-export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, currentOrg, onOpenBilling }) => {
+export const ProjectStudio: React.FC<ProjectStudioProps> = ({
+  currentUser,
+  currentOrg,
+  onOpenBilling,
+  onOpenAuth,
+  onSwitchPersona,
+}) => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [projectData, setProjectData] = useState<Project | null>(null);
@@ -202,78 +217,106 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
 
   // 1. Initial Load of Projects (with Firestore Realtime Sync)
   const loadProjects = async () => {
+    if (!currentUser) {
+      setProjects([]);
+      setSelectedProjectId(null);
+      setProjectData(null);
+      setCases([]);
+      setSuites([]);
+      setSchedules([]);
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const list = await api.getProjects();
       setProjects(list);
-      if (list.length > 0 && !selectedProjectId) {
-        setSelectedProjectId(list[0].id);
+      if (list.length > 0) {
+        if (!selectedProjectId || !list.some(p => p.id === selectedProjectId)) {
+          setSelectedProjectId(list[0].id);
+        }
+      } else {
+        setSelectedProjectId(null);
+        setProjectData(null);
+        setCases([]);
+        setSuites([]);
+        setSchedules([]);
       }
     } catch (err) {
       console.error('Failed to load projects:', err);
+      setProjects([]);
+      setSelectedProjectId(null);
+      setProjectData(null);
+      setCases([]);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
+    if (!currentUser) {
+      setProjects([]);
+      setSelectedProjectId(null);
+      setProjectData(null);
+      setCases([]);
+      setSuites([]);
+      setSchedules([]);
+      setLoading(false);
+      return;
+    }
+
     loadProjects();
 
-    // Subscribe to Firestore Projects collection in real time
-    const unsubscribe = projectService.subscribeProjects((firestoreProjects) => {
+    // Subscribe to Firestore Projects collection in real time with user security scoping
+    const unsubscribe = projectService.subscribeProjects(currentUser, (firestoreProjects) => {
       if (firestoreProjects && firestoreProjects.length > 0) {
         setProjects(firestoreProjects);
-        if (!selectedProjectId) {
+        if (!selectedProjectId || !firestoreProjects.some(p => p.id === selectedProjectId)) {
           setSelectedProjectId(firestoreProjects[0].id);
         }
       }
     });
 
     return () => unsubscribe();
-  }, [currentUser]);
+  }, [currentUser?.id, currentUser?.role, currentUser?.orgId]);
 
   // Subscribe to real-time Test Cases from Firestore for selected project
   useEffect(() => {
-    if (!selectedProjectId) return;
-    const unsubscribe = testCaseService.subscribeTestCases(selectedProjectId, (firestoreCases) => {
+    if (!selectedProjectId || !currentUser) {
+      setCases([]);
+      return;
+    }
+    const unsubscribe = testCaseService.subscribeTestCases(selectedProjectId, currentUser, (firestoreCases) => {
       if (firestoreCases && firestoreCases.length > 0) {
         setCases(firestoreCases);
       }
     });
     return () => unsubscribe();
-  }, [selectedProjectId]);
+  }, [selectedProjectId, currentUser?.id]);
 
   // 2. Load Selected Project Cases & Dataset
   const loadSelectedProject = async (id: string) => {
+    if (!currentUser || !id) {
+      setProjectData(null);
+      setCases([]);
+      return;
+    }
     try {
       const [proj, casesResp] = await Promise.all([
-        api.getProject(id).catch(err => {
-          console.warn('API getProject fallback note:', err);
-          const localMatch = projects.find(p => p.id === id);
-          if (localMatch) return localMatch;
-          return {
-            id,
-            name: 'Active Project',
-            siteUrl: 'https://api.github.com',
-            description: `Automated QA project ${id}`,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          } as Project;
-        }),
+        api.getProject(id),
         api.getProjectCases(id).catch(err => {
-          console.warn('API getProjectCases fallback note:', err);
+          console.warn('API getProjectCases error:', err);
           return {
             cases: [],
-            dataset: { baseUrl: 'https://api.github.com', authTokens: {} },
+            suites: [],
+            dataset: {},
             allNeededFields: [],
             missingProjectFields: [],
           };
         }),
       ]);
       setProjectData(proj);
-      if (casesResp.cases && casesResp.cases.length > 0) {
-        setCases(casesResp.cases);
-      }
+      setCases(casesResp.cases || []);
       if (casesResp.suites && casesResp.suites.length > 0) {
         setSuites(casesResp.suites);
       } else {
@@ -289,8 +332,14 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
       if (proj.siteUrl) {
         setGeneratorUrl(proj.siteUrl);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to load project details:', err);
+      if (err?.status === 403 || err?.status === 404) {
+        setProjectData(null);
+        setCases([]);
+        setSuites([]);
+        setSchedules([]);
+      }
     }
   };
 
@@ -986,6 +1035,82 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
   const isSomeFilteredSelected = !isAllFilteredSelected && filteredCases.some(c => selectedCaseIds.includes(c.id));
   const automatedCountInSelection = cases.filter(c => selectedCaseIds.includes(c.id) && c.type !== 'manual').length;
 
+  if (!currentUser) {
+    return (
+      <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6 lg:px-8" data-testid="studio-auth-required">
+        <div className="rounded-2xl border border-[#1E2235] bg-[#0E1019]/90 p-8 shadow-2xl backdrop-blur-md md:p-12 text-center">
+          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500/10 ring-1 ring-emerald-500/30">
+            <Shield className="h-8 w-8 text-emerald-400" />
+          </div>
+          <span className="inline-block rounded-full border border-emerald-500/30 bg-emerald-950/40 px-3.5 py-1 text-xs font-semibold text-emerald-400">
+            Role-Based Access Control (RBAC) Active
+          </span>
+          <h1 className="mt-4 text-2xl font-bold tracking-tight text-white sm:text-3xl">
+            Authentication Required to Access Test Studio
+          </h1>
+          <p className="mt-3 text-sm text-slate-400 leading-relaxed max-w-xl mx-auto">
+            Test cases, regression suites, dynamic environment datasets, and execution telemetry are protected and strictly partitioned by organization and user identity. Please sign in or switch to a persona to view and manage your test projects.
+          </p>
+
+          <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
+            <button
+              onClick={async () => {
+                try {
+                  await signInWithGoogle();
+                } catch (e) {
+                  console.error('Sign in failed', e);
+                }
+              }}
+              data-testid="studio-auth-google-btn"
+              className="flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-slate-950 shadow hover:bg-slate-100 transition cursor-pointer"
+            >
+              <svg className="h-4 w-4" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"/>
+                <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
+                <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
+                <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+              </svg>
+              Sign in with Google
+            </button>
+
+            <button
+              onClick={() => onOpenAuth?.('login')}
+              data-testid="studio-auth-login-btn"
+              className="flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl border border-[#2D334D] bg-[#121520] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#181C2B] transition cursor-pointer"
+            >
+              Email Log In
+            </button>
+          </div>
+
+          {/* Quick Demo Persona Switcher */}
+          <div className="mt-10 border-t border-[#1E2235] pt-8 text-left">
+            <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              Or select a demo persona to test RBAC data boundaries:
+            </div>
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {DEMO_PERSONAS.map(p => (
+                <button
+                  key={p.role}
+                  data-testid={`studio-persona-btn-${p.role}`}
+                  onClick={() => onSwitchPersona?.(p.role, p.email)}
+                  className="flex items-center justify-between rounded-xl border border-[#1E2235] bg-[#121520] p-3 text-left hover:border-emerald-500/40 hover:bg-[#171B29] transition cursor-pointer"
+                >
+                  <div>
+                    <div className="text-xs font-bold text-white">{p.label}</div>
+                    <div className="text-[11px] font-mono text-slate-400">{p.email}</div>
+                  </div>
+                  <span className={`rounded border px-2 py-0.5 text-[10px] font-semibold ${p.color}`}>
+                    {p.badge}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
       {/* Top Bar: Project Switcher & Actions */}
@@ -993,15 +1118,21 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
         <div className="flex flex-col sm:flex-row sm:items-center flex-wrap gap-3">
           {/* Project selector dropdown */}
           <div className="relative w-full sm:w-auto">
-            <select
-              value={selectedProjectId || ''}
-              onChange={(e) => setSelectedProjectId(e.target.value)}
-              className="w-full sm:w-auto rounded-xl border border-[#1E2235] bg-[#0F111A] px-3.5 py-2 text-sm font-bold text-white focus:border-emerald-500 focus:outline-none cursor-pointer"
-            >
-              {projects.map(p => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
+            {projects.length > 0 ? (
+              <select
+                value={selectedProjectId || ''}
+                onChange={(e) => setSelectedProjectId(e.target.value)}
+                className="w-full sm:w-auto rounded-xl border border-[#1E2235] bg-[#0F111A] px-3.5 py-2 text-sm font-bold text-white focus:border-emerald-500 focus:outline-none cursor-pointer"
+              >
+                {projects.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            ) : (
+              <div className="rounded-xl border border-dashed border-[#2A2E45] bg-[#0F111A] px-3.5 py-2 text-xs font-semibold text-slate-400">
+                No Accessible Projects
+              </div>
+            )}
           </div>
 
           {projectData && (
@@ -1371,8 +1502,34 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
         )}
       </div>
 
-      {/* TAB 1: Test Cases & Live Runner */}
-      {activeTab === 'cases' && (
+      {projects.length === 0 ? (
+        <div className="mt-12 rounded-2xl border border-dashed border-[#2A2E45] bg-[#0E1019]/60 p-12 text-center" data-testid="studio-no-projects-view">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/10 ring-1 ring-emerald-500/30">
+            <Layers className="h-7 w-7 text-emerald-400" />
+          </div>
+          <h2 className="mt-4 text-lg font-bold text-white">No Projects Available</h2>
+          <p className="mt-2 text-sm text-slate-400 max-w-lg mx-auto">
+            {currentUser?.role === 'standalone'
+              ? 'As a Standalone Developer, you operate in an isolated personal workspace. You have not created any test projects yet.'
+              : currentUser?.role === 'member'
+              ? `You are signed in as a Team Member (${currentUser.email}). No test projects are currently assigned to your organization.`
+              : `You are signed in as ${currentUser?.name || currentUser?.email}. To begin generating and executing test cases, create a target project.`}
+          </p>
+          <div className="mt-6 flex justify-center gap-3">
+            <button
+              onClick={() => setIsNewProjectModalOpen(true)}
+              data-testid="studio-create-first-project-btn"
+              className="flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-xs font-bold text-slate-950 shadow hover:bg-emerald-400 transition cursor-pointer"
+            >
+              <Plus className="h-4 w-4" />
+              Create New Project
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* TAB 1: Test Cases & Live Runner */}
+          {activeTab === 'cases' && (
         <div className="mt-6 space-y-6">
           {/* Status Metrics Bar - Vertically stacked on mobile, 2-col on tablet, 4-col on desktop */}
           <div className="flex flex-col sm:grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -2334,16 +2491,18 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
         </div>
       )}
 
-      {/* TAB 4: Test Suite Schedules & Autonomous Triggers */}
-      {activeTab === 'schedules' && projectData && (
-        <div className="mt-6">
-          <TestSchedulerTab
-            project={projectData}
-            suites={suites}
-            testCases={cases}
-            onTriggerRunAll={() => setBatchModalState({ isOpen: true, mode: 'preview' })}
-          />
-        </div>
+          {/* TAB 4: Test Suite Schedules & Autonomous Triggers */}
+          {activeTab === 'schedules' && projectData && (
+            <div className="mt-6">
+              <TestSchedulerTab
+                project={projectData}
+                suites={suites}
+                testCases={cases}
+                onTriggerRunAll={() => setBatchModalState({ isOpen: true, mode: 'preview' })}
+              />
+            </div>
+          )}
+        </>
       )}
 
       {/* New Project Modal */}

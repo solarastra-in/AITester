@@ -6,55 +6,72 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Users collection
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Users collection: only authenticated users can read/write their own profile
     match /users/{userId} {
-      allow read, write: if true;
+      allow read, write: if isOwner(userId);
     }
 
-    // Projects collection
+    // Projects collection: strictly require authentication and owner/org scoping
     match /projects/{projectId} {
-      allow read, write: if true;
+      allow read: if isAuthenticated() && (
+        resource == null ||
+        resource.data.ownerUserId == request.auth.uid ||
+        (resource.data.orgId != null && request.auth.token.orgId != null && resource.data.orgId == request.auth.token.orgId) ||
+        request.auth.token.role == 'platform_admin'
+      );
+      allow create: if isAuthenticated() && request.resource.data.ownerUserId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && (
+        resource.data.ownerUserId == request.auth.uid ||
+        request.auth.token.role == 'platform_admin'
+      );
     }
 
-    // Datasets collection (Full CRUD)
+    // Datasets collection (Full CRUD for authenticated users)
     match /datasets/{datasetId} {
-      allow read, write: if true;
+      allow read, write: if isAuthenticated();
     }
 
     // Suites collection
     match /suites/{suiteId} {
-      allow read, write: if true;
+      allow read, write: if isAuthenticated();
     }
 
-    // Test cases collection
+    // Test cases collection: only authenticated users can access
     match /test_cases/{testCaseId} {
-      allow read, write: if true;
+      allow read, write: if isAuthenticated();
     }
 
     // Test runs / execution logs
     match /test_runs/{runId} {
-      allow read, write: if true;
+      allow read, write: if isAuthenticated();
     }
 
     // Organizations
     match /organizations/{orgId} {
-      allow read, write: if true;
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && (request.auth.token.role == 'platform_admin' || request.auth.token.role == 'org_admin');
     }
 
     // Test Schedules
     match /test_schedules/{scheduleId} {
-      allow read, write: if true;
+      allow read, write: if isAuthenticated();
     }
 
     // Diagnostics / connection test
     match /test/{docId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if isAuthenticated();
     }
 
-    // Default match for any other document
+    // Default deny for any unmatched document or unauthenticated requests
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }
+
 

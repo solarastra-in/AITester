@@ -12,7 +12,7 @@ import { AboutView } from './components/AboutView';
 import { BillingModal } from './components/BillingModal';
 import { AuthModals } from './components/AuthModals';
 import { api, clearStoredToken } from './services/api';
-import { subscribeAuthState, signOutGoogle, ensureFirestoreInitialized } from './services/firebase';
+import { subscribeAuthState, signOutGoogle } from './services/firebase';
 import { User, Organization, AppView } from './types';
 
 const SITE_ORIGIN = 'https://ais-pre-zxirjfnjh6bl2ylg7svoja-4552824319.us-west2.run.app';
@@ -141,10 +141,8 @@ export function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Initialize Firestore datasets and listen to Google Auth state
+  // Listen to Google Auth state
   useEffect(() => {
-    ensureFirestoreInitialized();
-
     const unsubscribe = subscribeAuthState((googleUser) => {
       if (googleUser) {
         setCurrentUser(googleUser);
@@ -157,7 +155,7 @@ export function App() {
     return () => unsubscribe();
   }, []);
 
-  // Load initial authenticated user (or auto-seed first user)
+  // Load initial authenticated user
   const fetchCurrentUser = async () => {
     try {
       setIsLoadingUser(true);
@@ -165,13 +163,10 @@ export function App() {
       setCurrentUser(res.user);
       setCurrentOrg(res.organization);
     } catch {
-      try {
-        const demo = await api.switchPersona('platform_admin');
-        setCurrentUser(demo.user);
-        setCurrentOrg(demo.organization);
-      } catch (err) {
-        console.error('Failed to initialize demo persona:', err);
-      }
+      // Unauthenticated visitor (guest)
+      clearStoredToken();
+      setCurrentUser(null);
+      setCurrentOrg(null);
     } finally {
       setIsLoadingUser(false);
     }
@@ -258,6 +253,8 @@ export function App() {
             currentUser={currentUser}
             currentOrg={currentOrg}
             onOpenBilling={() => setIsBillingOpen(true)}
+            onOpenAuth={setAuthMode}
+            onSwitchPersona={handleSwitchPersona}
           />
         )}
 
