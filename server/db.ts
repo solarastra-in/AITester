@@ -4,7 +4,9 @@ import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { DatabaseSchema, User, Organization, Team, Project, Suite, TestCase, TestRun, CreditLedgerEntry, SystemAuditLog, TestSchedule } from './types.js';
 
-const DATA_DIR = path.join(process.cwd(), 'data');
+const DATA_DIR = process.env.DATA_DIR
+  ? path.isAbsolute(process.env.DATA_DIR) ? process.env.DATA_DIR : path.join(process.cwd(), process.env.DATA_DIR)
+  : path.join(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'verity-db.json');
 
 function getInitialDb(): DatabaseSchema {

@@ -1049,6 +1049,7 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
 
             <button
               onClick={() => setIsNewProjectModalOpen(true)}
+              data-testid="new-project-button"
               className="flex items-center gap-1 rounded-xl border border-[#1E2235] bg-[#131622] px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-[#1A1D2B] hover:border-[#2D334D]"
             >
               <Plus className="h-3.5 w-3.5 text-emerald-400" />
@@ -1304,6 +1305,7 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
+                data-testid={`studio-tab-${tab.id}`}
                 className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold transition ${
                   active
                     ? 'bg-[#1A1D2B] text-emerald-300 ring-1 ring-emerald-500/30 border border-[#1E2235]'
@@ -1340,6 +1342,7 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
 
             <button
               onClick={() => setIsDeployModalOpen(true)}
+              data-testid="open-deploy-modal"
               className="flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/20 transition"
               title="Deploy standalone Docker container to GCP Cloud Run, AWS ECS, Azure, or Kubernetes"
             >
@@ -1611,6 +1614,7 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
                 return (
                   <div
                     key={testCase.id}
+                    data-testid={`case-row-${testCase.id}`}
                     className={`flex flex-col lg:flex-row lg:items-center justify-between gap-4 rounded-2xl border p-4 transition ${
                       isSelected
                         ? 'border-emerald-500/50 bg-[#121626] shadow-md shadow-emerald-500/5'
@@ -1686,6 +1690,7 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
                               handleRunTestCase(testCase, 'preview', true);
                             }}
                             disabled={isRunningThis}
+                            data-testid={`run-preview-${testCase.id}`}
                             className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 rounded-xl border border-[#1E2235] bg-[#131622] px-3 py-2 text-xs font-semibold text-slate-200 transition hover:bg-[#1A1D2B] hover:text-white disabled:opacity-50 min-h-[42px] sm:min-h-0"
                             title="Execute locally in free sandbox preview"
                           >
@@ -1910,6 +1915,7 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
                         setGeneratorUrl(e.target.value);
                       }}
                       placeholder="https://api.example.com or https://reqres.in/api/users"
+                      data-testid="generator-url-input"
                       className="w-full rounded-xl border border-[#1E2235] bg-[#0B0D14] p-3 pl-3 pr-24 font-mono text-xs text-emerald-300 focus:border-emerald-500 focus:outline-none transition shadow-inner"
                     />
                     <div className="absolute right-2 top-2.5">
@@ -1931,6 +1937,7 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
                       <button
                         key={sample.url}
                         type="button"
+                        data-testid={`quick-sample-${sample.label.replace(/\s+/g, '-').toLowerCase()}`}
                         onClick={() => {
                           setGeneratorUrl(sample.url);
                           triggerUrlAnalysis(sample.url, userPromptHint, true);
@@ -2256,6 +2263,7 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
                   <button
                     type="submit"
                     disabled={isAiGenerating}
+                    data-testid="ai-generate-submit"
                     className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-7 py-3 text-xs font-bold text-slate-950 shadow-lg shadow-emerald-500/20 hover:from-emerald-400 hover:to-teal-500 disabled:opacity-50 transition"
                   >
                     <Sparkles className="h-4 w-4" />
@@ -2353,6 +2361,7 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
                   onChange={(e) => setNewProjName(e.target.value)}
                   placeholder="e.g. E-Commerce Staging API"
                   required
+                  data-testid="new-project-name-input"
                   className="mt-1 w-full rounded-xl border border-[#1E2235] bg-[#06070B] p-2.5 text-xs text-white focus:border-emerald-500 focus:outline-none"
                 />
               </div>
@@ -2393,6 +2402,7 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
                   onChange={(e) => setNewProjUrl(e.target.value)}
                   placeholder="https://api.example.com"
                   required
+                  data-testid="new-project-url-input"
                   className="mt-1 w-full rounded-xl border border-[#1E2235] bg-[#06070B] p-2.5 font-mono text-xs text-white focus:border-emerald-500 focus:outline-none"
                 />
               </div>
@@ -2433,6 +2443,7 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({ currentUser, curre
                   </button>
                   <button
                     type="submit"
+                    data-testid="new-project-submit"
                     className="flex-1 sm:flex-initial rounded-xl bg-emerald-500 px-4 py-2 text-xs font-bold text-slate-950 hover:bg-emerald-400 transition min-h-[40px] sm:min-h-0"
                   >
                     Create Project

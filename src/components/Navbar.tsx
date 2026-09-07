@@ -102,6 +102,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             <button
               onClick={() => onNavigate('studio')}
+              data-testid="nav-studio"
               className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition ${
                 currentView === 'studio'
                   ? 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/40'
@@ -148,6 +149,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {isOrgAdmin && (
               <button
                 onClick={() => onNavigate('org_admin')}
+                data-testid="nav-org-admin"
                 className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition ${
                   currentView === 'org_admin'
                     ? 'bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/40'
@@ -162,6 +164,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {isPlatformAdmin && (
               <button
                 onClick={() => onNavigate('super_admin')}
+                data-testid="nav-super-admin"
                 className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition ${
                   currentView === 'super_admin'
                     ? 'bg-rose-500/20 text-rose-300 ring-1 ring-rose-500/40'
@@ -181,6 +184,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div className="relative">
             <button
               onClick={() => setPersonaMenuOpen(!personaMenuOpen)}
+              data-testid="persona-switcher"
               className="flex items-center gap-2 rounded-lg border border-[#1E2235] bg-[#0F111A] px-2.5 py-1.5 text-xs font-medium text-slate-200 transition hover:border-[#2D334D] hover:bg-[#131622]"
               title="Switch demo persona to test different journeys"
             >
@@ -209,6 +213,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   {DEMO_PERSONAS.map(p => (
                     <button
                       key={p.role}
+                      data-testid={`persona-option-${p.role}`}
                       onClick={() => {
                         onSwitchPersona(p.role, p.email);
                         setPersonaMenuOpen(false);
@@ -235,6 +240,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           {currentUser && (
             <button
               onClick={onOpenBilling}
+              data-testid="credits-pill"
               className="flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-950/40 px-2.5 py-1.5 text-xs font-medium text-emerald-300 transition hover:bg-emerald-900/40"
               title="Click to view ledger or top up credits"
             >
@@ -249,6 +255,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="relative">
               <button
                 onClick={() => setUserMenuOpen(!userMenuOpen)}
+                data-testid="user-menu-button"
                 className="flex items-center gap-2 rounded-full p-0.5 ring-1 ring-[#2D334D] transition hover:ring-emerald-500"
                 title={`${currentUser.name} (${currentUser.email})`}
               >
@@ -305,6 +312,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         onLogout();
                         setUserMenuOpen(false);
                       }}
+                      data-testid="logout-button"
                       className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs text-rose-400 hover:bg-rose-500/10"
                     >
                       <LogOut className="h-3.5 w-3.5" />

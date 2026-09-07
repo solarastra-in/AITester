@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { db } from '../db.js';
 import { requireAuth, requireRole, AuthRequest, publicUser } from '../auth.js';
-import { grantCredits } from '../billing.js';
+import { grantCredits, chargeCredits } from '../billing.js';
 import { User, Organization } from '../types.js';
 
 export const adminRouter = Router();
@@ -137,11 +137,14 @@ adminRouter.post('/organizations/:id/credits', (req: AuthRequest, res: Response)
     return res.status(400).json({ error: 'Valid non-zero amount is required.' });
   }
 
-  const newBalance = grantCredits({
-    orgId: org.id,
-    amount: delta,
-    reason: reason || 'Platform Superadmin Manual Credit Grant',
-  });
+  let newBalance: number;
+  try {
+    newBalance = delta > 0
+      ? grantCredits({ orgId: org.id, amount: delta, reason: reason || 'Platform Superadmin Manual Credit Grant' })
+      : chargeCredits({ orgId: org.id, amount: Math.abs(delta), reason: reason || 'Platform Superadmin Manual Credit Deduction' });
+  } catch (err: any) {
+    return res.status(err.code === 'INSUFFICIENT_CREDITS' ? 409 : 500).json({ error: err.message });
+  }
 
   db.addAuditLog(
     req.user!.id,

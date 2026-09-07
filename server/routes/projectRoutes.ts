@@ -1680,7 +1680,19 @@ projectRouter.post('/:id/schedules/:scheduleId/trigger', loadProject, async (req
   }
 });
 
-// Start background interval for automated schedule evaluation (every 60s)
+// Start background interval for automated schedule evaluation (every 60s).
+// Exposed via stopScheduler() so tests that import this module (each of
+// which boots its own isolated app + temp database) can clean up their
+// interval in afterAll rather than leaving it running against a database
+// that's about to be deleted.
+export function stopScheduler() {
+  const handle = (global as any).__verity_scheduler_interval;
+  if (handle) {
+    clearInterval(handle);
+    (global as any).__verity_scheduler_interval = null;
+  }
+}
+
 if (!(global as any).__verity_scheduler_interval) {
   (global as any).__verity_scheduler_interval = setInterval(async () => {
     try {

@@ -1,7 +1,33 @@
 import * as archiverModule from 'archiver';
-const archiver: any = (archiverModule as any).default || archiverModule;
 import { Response } from 'express';
 import { Project, TestCase } from './types.js';
+
+/**
+ * Constructs a zip archive stream, tolerating both archiver's classic
+ * factory-function API (`archiver('zip', opts)`, versions <8) and the
+ * newer class-based API (`new ZipArchive(opts)`, seen in some 8.x
+ * releases) — the installed shape changed between one `npm install` and
+ * the next under the same `^8.0.0` semver range, which is what caused
+ * this to break in the first place ("archiver is not a function").
+ */
+function createZipArchive(options: any) {
+  const mod: any = archiverModule as any;
+  if (typeof mod === 'function') {
+    return mod('zip', options);
+  }
+  if (typeof mod.default === 'function') {
+    return mod.default('zip', options);
+  }
+  if (mod.ZipArchive) {
+    return new mod.ZipArchive(options);
+  }
+  if (mod.default?.ZipArchive) {
+    return new mod.default.ZipArchive(options);
+  }
+  throw new Error(
+    'Unsupported "archiver" package export shape: expected a callable factory function or a ZipArchive class export.'
+  );
+}
 
 export function buildStandalonePackage(project: Project, cases: TestCase[], res: Response) {
   const slug = project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'verity-test-runner';
@@ -10,7 +36,7 @@ export function buildStandalonePackage(project: Project, cases: TestCase[], res:
   res.setHeader('Content-Type', 'application/zip');
   res.setHeader('Content-Disposition', `attachment; filename="${slug}-test-runner.zip"`);
 
-  const archive = archiver('zip', { zlib: { level: 9 } });
+  const archive = createZipArchive({ zlib: { level: 9 } });
 
   archive.on('error', (err) => {
     console.error('Archive build error:', err);
@@ -97,7 +123,6 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const { runTestCase } = require('./lib/genericRunner');
-const { parseStructuredJson, parseStructuredCsv, parseMarkdownTable } = require('./lib/specParser');
 
 const app = express();
 app.use(express.json({ limit: '10mb' }));

@@ -12,6 +12,7 @@ let tmpDir: string;
 let originalCwd: string;
 let app: express.Express;
 let token: string;
+let stopScheduler: () => void;
 
 beforeAll(async () => {
   originalCwd = process.cwd();
@@ -19,7 +20,8 @@ beforeAll(async () => {
   process.chdir(tmpDir);
 
   const { authRouter } = await import('../server/routes/authRoutes.js');
-  const { projectRouter } = await import('../server/routes/projectRoutes.js');
+  const { projectRouter, stopScheduler: stop } = await import('../server/routes/projectRoutes.js');
+  stopScheduler = stop;
 
   app = express();
   app.use(express.json());
@@ -38,6 +40,7 @@ beforeAll(async () => {
 });
 
 afterAll(() => {
+  stopScheduler();
   process.chdir(originalCwd);
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });

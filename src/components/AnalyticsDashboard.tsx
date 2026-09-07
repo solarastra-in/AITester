@@ -224,7 +224,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
             <span className="text-[11px] font-mono text-slate-400">{timeRangeDays}D window</span>
           </div>
           <div className="mt-1.5 flex items-baseline gap-2">
-            <span className="text-2xl font-black text-white">{summary.totalRuns}</span>
+            <span className="text-2xl font-black text-white" data-testid="analytics-total-runs">{summary.totalRuns}</span>
             <div className="flex items-center gap-1.5 text-[11px]">
               <span className="text-emerald-400 font-semibold">{summary.passedRuns} pass</span>
               <span className="text-slate-500">/</span>

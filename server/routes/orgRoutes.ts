@@ -24,8 +24,8 @@ function ensureOrgSecurityConfig(org: Organization): OrgSecurityConfig {
           maskedKey: `${defaultRunnerKey.slice(0, 11)}••••••••••••••••${defaultRunnerKey.slice(-4)}`,
           fullKey: defaultRunnerKey,
           prefix: 'vrt_live_',
-          createdAt: new Date(Date.now() - 14 * 24 * 3600 * 1000).toISOString(),
-          lastUsedAt: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
+          createdAt: new Date().toISOString(),
+          lastUsedAt: null,
           status: 'active',
           environment: 'production',
         },
@@ -36,8 +36,8 @@ function ensureOrgSecurityConfig(org: Organization): OrgSecurityConfig {
           maskedKey: `${defaultAiKey.slice(0, 9)}••••••••••••••••${defaultAiKey.slice(-4)}`,
           fullKey: defaultAiKey,
           prefix: 'vrt_ai_',
-          createdAt: new Date(Date.now() - 14 * 24 * 3600 * 1000).toISOString(),
-          lastUsedAt: new Date(Date.now() - 2 * 3600 * 1000).toISOString(),
+          createdAt: new Date().toISOString(),
+          lastUsedAt: null,
           status: 'active',
           environment: 'production',
         },
@@ -48,24 +48,16 @@ function ensureOrgSecurityConfig(org: Organization): OrgSecurityConfig {
           maskedKey: `${defaultWebhookKey.slice(0, 8)}••••••••••••••••${defaultWebhookKey.slice(-4)}`,
           fullKey: defaultWebhookKey,
           prefix: 'whsec_',
-          createdAt: new Date(Date.now() - 14 * 24 * 3600 * 1000).toISOString(),
-          lastUsedAt: new Date(Date.now() - 5 * 3600 * 1000).toISOString(),
+          createdAt: new Date().toISOString(),
+          lastUsedAt: null,
           status: 'active',
           environment: 'production',
         },
       ],
-      rotationHistory: [
-        {
-          id: `rot_${uuidv4().slice(0, 8)}`,
-          keyType: 'test_execution',
-          rotatedByEmail: 'admin@verity.dev',
-          rotatedAt: new Date(Date.now() - 14 * 24 * 3600 * 1000).toISOString(),
-          gracePeriodHours: 24,
-          reason: 'Initial security key provisioning for automated test executions',
-          oldKeyMasked: 'vrt_live_init••••••••8e12',
-          newKeyMasked: `${defaultRunnerKey.slice(0, 11)}••••••••••••••••${defaultRunnerKey.slice(-4)}`,
-        },
-      ],
+      // A freshly-provisioned org has no rotation history yet — an empty
+      // list is the honest starting state, not an invented "initial
+      // provisioning" event that never actually happened.
+      rotationHistory: [],
       ipWhitelistingEnabled: false,
       mfaRequiredForAdmins: true,
     };
@@ -340,22 +332,42 @@ orgRouter.post('/security/revoke-previous-key', requireRole('org_admin', 'platfo
   });
 });
 
-// 4. Test Key Connectivity Probe
+// 4. Key Connectivity/Validity Probe — checks the real, current state of the
+// key in this org's security config (existence + active status), rather than
+// returning a canned success message. Latency reported is the actual time
+// this lookup took, not a random number.
 orgRouter.post('/security/test-key', requireRole('org_admin', 'platform_admin'), (req: AuthRequest, res: Response) => {
-  const { keyType } = req.body;
-  const latencyMs = Math.floor(Math.random() * 25) + 32;
+  const orgId = req.user!.orgId;
+  if (!orgId) return res.status(400).json({ error: 'No organization attached to account.' });
 
-  let message = 'Test execution runner connectivity verified. Healthcheck status 200 OK.';
-  if (keyType === 'ai_integration') {
-    message = 'Gemini AI Proxy validation succeeded. Latency verified under 60ms.';
-  } else if (keyType === 'webhook_secret') {
-    message = 'Webhook HMAC signature generator verified against test payload.';
+  const org = db.findOrgById(orgId);
+  if (!org) return res.status(404).json({ error: 'Organization not found.' });
+
+  const startedAt = process.hrtime.bigint();
+  const securityConfig = ensureOrgSecurityConfig(org);
+  const { keyType } = req.body;
+
+  const key = securityConfig.apiKeys.find(k => k.keyType === keyType);
+  const latencyMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
+
+  if (!key) {
+    return res.status(404).json({
+      ok: false,
+      latencyMs: Math.round(latencyMs * 100) / 100,
+      message: `No ${keyType || 'requested'} key is configured for this organization.`,
+      testedAt: new Date().toISOString(),
+    });
   }
 
+  const isActive = key.status === 'active';
+  const isExpiredGrace = !!key.previousKeyExpiresAt && new Date(key.previousKeyExpiresAt).getTime() < Date.now();
+
   res.json({
-    ok: true,
-    latencyMs,
-    message,
+    ok: isActive,
+    latencyMs: Math.round(latencyMs * 100) / 100,
+    message: isActive
+      ? `Key found and marked active${isExpiredGrace ? ' (its grace-period window has since elapsed)' : ''}. This checks the key's status in Verity's own records — it does not call the downstream provider.`
+      : `Key found but its status is "${key.status}", not active.`,
     testedAt: new Date().toISOString(),
   });
 });

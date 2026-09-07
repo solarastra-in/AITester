@@ -156,6 +156,7 @@ terraform apply -auto-approve`,
               </p>
               <button
                 onClick={onDownload}
+                data-testid="download-docker-zip"
                 className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-500 px-3 py-2 text-xs font-bold text-slate-950 transition hover:bg-emerald-400"
               >
                 <Download className="h-3.5 w-3.5" />

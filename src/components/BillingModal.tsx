@@ -122,6 +122,7 @@ export const BillingModal: React.FC<BillingModalProps> = ({ isOpen, onClose, onB
               {data?.pricingTiers?.map(tier => (
                 <div
                   key={tier.id}
+                  data-testid={`pricing-tier-${tier.id}`}
                   className={`relative flex flex-col justify-between rounded-2xl border p-5 ${
                     tier.popular
                       ? 'border-emerald-500/50 bg-[#131622] ring-2 ring-emerald-500/20'
