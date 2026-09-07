@@ -20,16 +20,66 @@ import {
 
 const TOKEN_KEY = 'verity_auth_token';
 
+let currentApiUser: User | null = null;
+
+export function setCurrentUser(user: User | null) {
+  currentApiUser = user;
+}
+
+export function getCurrentUser(): User | null {
+  return currentApiUser;
+}
+
 export function getStoredToken(): string | null {
+  if (typeof localStorage === 'undefined') return null;
   return localStorage.getItem(TOKEN_KEY);
 }
 
 export function setStoredToken(token: string) {
-  localStorage.setItem(TOKEN_KEY, token);
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(TOKEN_KEY, token);
+  }
 }
 
 export function clearStoredToken() {
-  localStorage.removeItem(TOKEN_KEY);
+  if (typeof localStorage !== 'undefined') {
+    localStorage.removeItem(TOKEN_KEY);
+  }
+  currentApiUser = null;
+}
+
+/**
+ * Security middleware layer on the API service to check currentUser permissions
+ * before returning any test case data.
+ * Throws a 403 Forbidden error if the user is not authorized or not logged in.
+ */
+export function checkTestCaseSecurity(
+  projectId: string,
+  user?: User | null
+): void {
+  const activeUser = user !== undefined ? user : currentApiUser;
+  const token = getStoredToken();
+
+  // If user is not logged in / no token provided -> 403 Forbidden
+  if (!token && !activeUser) {
+    const err: any = new Error('Forbidden: User is not authorized or logged in to access test cases.');
+    err.status = 403;
+    err.statusCode = 403;
+    throw err;
+  }
+
+  // If user is provided, check role / org permissions
+  if (activeUser) {
+    if (activeUser.role === 'platform_admin') {
+      return;
+    }
+    if ((projectId.startsWith('proj_org_') || projectId.startsWith('org_')) && (activeUser.role === 'standalone' || !activeUser.orgId)) {
+      const err: any = new Error('Forbidden: You do not have permission to view test cases for this project.');
+      err.status = 403;
+      err.statusCode = 403;
+      throw err;
+    }
+  }
 }
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -85,6 +135,7 @@ export const api = {
       body: JSON.stringify({ email, password }),
     });
     setStoredToken(res.token);
+    currentApiUser = res.user;
     return res;
   },
 
@@ -94,11 +145,14 @@ export const api = {
       body: JSON.stringify({ email, password, name }),
     });
     setStoredToken(res.token);
+    currentApiUser = res.user;
     return res;
   },
 
   async getMe(): Promise<{ user: User; organization: Organization | null }> {
-    return request<{ user: User; organization: Organization | null }>('/api/auth/me');
+    const res = await request<{ user: User; organization: Organization | null }>('/api/auth/me');
+    currentApiUser = res.user;
+    return res;
   },
 
   async resetPassword(newPassword: string): Promise<{ ok: boolean; message: string }> {
@@ -114,6 +168,7 @@ export const api = {
       body: JSON.stringify({ targetRole, email }),
     });
     setStoredToken(res.token);
+    currentApiUser = res.user;
     return res;
   },
 
@@ -168,14 +223,38 @@ export const api = {
     });
   },
 
-  async getProjectCases(id: string): Promise<{
+  setCurrentUser(user: User | null) {
+    currentApiUser = user;
+  },
+
+  getCurrentUser(): User | null {
+    return currentApiUser;
+  },
+
+  /**
+   * Retrieves test cases for a project, protected by the security middleware layer.
+   * Checks currentUser permissions before returning any test case data.
+   * If a user is not authorized or logged in, returns a 403 Forbidden status.
+   */
+  async getTestCases(id: string, currentUser?: User | null): Promise<{
     cases: TestCase[];
     suites?: Suite[];
     dataset: Record<string, any>;
     allNeededFields: string[];
     missingProjectFields: string[];
   }> {
+    checkTestCaseSecurity(id, currentUser);
     return request(`/api/projects/${id}/cases`);
+  },
+
+  async getProjectCases(id: string, currentUser?: User | null): Promise<{
+    cases: TestCase[];
+    suites?: Suite[];
+    dataset: Record<string, any>;
+    allNeededFields: string[];
+    missingProjectFields: string[];
+  }> {
+    return this.getTestCases(id, currentUser);
   },
 
   async getSuites(projectId: string): Promise<Suite[]> {

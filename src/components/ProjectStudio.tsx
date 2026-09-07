@@ -1122,6 +1122,7 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({
               <select
                 value={selectedProjectId || ''}
                 onChange={(e) => setSelectedProjectId(e.target.value)}
+                data-testid="project-switcher-select"
                 className="w-full sm:w-auto rounded-xl border border-[#1E2235] bg-[#0F111A] px-3.5 py-2 text-sm font-bold text-white focus:border-emerald-500 focus:outline-none cursor-pointer"
               >
                 {projects.map(p => (

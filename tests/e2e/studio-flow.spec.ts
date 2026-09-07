@@ -40,6 +40,18 @@ async function selectPersona(page: Page, role: string) {
   await expect(page.getByTestId('persona-switcher')).not.toContainText('Guest');
 }
 
+// The project name only ever appears as text inside <option> elements (the
+// main project switcher select, and the separate "Filter analytics by
+// project" select in the Analytics tab) — never as its own visible text
+// node. A plain getByText(name) match is therefore ambiguous (Playwright
+// strict-mode violation: 2+ elements). This asserts against the specific,
+// unambiguous project-switcher select's selected option instead.
+async function expectActiveProject(page: Page, name: string) {
+  const select = page.getByTestId('project-switcher-select');
+  await expect(select).toBeVisible();
+  await expect(select.locator('option:checked')).toHaveText(name);
+}
+
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
 });
@@ -80,13 +92,13 @@ test('can create a new project targeting a real, reachable URL', async ({ page }
 
   // Modal closes and the new project becomes the active one.
   await expect(page.getByTestId('new-project-name-input')).toHaveCount(0);
-  await expect(page.getByText(projectName)).toBeVisible();
+  await expectActiveProject(page, projectName);
 });
 
 test('can introspect a live URL and AI-generate real test cases from it', async ({ page }) => {
   await selectPersona(page, 'standalone');
   await page.getByTestId('nav-studio').click();
-  await expect(page.getByText(projectName)).toBeVisible();
+  await expectActiveProject(page, projectName);
 
   await page.getByTestId('studio-tab-ingest').click();
   await page.getByTestId('quick-sample-httpbin-http-probe').click();
@@ -116,7 +128,7 @@ test('can execute a real test case and see a genuine pass/fail result', async ({
 
   await selectPersona(page, 'standalone');
   await page.getByTestId('nav-studio').click();
-  await expect(page.getByText(projectName)).toBeVisible();
+  await expectActiveProject(page, projectName);
   await page.getByTestId('studio-tab-cases').click();
 
   const runButton = page.getByTestId(`run-preview-${firstCaseTestId}`);
@@ -134,7 +146,7 @@ test('can execute a real test case and see a genuine pass/fail result', async ({
 test('Analytics tab reflects the real run just executed — not fabricated history', async ({ page }) => {
   await selectPersona(page, 'standalone');
   await page.getByTestId('nav-studio').click();
-  await expect(page.getByText(projectName)).toBeVisible();
+  await expectActiveProject(page, projectName);
 
   await page.getByTestId('studio-tab-analytics').click();
 
@@ -153,7 +165,7 @@ test('Analytics tab reflects the real run just executed — not fabricated histo
 test('Multi-Cloud Deploy modal offers a real Docker bundle download', async ({ page }) => {
   await selectPersona(page, 'standalone');
   await page.getByTestId('nav-studio').click();
-  await expect(page.getByText(projectName)).toBeVisible();
+  await expectActiveProject(page, projectName);
 
   await page.getByTestId('open-deploy-modal').click();
   const downloadPromise = page.waitForEvent('download');

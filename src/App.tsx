@@ -73,6 +73,11 @@ export function App() {
   const [isBillingOpen, setIsBillingOpen] = useState(false);
   const [isLoadingUser, setIsLoadingUser] = useState(true);
 
+  // Keep API service in sync with current user for security checks
+  useEffect(() => {
+    api.setCurrentUser(currentUser);
+  }, [currentUser]);
+
   // Sync currentView with the real URL path (pushState-based routing) so every
   // view is a distinct, crawlable, bookmarkable URL rather than a hash fragment.
   useEffect(() => {

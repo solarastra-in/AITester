@@ -6,7 +6,7 @@
       "name": "Platform Superadmin",
       "passwordHash": "$2b$10$PFPsH20p0oIpjkUfZ/Duce/Kt4o2hH9hIczBl3cECNRhoCtb4iVGW",
       "role": "platform_admin",
-      "creditsBalance": 9998,
+      "creditsBalance": 9997,
       "createdAt": "2026-08-03T17:05:24.722Z"
     },
     {
@@ -70,6 +70,129 @@
     }
   ],
   "projects": [
+    {
+      "id": "proj_1dfe3491",
+      "ownerUserId": "usr_org_admin_a",
+      "orgId": "org_acme_corp",
+      "name": "Acme Secret API",
+      "siteUrl": "https://api.acme.corp",
+      "description": "Acme internal services",
+      "dataset": {
+        "baseUrl": "https://api.acme.corp",
+        "authTokens": {
+          "guest": "",
+          "user": "",
+          "admin": ""
+        }
+      },
+      "createdAt": "2026-09-07T09:35:01.184Z",
+      "updatedAt": "2026-09-07T09:35:01.184Z"
+    },
+    {
+      "id": "proj_dc801b4a",
+      "ownerUserId": "usr_superadmin",
+      "orgId": null,
+      "name": "AI for whyor",
+      "siteUrl": "https://ai.whyor.in",
+      "description": "Automated testing platform for https://ai.whyor.in",
+      "dataset": {
+        "baseUrl": "https://ai.whyor.in",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "authTokens": {
+          "guest": "",
+          "user": "why_usr_tok_live_72948a",
+          "team_lead": "why_lead_tok_live_48312b",
+          "admin": "why_adm_tok_live_99120c",
+          "superadmin": "why_sup_tok_live_88341e"
+        },
+        "models": {
+          "fast_model": "gemini-3.7-flash",
+          "lite_model": "gemini-3.1-flash-lite",
+          "smart_model": "claude-3-7-sonnet",
+          "reasoning_model": "deepseek-v3",
+          "general_model": "gpt-4o",
+          "fast_llama": "llama-3.3-70b-versatile"
+        },
+        "prompt_query": "What is the capital of France?",
+        "prompt_samples": {
+          "simple_query": "What is the capital of France?",
+          "complex_query": "Write a distributed consensus algorithm in Go with raft log compaction and benchmark its throughput.",
+          "code_query": "Write a React custom hook for debouncing an async search query with abort controller.",
+          "reasoning_query": "Analyze the trade-offs between optimistic concurrency control and two-phase locking in high-throughput distributed databases.",
+          "invalid_empty": "   "
+        },
+        "credentials_test": {
+          "provider": "anthropic",
+          "masked_key": "sk-ant-api03-test-live-mock-4481",
+          "invalid_key": "invalid_key_format_xyz",
+          "openai_key": "sk-proj-test-live-mock-9921"
+        },
+        "session_id": "sess_why_993821",
+        "team_id": "team_alpha_corp",
+        "company_id": "comp_enterprise_901",
+        "payment_id": "pay_whyor_88319",
+        "trial_email": "qa_tester@whyor.in",
+        "trial_code": "123456",
+        "query_id": "728",
+        "sample_id": "sample_why_01"
+      },
+      "createdAt": "2026-09-07T09:26:23.722Z",
+      "updatedAt": "2026-09-07T09:29:03.893Z"
+    },
+    {
+      "id": "proj_dfd5b1bc",
+      "ownerUserId": "usr_org_admin_a",
+      "orgId": "org_acme_corp",
+      "name": "Acme Secret API",
+      "siteUrl": "https://api.acme.corp",
+      "description": "Acme internal services",
+      "dataset": {
+        "baseUrl": "https://api.acme.corp",
+        "authTokens": {
+          "guest": "",
+          "user": "",
+          "admin": ""
+        }
+      },
+      "createdAt": "2026-09-07T09:06:34.336Z",
+      "updatedAt": "2026-09-07T09:06:34.336Z"
+    },
+    {
+      "id": "proj_59f364dd",
+      "ownerUserId": "usr_org_admin_a",
+      "orgId": "org_acme_corp",
+      "name": "Acme Secret API",
+      "siteUrl": "https://api.acme.corp",
+      "description": "Acme internal services",
+      "dataset": {
+        "baseUrl": "https://api.acme.corp",
+        "authTokens": {
+          "guest": "",
+          "user": "",
+          "admin": ""
+        }
+      },
+      "createdAt": "2026-09-07T09:05:43.281Z",
+      "updatedAt": "2026-09-07T09:05:43.281Z"
+    },
+    {
+      "id": "proj_193173ea",
+      "ownerUserId": "usr_org_admin_a",
+      "orgId": "org_acme_corp",
+      "name": "Acme Secret API",
+      "siteUrl": "https://api.acme.corp",
+      "description": "Acme internal services",
+      "dataset": {
+        "baseUrl": "https://api.acme.corp",
+        "authTokens": {
+          "guest": "",
+          "user": "",
+          "admin": ""
+        }
+      },
+      "createdAt": "2026-09-07T09:04:43.538Z",
+      "updatedAt": "2026-09-07T09:04:43.538Z"
+    },
     {
       "id": "proj_3b44ff5f",
       "ownerUserId": "usr_org_admin_a",
@@ -305,6 +428,41 @@
       "name": "WhyOr Dispatch End-to-End System & Architecture Suite",
       "source": "ai_generated",
       "createdAt": "2026-09-03T19:28:59.869Z"
+    },
+    {
+      "id": "suite_59bf4d72",
+      "projectId": "proj_193173ea",
+      "name": "Custom Test Suite",
+      "source": "manual",
+      "createdAt": "2026-09-07T09:04:43.558Z"
+    },
+    {
+      "id": "suite_fcbd093a",
+      "projectId": "proj_59f364dd",
+      "name": "Custom Test Suite",
+      "source": "manual",
+      "createdAt": "2026-09-07T09:05:43.301Z"
+    },
+    {
+      "id": "suite_396a9be2",
+      "projectId": "proj_dfd5b1bc",
+      "name": "Custom Test Suite",
+      "source": "manual",
+      "createdAt": "2026-09-07T09:06:34.353Z"
+    },
+    {
+      "id": "suite_af8bd46f",
+      "projectId": "proj_dc801b4a",
+      "name": "WhyOr Dispatch Architecture & E2E Verification Suite",
+      "source": "ai_generated",
+      "createdAt": "2026-09-07T09:29:03.893Z"
+    },
+    {
+      "id": "suite_2a03bd93",
+      "projectId": "proj_1dfe3491",
+      "name": "Custom Test Suite",
+      "source": "manual",
+      "createdAt": "2026-09-07T09:35:01.209Z"
     }
   ],
   "testCases": [
@@ -3879,9 +4037,1179 @@
       "dataFields": [],
       "createdAt": "2026-09-03T19:28:59.869Z",
       "updatedAt": "2026-09-03T19:28:59.869Z"
+    },
+    {
+      "id": "tc_28f4bda3",
+      "suiteId": "suite_59bf4d72",
+      "extId": "TC-089",
+      "category": "General API",
+      "title": "Confidential Payment Flow Test",
+      "priority": "High",
+      "type": "api",
+      "tags": [
+        "custom",
+        "api"
+      ],
+      "spec": "GET https://api.acme.corp/pay",
+      "dataFields": [],
+      "createdAt": "2026-09-07T09:04:43.558Z"
+    },
+    {
+      "id": "tc_d4a9dd71",
+      "suiteId": "suite_fcbd093a",
+      "extId": "TC-090",
+      "category": "General API",
+      "title": "Confidential Payment Flow Test",
+      "priority": "High",
+      "type": "api",
+      "tags": [
+        "custom",
+        "api"
+      ],
+      "spec": "GET https://api.acme.corp/pay",
+      "dataFields": [],
+      "createdAt": "2026-09-07T09:05:43.301Z"
+    },
+    {
+      "id": "tc_8529e276",
+      "suiteId": "suite_396a9be2",
+      "extId": "TC-091",
+      "category": "General API",
+      "title": "Confidential Payment Flow Test",
+      "priority": "High",
+      "type": "api",
+      "tags": [
+        "custom",
+        "api"
+      ],
+      "spec": "GET https://api.acme.corp/pay",
+      "dataFields": [],
+      "createdAt": "2026-09-07T09:06:34.353Z"
+    },
+    {
+      "id": "tc_0399c6c1",
+      "suiteId": "suite_af8bd46f",
+      "extId": "WHYO-SPA-001",
+      "category": "Platform Smoke & Shell",
+      "title": "Verify WhyOr Dispatch root SPA loads with status 200 and valid HTML shell",
+      "priority": "High",
+      "type": "http",
+      "tags": [
+        "smoke",
+        "spa",
+        "html"
+      ],
+      "spec": {
+        "requests": [
+          {
+            "name": "Root SPA Request",
+            "method": "GET",
+            "path": "/",
+            "authPersona": null,
+            "headers": {
+              "Accept": "text/html,application/xhtml+xml"
+            }
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            200,
+            304
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [],
+      "createdAt": "2026-09-07T09:29:03.893Z"
+    },
+    {
+      "id": "tc_84918fd2",
+      "suiteId": "suite_af8bd46f",
+      "extId": "WHYO-SPA-002",
+      "category": "Static Assets & Bundles",
+      "title": "Verify WhyOr Dispatch main JavaScript bundle loads and is executable",
+      "priority": "High",
+      "type": "http",
+      "tags": [
+        "assets",
+        "bundle",
+        "smoke"
+      ],
+      "spec": {
+        "requests": [
+          {
+            "name": "Main JS Bundle",
+            "method": "GET",
+            "path": "/assets/index-l5opthvd.js",
+            "authPersona": null,
+            "headers": {
+              "User-Agent": "{{userAgent}}"
+            }
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            200,
+            304
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [
+        "userAgent"
+      ],
+      "createdAt": "2026-09-07T09:29:03.893Z"
+    },
+    {
+      "id": "tc_da3935f1",
+      "suiteId": "suite_af8bd46f",
+      "extId": "WHYO-SPA-003",
+      "category": "Static Assets & Bundles",
+      "title": "Verify compiled Tailwind stylesheet and UI design tokens load successfully",
+      "priority": "Medium",
+      "type": "http",
+      "tags": [
+        "assets",
+        "css",
+        "ui"
+      ],
+      "spec": {
+        "requests": [
+          {
+            "name": "Main CSS Stylesheet",
+            "method": "GET",
+            "path": "/assets/index-DQy2Zb7Y.css",
+            "authPersona": null,
+            "headers": {}
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            200,
+            304
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [],
+      "createdAt": "2026-09-07T09:29:03.893Z"
+    },
+    {
+      "id": "tc_dd93b895",
+      "suiteId": "suite_af8bd46f",
+      "extId": "WHYO-SPA-004",
+      "category": "Brand & Meta Assets",
+      "title": "Verify OpenGraph social card image and metadata preview asset availability",
+      "priority": "Low",
+      "type": "http",
+      "tags": [
+        "seo",
+        "assets",
+        "og"
+      ],
+      "spec": {
+        "requests": [
+          {
+            "name": "OpenGraph Image Check",
+            "method": "GET",
+            "path": "/og-image.png",
+            "authPersona": null,
+            "headers": {}
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            200,
+            304
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [],
+      "createdAt": "2026-09-07T09:29:03.893Z"
+    },
+    {
+      "id": "tc_49f9e72b",
+      "suiteId": "suite_af8bd46f",
+      "extId": "WHYO-HLTH-005",
+      "category": "System & Gateway Health",
+      "title": "Probe API gateway health check endpoint and verify operational status",
+      "priority": "High",
+      "type": "http",
+      "tags": [
+        "health",
+        "api",
+        "gateway"
+      ],
+      "spec": {
+        "requests": [
+          {
+            "name": "Gateway Health Probe",
+            "method": "GET",
+            "path": "/api/health",
+            "authPersona": null,
+            "headers": {
+              "Accept": "application/json"
+            }
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            200,
+            404
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [],
+      "createdAt": "2026-09-07T09:29:03.893Z"
+    },
+    {
+      "id": "tc_f7e81e86",
+      "suiteId": "suite_af8bd46f",
+      "extId": "WHYO-ROUT-006",
+      "category": "AI Dispatch & Routing Engine",
+      "title": "Dispatch simple query with semantic router to cheapest low-cost model",
+      "priority": "High",
+      "type": "http",
+      "tags": [
+        "ai",
+        "dispatch",
+        "routing"
+      ],
+      "spec": {
+        "requests": [
+          {
+            "name": "Low Complexity Prompt Dispatch",
+            "method": "POST",
+            "path": "/api/dispatch",
+            "authPersona": "user",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "prompt": "{{prompt_samples.simple_query}}",
+              "routingMode": "cheapest",
+              "stream": false
+            }
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            200,
+            201,
+            404
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [
+        "prompt_samples.simple_query"
+      ],
+      "createdAt": "2026-09-07T09:29:03.893Z"
+    },
+    {
+      "id": "tc_7c423587",
+      "suiteId": "suite_af8bd46f",
+      "extId": "WHYO-ROUT-007",
+      "category": "AI Dispatch & Routing Engine",
+      "title": "Dispatch complex engineering prompt routing to high-capability reasoning tier",
+      "priority": "High",
+      "type": "http",
+      "tags": [
+        "ai",
+        "dispatch",
+        "reasoning"
+      ],
+      "spec": {
+        "requests": [
+          {
+            "name": "High Complexity Prompt Dispatch",
+            "method": "POST",
+            "path": "/v1/dispatch",
+            "authPersona": "user",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "prompt": "{{prompt_samples.complex_query}}",
+              "routingMode": "quality_first",
+              "stream": false
+            }
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            200,
+            201,
+            404
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [
+        "prompt_samples.complex_query"
+      ],
+      "createdAt": "2026-09-07T09:29:03.893Z"
+    },
+    {
+      "id": "tc_6b1c1627",
+      "suiteId": "suite_af8bd46f",
+      "extId": "WHYO-ROUT-008",
+      "category": "AI Dispatch & Routing Engine",
+      "title": "Execute prompt dispatch with explicit model override (Claude 3.7 Sonnet)",
+      "priority": "High",
+      "type": "http",
+      "tags": [
+        "ai",
+        "override",
+        "models"
+      ],
+      "spec": {
+        "requests": [
+          {
+            "name": "Model Override Dispatch",
+            "method": "POST",
+            "path": "/api/dispatch",
+            "authPersona": "user",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "prompt": "{{prompt_samples.code_query}}",
+              "modelOverride": "{{models.smart_model}}"
+            }
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            200,
+            201,
+            404
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [
+        "prompt_samples.code_query",
+        "models.smart_model"
+      ],
+      "createdAt": "2026-09-07T09:29:03.893Z"
+    },
+    {
+      "id": "tc_ab13c125",
+      "suiteId": "suite_af8bd46f",
+      "extId": "WHYO-ROUT-009",
+      "category": "Validation & Guardrails",
+      "title": "Reject empty prompt payload with validation error (400 or 422)",
+      "priority": "Medium",
+      "type": "http",
+      "tags": [
+        "negative",
+        "validation",
+        "guardrails"
+      ],
+      "spec": {
+        "requests": [
+          {
+            "name": "Empty Prompt Submission",
+            "method": "POST",
+            "path": "/api/dispatch",
+            "authPersona": "user",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "prompt": "{{prompt_samples.invalid_empty}}"
+            }
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            400,
+            422,
+            404
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [
+        "prompt_samples.invalid_empty"
+      ],
+      "createdAt": "2026-09-07T09:29:03.893Z"
+    },
+    {
+      "id": "tc_f61508ce",
+      "suiteId": "suite_af8bd46f",
+      "extId": "WHYO-CORR-010",
+      "category": "Bayesian Quality & Corroboration",
+      "title": "Execute Bayesian multi-model corroboration vote on prompt output",
+      "priority": "Medium",
+      "type": "http",
+      "tags": [
+        "quality",
+        "bayesian",
+        "corroborate"
+      ],
+      "spec": {
+        "requests": [
+          {
+            "name": "Output Corroboration Check",
+            "method": "POST",
+            "path": "/api/dispatch/corroborate",
+            "authPersona": "user",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "prompt": "{{prompt_samples.simple_query}}",
+              "candidateModels": [
+                "gemini-3.7-flash",
+                "claude-3.5-sonnet"
+              ]
+            }
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            200,
+            201,
+            404
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [
+        "prompt_samples.simple_query"
+      ],
+      "createdAt": "2026-09-07T09:29:03.893Z"
+    },
+    {
+      "id": "tc_a804ffb3",
+      "suiteId": "suite_af8bd46f",
+      "extId": "WHYO-CHAT-011",
+      "category": "AI Chat & Context Sessions",
+      "title": "Create new multi-turn conversation session and initialize context",
+      "priority": "High",
+      "type": "http",
+      "tags": [
+        "chat",
+        "sessions",
+        "context"
+      ],
+      "spec": {
+        "requests": [
+          {
+            "name": "Initialize Chat Session",
+            "method": "POST",
+            "path": "/api/chat/sessions",
+            "authPersona": "user",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "title": "Verity Automated Test Session",
+              "initialPrompt": "{{prompt_samples.simple_query}}"
+            }
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            200,
+            201,
+            404
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [
+        "prompt_samples.simple_query"
+      ],
+      "createdAt": "2026-09-07T09:29:03.893Z"
+    },
+    {
+      "id": "tc_f8011581",
+      "suiteId": "suite_af8bd46f",
+      "extId": "WHYO-FILE-012",
+      "category": "Workspace & Studio",
+      "title": "Upload and preprocess source document for zero-loss context compression",
+      "priority": "Medium",
+      "type": "http",
+      "tags": [
+        "workspace",
+        "preprocessing",
+        "context"
+      ],
+      "spec": {
+        "requests": [
+          {
+            "name": "Preprocess Context File",
+            "method": "POST",
+            "path": "/api/preprocess/file",
+            "authPersona": "user",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "fileName": "spec.txt",
+              "content": "Architecture specification for Thompson sampling multi-model router.",
+              "compress": true
+            }
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            200,
+            201,
+            404
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [],
+      "createdAt": "2026-09-07T09:29:03.893Z"
+    },
+    {
+      "id": "tc_fd2e2bd4",
+      "suiteId": "suite_af8bd46f",
+      "extId": "WHYO-LEDG-013",
+      "category": "Context Ledger & Auditing",
+      "title": "Save conversation turns to hash-chained tamper-evident context ledger",
+      "priority": "High",
+      "type": "http",
+      "tags": [
+        "ledger",
+        "cryptographic",
+        "context"
+      ],
+      "spec": {
+        "requests": [
+          {
+            "name": "Save Context Turn",
+            "method": "POST",
+            "path": "/api/context/save",
+            "authPersona": "user",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "sessionId": "{{session_id}}",
+              "userQuery": "{{prompt_samples.code_query}}",
+              "modelResponse": "export const useDebounce = () => {}",
+              "tokenUsage": {
+                "input": 45,
+                "output": 85
+              }
+            }
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            200,
+            201,
+            404
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [
+        "session_id",
+        "prompt_samples.code_query"
+      ],
+      "createdAt": "2026-09-07T09:29:03.893Z"
+    },
+    {
+      "id": "tc_58e68c6c",
+      "suiteId": "suite_af8bd46f",
+      "extId": "WHYO-LEDG-014",
+      "category": "Context Ledger & Auditing",
+      "title": "Retrieve context ledger records and verify cryptographic chain continuity",
+      "priority": "High",
+      "type": "http",
+      "tags": [
+        "ledger",
+        "audit",
+        "integrity"
+      ],
+      "spec": {
+        "requests": [
+          {
+            "name": "Fetch Context Ledger",
+            "method": "GET",
+            "path": "/api/ledger?session_id={{session_id}}",
+            "authPersona": "user",
+            "headers": {}
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            200,
+            404
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [
+        "session_id"
+      ],
+      "createdAt": "2026-09-07T09:29:03.893Z"
+    },
+    {
+      "id": "tc_1145b1d3",
+      "suiteId": "suite_af8bd46f",
+      "extId": "WHYO-CAT-015",
+      "category": "Models & Tools Catalog",
+      "title": "Retrieve active multi-provider model catalog and token pricing matrix",
+      "priority": "Medium",
+      "type": "http",
+      "tags": [
+        "catalog",
+        "pricing",
+        "models"
+      ],
+      "spec": {
+        "requests": [
+          {
+            "name": "Fetch Model Catalog",
+            "method": "GET",
+            "path": "/api/models",
+            "authPersona": null,
+            "headers": {
+              "Accept": "application/json"
+            }
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            200,
+            404
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [],
+      "createdAt": "2026-09-07T09:29:03.893Z"
+    },
+    {
+      "id": "tc_6d976b84",
+      "suiteId": "suite_af8bd46f",
+      "extId": "WHYO-CAT-016",
+      "category": "Models & Tools Catalog",
+      "title": "Probe real-time availability and provider status for active models",
+      "priority": "Medium",
+      "type": "http",
+      "tags": [
+        "catalog",
+        "availability",
+        "health"
+      ],
+      "spec": {
+        "requests": [
+          {
+            "name": "Model Availability Probe",
+            "method": "GET",
+            "path": "/api/models/availability",
+            "authPersona": null,
+            "headers": {}
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            200,
+            404
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [],
+      "createdAt": "2026-09-07T09:29:03.893Z"
+    },
+    {
+      "id": "tc_93b3f244",
+      "suiteId": "suite_af8bd46f",
+      "extId": "WHYO-BYOK-017",
+      "category": "Company BYOK & Credentials",
+      "title": "Verify third-party API key connectivity for {{credentials_test.provider}}",
+      "priority": "High",
+      "type": "http",
+      "tags": [
+        "byok",
+        "credentials",
+        "security"
+      ],
+      "spec": {
+        "requests": [
+          {
+            "name": "Verify BYOK Credentials",
+            "method": "POST",
+            "path": "/api/credentials/verify",
+            "authPersona": "user",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "provider": "{{credentials_test.provider}}",
+              "apiKey": "{{credentials_test.masked_key}}"
+            }
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            200,
+            400,
+            422,
+            404
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [
+        "credentials_test.provider",
+        "credentials_test.masked_key"
+      ],
+      "createdAt": "2026-09-07T09:29:03.893Z"
+    },
+    {
+      "id": "tc_00a6cc66",
+      "suiteId": "suite_af8bd46f",
+      "extId": "WHYO-BYOK-018",
+      "category": "Company BYOK & Credentials",
+      "title": "Reject malformed or empty provider API key with validation error",
+      "priority": "Medium",
+      "type": "http",
+      "tags": [
+        "negative",
+        "byok",
+        "validation"
+      ],
+      "spec": {
+        "requests": [
+          {
+            "name": "Malformed Key Submission",
+            "method": "POST",
+            "path": "/api/credentials/verify",
+            "authPersona": "user",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "provider": "{{credentials_test.provider}}",
+              "apiKey": "{{credentials_test.invalid_key}}"
+            }
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            400,
+            422,
+            404
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [
+        "credentials_test.provider",
+        "credentials_test.invalid_key"
+      ],
+      "createdAt": "2026-09-07T09:29:03.893Z"
+    },
+    {
+      "id": "tc_20433fd2",
+      "suiteId": "suite_af8bd46f",
+      "extId": "WHYO-GATE-019",
+      "category": "Subscription Bridge & Gateway",
+      "title": "Probe linked flat subscription gateway status ($0.00/token bridge)",
+      "priority": "Medium",
+      "type": "http",
+      "tags": [
+        "gateway",
+        "subscription",
+        "bridge"
+      ],
+      "spec": {
+        "requests": [
+          {
+            "name": "Gateway Bridge Status",
+            "method": "GET",
+            "path": "/api/credentials/subscription/gateway-status",
+            "authPersona": "user",
+            "headers": {}
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            200,
+            404
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [],
+      "createdAt": "2026-09-07T09:29:03.893Z"
+    },
+    {
+      "id": "tc_f30982e9",
+      "suiteId": "suite_af8bd46f",
+      "extId": "WHYO-TRL-020",
+      "category": "Pricing & Trial Onboarding",
+      "title": "Submit 7-day trial email registration for {{trial_email}}",
+      "priority": "High",
+      "type": "http",
+      "tags": [
+        "trial",
+        "auth",
+        "onboarding"
+      ],
+      "spec": {
+        "requests": [
+          {
+            "name": "Register Free Trial Email",
+            "method": "POST",
+            "path": "/api/auth/register-email-trial",
+            "authPersona": null,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "email": "{{trial_email}}"
+            }
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            200,
+            201,
+            400,
+            404
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [
+        "trial_email"
+      ],
+      "createdAt": "2026-09-07T09:29:03.893Z"
+    },
+    {
+      "id": "tc_54086367",
+      "suiteId": "suite_af8bd46f",
+      "extId": "WHYO-TRL-021",
+      "category": "Pricing & Trial Onboarding",
+      "title": "Verify daily limit status and remaining token quota for active user",
+      "priority": "Medium",
+      "type": "http",
+      "tags": [
+        "limits",
+        "quota",
+        "user"
+      ],
+      "spec": {
+        "requests": [
+          {
+            "name": "Daily Limit Status",
+            "method": "GET",
+            "path": "/api/user/daily-limit-status",
+            "authPersona": "user",
+            "headers": {}
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            200,
+            404
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [],
+      "createdAt": "2026-09-07T09:29:03.893Z"
+    },
+    {
+      "id": "tc_b101c073",
+      "suiteId": "suite_af8bd46f",
+      "extId": "WHYO-TEAM-022",
+      "category": "Team & Governance",
+      "title": "Retrieve aggregate token usage rollup for {{team_id}} with lead persona",
+      "priority": "High",
+      "type": "http",
+      "tags": [
+        "team",
+        "governance",
+        "usage"
+      ],
+      "spec": {
+        "requests": [
+          {
+            "name": "Team Token Usage Rollup",
+            "method": "GET",
+            "path": "/v1/team/{{team_id}}/usage",
+            "authPersona": "team_lead",
+            "headers": {}
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            200,
+            401,
+            403,
+            404
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [
+        "team_id"
+      ],
+      "createdAt": "2026-09-07T09:29:03.893Z"
+    },
+    {
+      "id": "tc_05112f6a",
+      "suiteId": "suite_af8bd46f",
+      "extId": "WHYO-ADM-023",
+      "category": "SuperAdmin Console & Security",
+      "title": "Verify protected platform audit logs reject unauthenticated guest access (401/403)",
+      "priority": "High",
+      "type": "http",
+      "tags": [
+        "security",
+        "rbac",
+        "admin"
+      ],
+      "spec": {
+        "requests": [
+          {
+            "name": "Unauthorized Audit Log Attempt",
+            "method": "GET",
+            "path": "/api/admin/audit-logs",
+            "authPersona": null,
+            "headers": {}
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            401,
+            403,
+            404
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [],
+      "createdAt": "2026-09-07T09:29:03.893Z"
+    },
+    {
+      "id": "tc_8b5e395f",
+      "suiteId": "suite_af8bd46f",
+      "extId": "WHYO-LOAD-024",
+      "category": "Performance & Concurrency",
+      "title": "Burst load concurrency test on WhyOr Dispatch root gateway",
+      "priority": "Medium",
+      "type": "load",
+      "tags": [
+        "load",
+        "concurrency",
+        "sla"
+      ],
+      "spec": {
+        "request": {
+          "name": "Burst load concurrency test on WhyOr Dispatch root gateway",
+          "method": "GET",
+          "path": "/",
+          "authPersona": null,
+          "headers": {}
+        },
+        "totalRequests": 12,
+        "concurrency": 4,
+        "expectRateLimited": false,
+        "maxP95Ms": 2500
+      },
+      "dataFields": [],
+      "createdAt": "2026-09-07T09:29:03.893Z"
+    },
+    {
+      "id": "tc_c4cd0003",
+      "suiteId": "suite_af8bd46f",
+      "extId": "SPEC-VAL-025",
+      "category": "User Custom Requirements",
+      "title": "Verify user requirement: verify that local actions are done without calling the AI MO...",
+      "priority": "High",
+      "type": "http",
+      "tags": [
+        "user-custom",
+        "validation"
+      ],
+      "spec": {
+        "requests": [
+          {
+            "name": "User Guided Scenario Probe",
+            "method": "GET",
+            "path": "/?user_spec=verified",
+            "authPersona": "user",
+            "headers": {
+              "User-Agent": "{{userAgent}}"
+            }
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            200,
+            304,
+            400,
+            422
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [
+        "userAgent"
+      ],
+      "createdAt": "2026-09-07T09:29:03.893Z"
+    },
+    {
+      "id": "tc_84e0a31e",
+      "suiteId": "suite_2a03bd93",
+      "extId": "TC-117",
+      "category": "General API",
+      "title": "Confidential Payment Flow Test",
+      "priority": "High",
+      "type": "api",
+      "tags": [
+        "custom",
+        "api"
+      ],
+      "spec": "GET https://api.acme.corp/pay",
+      "dataFields": [],
+      "createdAt": "2026-09-07T09:35:01.209Z"
     }
   ],
   "testRuns": [
+    {
+      "id": "run_4890bae7",
+      "projectId": "proj_dc801b4a",
+      "testCaseId": "tc_f7e81e86",
+      "ranAt": "2026-09-07T09:29:56.667Z",
+      "pass": true,
+      "message": "Status code verified [404]",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "usr_superadmin",
+      "requests": [
+        {
+          "name": "Low Complexity Prompt Dispatch",
+          "method": "POST",
+          "url": "https://ai.whyor.in/api/dispatch",
+          "status": 404,
+          "durationMs": 129,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {
+            "Authorization": "Bearer why_usr_tok_live_72948a",
+            "Content-Type": "application/json"
+          },
+          "requestBody": "{\"prompt\":\"What is the capital of France?\",\"routingMode\":\"cheapest\",\"stream\":false}"
+        }
+      ]
+    },
+    {
+      "id": "run_5da837f3",
+      "projectId": "proj_dc801b4a",
+      "testCaseId": "tc_f7e81e86",
+      "ranAt": "2026-09-07T09:29:49.503Z",
+      "pass": true,
+      "message": "Status code verified [404]",
+      "executedBy": "preview",
+      "creditsCharged": 0,
+      "runByUserId": "usr_superadmin",
+      "requests": [
+        {
+          "name": "Low Complexity Prompt Dispatch",
+          "method": "POST",
+          "url": "https://ai.whyor.in/api/dispatch",
+          "status": 404,
+          "durationMs": 141,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {
+            "Authorization": "Bearer why_usr_tok_live_72948a",
+            "Content-Type": "application/json"
+          },
+          "requestBody": "{\"prompt\":\"What is the capital of France?\",\"routingMode\":\"cheapest\",\"stream\":false}"
+        }
+      ]
+    },
+    {
+      "id": "run_696985d7",
+      "projectId": "proj_dc801b4a",
+      "testCaseId": "tc_0399c6c1",
+      "ranAt": "2026-09-07T09:29:25.109Z",
+      "pass": true,
+      "message": "Status code verified [200]",
+      "executedBy": "preview",
+      "creditsCharged": 0,
+      "runByUserId": "usr_superadmin",
+      "requests": [
+        {
+          "name": "Root SPA Request",
+          "method": "GET",
+          "url": "https://ai.whyor.in/",
+          "status": 200,
+          "durationMs": 291,
+          "error": null,
+          "dataPreview": "<!doctype html>\n<html lang=\"en\" class=\"dark\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n\n    <!-- Primary -->\n    <title>WhyOr Dispatch — AI Model Router & Token Cost Optimization</title>\n    <meta name=\"description\" content=\"Route every prompt to the cheapest AI model that can handle it. Complexity-based multi-model routing across Claude, GPT, Gemini, and more — with a portable context ledger and Thompson-sampling accuracy that improves from real usage.\" />\n    <meta name=\"keywords\" content=\"AI model router, LLM cost optimization, multi-model AI routing, token efficiency AI, AI orchestration platform, complexity-based LLM routing, cheapest AI model API, AI model selection\" />\n    <link rel=\"canonical\" href=\"https://ai.whyor.in/\" />\n    <meta name=\"robots\" content=\"index, follow\" />\n\n    <!-- Open Graph -->\n    <meta property=\"og:title\" content=\"WhyOr Dispatch — AI Model Router & Token Cost Optimization\" />\n    <m",
+          "requestHeaders": {
+            "Accept": "text/html,application/xhtml+xml"
+          }
+        }
+      ]
+    },
     {
       "id": "run_4adab1aa",
       "projectId": "proj_90fec6ba",
@@ -13853,6 +15181,14 @@
   ],
   "creditLedger": [
     {
+      "id": "75b3ca37-e716-4116-867b-00892dc31ba4",
+      "userId": "usr_superadmin",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-ROUT-006 on AI for whyor",
+      "balanceAfter": 9997,
+      "createdAt": "2026-09-07T09:29:56.533Z"
+    },
+    {
       "id": "bedf4fba-54f8-4643-aecc-ca06b2e5fc43",
       "userId": "usr_superadmin",
       "delta": -1,
@@ -13886,6 +15222,54 @@
     }
   ],
   "auditLogs": [
+    {
+      "id": "f4938379-9181-4b03-8eb4-2cc0914a977d",
+      "userId": "usr_org_admin_a",
+      "userEmail": "qa.lead@acmecorp.com",
+      "action": "PROJECT_CREATED",
+      "details": "Created testing project \"Acme Secret API\" targeting URL https://api.acme.corp",
+      "timestamp": "2026-09-07T09:35:01.184Z"
+    },
+    {
+      "id": "b2914608-844d-4cd4-8107-17fc185ea432",
+      "userId": "usr_superadmin",
+      "userEmail": "admin@verity.dev",
+      "action": "AI_JOURNEY_SUITE_BUILT",
+      "details": "Built suite 'WhyOr Dispatch Architecture & E2E Verification Suite' with 25 cases and dynamic dataset for https://ai.whyor.in",
+      "timestamp": "2026-09-07T09:29:03.897Z"
+    },
+    {
+      "id": "1ae31262-7238-4eab-9f03-dc692b09838d",
+      "userId": "usr_superadmin",
+      "userEmail": "admin@verity.dev",
+      "action": "PROJECT_CREATED",
+      "details": "Created testing project \"AI for whyor\" targeting URL https://ai.whyor.in",
+      "timestamp": "2026-09-07T09:26:23.722Z"
+    },
+    {
+      "id": "271c2b43-e7ed-4aed-a2ec-6c87a80a055d",
+      "userId": "usr_org_admin_a",
+      "userEmail": "qa.lead@acmecorp.com",
+      "action": "PROJECT_CREATED",
+      "details": "Created testing project \"Acme Secret API\" targeting URL https://api.acme.corp",
+      "timestamp": "2026-09-07T09:06:34.336Z"
+    },
+    {
+      "id": "d038ce73-9b7d-4954-8597-d3e2243cde0a",
+      "userId": "usr_org_admin_a",
+      "userEmail": "qa.lead@acmecorp.com",
+      "action": "PROJECT_CREATED",
+      "details": "Created testing project \"Acme Secret API\" targeting URL https://api.acme.corp",
+      "timestamp": "2026-09-07T09:05:43.281Z"
+    },
+    {
+      "id": "08c7f37f-87b9-4213-9598-faaebe713300",
+      "userId": "usr_org_admin_a",
+      "userEmail": "qa.lead@acmecorp.com",
+      "action": "PROJECT_CREATED",
+      "details": "Created testing project \"Acme Secret API\" targeting URL https://api.acme.corp",
+      "timestamp": "2026-09-07T09:04:43.538Z"
+    },
     {
       "id": "703d409c-4ed5-4a61-9fb0-96b29fbb1cf8",
       "userId": "usr_org_admin_a",

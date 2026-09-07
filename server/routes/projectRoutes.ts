@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { db } from '../db.js';
-import { requireAuth, AuthRequest } from '../auth.js';
+import { requireAuth, checkTestCaseSecurity, AuthRequest } from '../auth.js';
 import { parseStructuredJson, parseStructuredCsv, parseMarkdownTable, extractPlaceholders, getDotted } from '../specParser.js';
 import { runTestCase } from '../genericRunner.js';
 import { generateTestCases, analyzeTargetUrl, introspectWebsiteAndGenerateQuestions, buildSuiteFromJourney } from '../aiGenerate.js';
@@ -9,7 +9,23 @@ import { chargeCredits, CREDIT_COST_PER_RUN, PREVIEW_DAILY_CAP } from '../billin
 import { Project, Suite, TestCase, TestRun, TestSchedule } from '../types.js';
 
 export const projectRouter = Router();
-projectRouter.use(requireAuth);
+
+// Security middleware layer on the API service to check currentUser permissions
+// before returning any test case data.
+// If a user is not authorized or logged in, returns 403 Forbidden.
+// For other routes (like /analytics), standard requireAuth (401 when unauthenticated) is used.
+projectRouter.use((req: AuthRequest, res: Response, next: NextFunction) => {
+  const isTestCaseDataRoute =
+    req.path.endsWith('/cases') ||
+    req.path.includes('/cases/') ||
+    req.path.endsWith('/test-cases') ||
+    req.path.includes('/test-cases/');
+
+  if (isTestCaseDataRoute) {
+    return checkTestCaseSecurity(req, res, next);
+  }
+  return requireAuth(req, res, next);
+});
 
 interface ProjectRequest extends AuthRequest {
   project?: Project;
@@ -17,6 +33,9 @@ interface ProjectRequest extends AuthRequest {
 }
 
 function loadProject(req: ProjectRequest, res: Response, next: NextFunction) {
+  if (req.project) {
+    return next();
+  }
   const projectId = req.params.projectId || req.params.id;
   const project = db.findProjectById(projectId);
   if (!project) {
@@ -26,9 +45,10 @@ function loadProject(req: ProjectRequest, res: Response, next: NextFunction) {
     return res.status(404).json({ error: 'Project not found.' });
   }
 
-  const isOwner = project.ownerUserId === req.user!.id;
-  const isSameOrg = !!(project.orgId && req.user!.orgId && project.orgId === req.user!.orgId);
-  const isSuperAdmin = req.user!.role === 'platform_admin';
+  const currentUser = req.currentUser || req.user!;
+  const isOwner = project.ownerUserId === currentUser.id;
+  const isSameOrg = !!(project.orgId && currentUser.orgId && project.orgId === currentUser.orgId);
+  const isSuperAdmin = currentUser.role === 'platform_admin';
 
   if (!isOwner && !isSameOrg && !isSuperAdmin) {
     return res.status(403).json({
@@ -509,7 +529,7 @@ projectRouter.post('/:id/suites/generate', loadProject, async (req: ProjectReque
 });
 
 // 7. Get all test cases for project with last run results & missing fields discovery
-projectRouter.get('/:id/cases', loadProject, (req: ProjectRequest, res: Response) => {
+projectRouter.get(['/:id/cases', '/:id/test-cases'], loadProject, (req: ProjectRequest, res: Response) => {
   const project = req.project!;
   const suites = db.data.suites.filter(s => s.projectId === project.id);
   const suiteMap = Object.fromEntries(suites.map(s => [s.id, s.name]));

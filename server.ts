@@ -10,6 +10,8 @@ import { projectRouter } from './server/routes/projectRoutes.js';
 import { billingRouter } from './server/routes/billingRoutes.js';
 import { packageRouter } from './server/routes/packageRoutes.js';
 import { contactRouter } from './server/routes/contactRoutes.js';
+import { checkTestCaseSecurity, AuthRequest } from './server/auth.js';
+import { db } from './server/db.js';
 
 dotenv.config();
 
@@ -38,6 +40,22 @@ async function startServer() {
   app.use('/api/billing', billingRouter);
   app.use('/api/package', packageRouter);
   app.use('/api/contact', contactRouter);
+
+  // Direct test cases route guarded by checkTestCaseSecurity middleware
+  app.get('/api/test-cases', checkTestCaseSecurity, (req: AuthRequest, res) => {
+    const projectId = req.query.projectId as string;
+    if (!projectId) {
+      return res.status(400).json({ error: 'projectId query parameter is required.' });
+    }
+    const project = (req as any).project || db.findProjectById(projectId);
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found.' });
+    }
+    const suites = db.data.suites.filter(s => s.projectId === project.id);
+    const suiteIds = suites.map(s => s.id);
+    const cases = db.data.testCases.filter(c => suiteIds.includes(c.suiteId));
+    res.json({ cases, project });
+  });
 
   // Error handling middleware
   app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
