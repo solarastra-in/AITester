@@ -1,6 +1,7 @@
 import axios, { AxiosInstance } from 'axios';
 import { TestCase, TestCaseSpec, HttpRequestSpec } from './types.js';
 import { resolveTemplates, getDotted } from './specParser.js';
+import { assertPublicUrl } from './ssrfGuard.js';
 
 export interface ExecutionResult {
   pass: boolean;
@@ -299,6 +300,14 @@ export async function runLoad(testCase: { spec: TestCaseSpec }, dataset: Record<
 }
 
 export async function runTestCase(testCase: { type: string; spec: TestCaseSpec }, dataset: Record<string, any>, siteUrl: string): Promise<ExecutionResult> {
+  // SSRF guard: siteUrl ultimately comes from a user-supplied project field
+  // (or a per-request override — see runHttp/runLoad), and this function
+  // makes real outbound HTTP requests to it on the server's behalf. Checked
+  // here, in the shared entry point for both 'http' and 'load' test types,
+  // rather than only at project-creation time, since DNS can change between
+  // when a project was created and when a test actually runs.
+  await assertPublicUrl(siteUrl);
+
   if (testCase.type === 'http') {
     return runHttp(testCase, dataset, siteUrl);
   }

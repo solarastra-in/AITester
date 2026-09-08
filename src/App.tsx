@@ -402,8 +402,8 @@ export function App() {
                 </li>
                 <li>
                   <span className="text-slate-500">Global Support: </span>
-                  <a href="mailto:support@verity-qa.dev" className="text-emerald-400 hover:underline">
-                    support@verity-qa.dev
+                  <a href="mailto:info.whyor@gmail.com" className="text-emerald-400 hover:underline">
+                    info.whyor@gmail.com
                   </a>
                 </li>
                 <li>

@@ -7,7 +7,9 @@ import { app } from './server/app.js';
 dotenv.config();
 
 async function startServer() {
-  const PORT = Number(process.env.PORT) || 3000;
+  const PORT = process.env.PORT !== undefined && !Number.isNaN(Number(process.env.PORT))
+    ? Number(process.env.PORT)
+    : 3000;
 
   // Vite middleware for development vs static build for production
   if (process.env.NODE_ENV !== 'production') {

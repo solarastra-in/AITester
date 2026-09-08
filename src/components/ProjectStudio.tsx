@@ -55,12 +55,23 @@ import { AlertModal } from './AlertModal';
 import { IntrospectionJourneyModal } from './IntrospectionJourneyModal';
 import { TestSchedulerTab } from './TestSchedulerTab';
 
-const DEMO_PERSONAS = [
-  { role: 'platform_admin', label: 'Platform Superadmin', email: 'admin@verity.dev', badge: 'Superadmin', color: 'bg-rose-500/20 text-rose-300 border-rose-500/30' },
-  { role: 'org_admin', label: 'Customer Admin (Sarah)', email: 'qa.lead@acmecorp.com', badge: 'Org Admin', color: 'bg-amber-500/20 text-amber-300 border-amber-500/30' },
-  { role: 'member', label: 'Team Member (Alex)', email: 'alex.engineer@acmecorp.com', badge: 'Engineer', color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' },
-  { role: 'standalone', label: 'Standalone Developer', email: 'developer@indie.io', badge: 'Standalone', color: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30' },
-];
+// Display metadata derived from a real user's role — see the identical
+// comment in Navbar.tsx, which shares this pattern (and used to share a
+// hand-duplicated DEMO_PERSONAS array with this file that could drift out
+// of sync with the real seed data; both now fetch live from
+// GET /api/auth/demo-personas instead).
+const ROLE_DISPLAY: Record<string, { badge: string; color: string }> = {
+  platform_admin: { badge: 'Superadmin', color: 'bg-rose-500/20 text-rose-300 border-rose-500/30' },
+  org_admin: { badge: 'Org Admin', color: 'bg-amber-500/20 text-amber-300 border-amber-500/30' },
+  member: { badge: 'Engineer', color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' },
+  standalone: { badge: 'Standalone', color: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30' },
+};
+function studioRoleLabel(role: string, name: string): string {
+  if (role === 'platform_admin') return 'Platform Superadmin';
+  if (role === 'org_admin') return `Customer Admin${name ? ` (${name.split(' ')[0]})` : ''}`;
+  if (role === 'member') return `Team Member${name ? ` (${name.split(' ')[0]})` : ''}`;
+  return 'Standalone Developer';
+}
 
 interface ProjectStudioProps {
   currentUser: User | null;
@@ -80,6 +91,7 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [projectData, setProjectData] = useState<Project | null>(null);
+  const [demoPersonas, setDemoPersonas] = useState<Array<{ id: string; email: string; name: string; role: string }>>([]);
 
   const [cases, setCases] = useState<TestCase[]>([]);
   const [suites, setSuites] = useState<Suite[]>([]);
@@ -252,6 +264,21 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (currentUser) return; // only needed for the logged-out persona picker below
+    let cancelled = false;
+    api.getDemoPersonas()
+      .then(list => {
+        if (!cancelled) setDemoPersonas(list);
+      })
+      .catch(() => {
+        // Non-fatal — the picker just shows nothing if this fails.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser]);
 
   useEffect(() => {
     if (!currentUser) {
@@ -1088,22 +1115,25 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({
               Or select a demo persona to test RBAC data boundaries:
             </div>
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {DEMO_PERSONAS.map(p => (
-                <button
-                  key={p.role}
-                  data-testid={`studio-persona-btn-${p.role}`}
-                  onClick={() => onSwitchPersona?.(p.role, p.email)}
-                  className="flex items-center justify-between rounded-xl border border-[#1E2235] bg-[#121520] p-3 text-left hover:border-emerald-500/40 hover:bg-[#171B29] transition cursor-pointer"
-                >
-                  <div>
-                    <div className="text-xs font-bold text-white">{p.label}</div>
-                    <div className="text-[11px] font-mono text-slate-400">{p.email}</div>
-                  </div>
-                  <span className={`rounded border px-2 py-0.5 text-[10px] font-semibold ${p.color}`}>
-                    {p.badge}
-                  </span>
-                </button>
-              ))}
+              {demoPersonas.map(p => {
+                const display = ROLE_DISPLAY[p.role] || { badge: p.role, color: 'bg-slate-500/20 text-slate-300 border-slate-500/30' };
+                return (
+                  <button
+                    key={p.id}
+                    data-testid={`studio-persona-btn-${p.role}`}
+                    onClick={() => onSwitchPersona?.(p.role, p.email)}
+                    className="flex items-center justify-between rounded-xl border border-[#1E2235] bg-[#121520] p-3 text-left hover:border-emerald-500/40 hover:bg-[#171B29] transition cursor-pointer"
+                  >
+                    <div>
+                      <div className="text-xs font-bold text-white">{studioRoleLabel(p.role, p.name)}</div>
+                      <div className="text-[11px] font-mono text-slate-400">{p.email}</div>
+                    </div>
+                    <span className={`rounded border px-2 py-0.5 text-[10px] font-semibold ${display.color}`}>
+                      {display.badge}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>

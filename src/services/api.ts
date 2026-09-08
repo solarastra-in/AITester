@@ -17,7 +17,7 @@ import {
   TestSchedule,
   Suite,
 } from '../types';
-import { notifyApiError, notify, openEngineSettings } from './notifications';
+import { emitApiError, emitGlobalToast } from '../contexts/NotificationContext';
 
 const TOKEN_KEY = 'verity_auth_token';
 
@@ -89,7 +89,7 @@ export function checkTestCaseSecurity(
 // at runtime dynamically, rather than relying on build-time environment variables.
 // ============================================================================
 
-export const DEFAULT_CLOUD_RUN_ENGINE_URL = 'https://ais-dev-zxirjfnjh6bl2ylg7svoja-4552824319.us-west2.run.app';
+export const DEFAULT_CLOUD_RUN_ENGINE_URL = 'https://ais-pre-zxirjfnjh6bl2ylg7svoja-4552824319.us-west2.run.app';
 export const API_URL_STORAGE_KEY = 'verity_api_engine_url';
 export const API_URL_CHANGE_EVENT = 'verity_api_url_changed';
 
@@ -110,8 +110,10 @@ export interface SetApiUrlOptions {
  * 2. URL search params (`?apiUrl=...` or `?api_url=...` or `?backend=...`)
  * 3. Browser localStorage persistence (`verity_api_engine_url` / `verity_api_url`)
  * 4. Runtime window global injected into index.html (`window.__VERITY_API_URL__` or `window.VERITY_API_URL`)
- * 5. Domain-level smart fallback (e.g. whyor.in / vercel.app uses Cloud Run engine)
- * 6. Build-time Vite env variable fallback (`import.meta.env.VITE_API_URL`)
+ * 5. Build-time Vite env variable (`import.meta.env.VITE_API_URL`) — an explicit
+ *    deployment configuration always wins over the domain-guessing fallback below.
+ * 6. Domain-level smart fallback (e.g. whyor.in / vercel.app uses Cloud Run engine) —
+ *    last resort only, when nothing above explicitly configured a target backend.
  * 7. Empty string (relative same-origin `/api/*`)
  */
 export function getApiBaseUrl(): string {
@@ -154,18 +156,27 @@ export function getApiBaseUrl(): string {
     }
   }
 
-  // 5. Intelligent deployment domain routing (e.g. static hosting on Vercel or whyor.in)
+  // 5. Build-time environment variable — an explicit deployment configuration
+  // takes priority over the domain-guessing fallback below. This used to be
+  // step 6, checked AFTER the domain-based guess, which meant VITE_API_URL
+  // was silently ignored for anyone on a whyor.in/vercel.app/pages.dev
+  // domain — exactly the domains most likely to have it actually configured
+  // in their hosting provider's environment variables. That ordering bug is
+  // what caused the Studio to try to reach the wrong (dev) Cloud Run URL
+  // instead of whatever backend was really configured for this deployment.
+  const metaEnv = typeof import.meta !== 'undefined' ? (import.meta as any).env : undefined;
+  if (metaEnv && metaEnv.VITE_API_URL && metaEnv.VITE_API_URL.trim()) {
+    return (metaEnv.VITE_API_URL as string).trim().replace(/\/$/, '');
+  }
+
+  // 6. Intelligent deployment domain routing (e.g. static hosting on Vercel or whyor.in) —
+  // last-resort guess, only used when nothing above explicitly configured a
+  // target backend.
   if (typeof window !== 'undefined' && window.location) {
     const host = window.location.hostname;
     if (host.includes('whyor.in') || host.includes('vercel.app') || host.includes('pages.dev')) {
       return DEFAULT_CLOUD_RUN_ENGINE_URL;
     }
-  }
-
-  // 6. Build-time environment variable fallback
-  const metaEnv = typeof import.meta !== 'undefined' ? (import.meta as any).env : undefined;
-  if (metaEnv && metaEnv.VITE_API_URL && metaEnv.VITE_API_URL.trim()) {
-    return (metaEnv.VITE_API_URL as string).trim().replace(/\/$/, '');
   }
 
   // 7. Same-origin relative fallback
@@ -315,6 +326,13 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
       `Check your network or click 'API Engine' to configure your runner endpoint.`
     );
     err.status = 0;
+    emitApiError({
+      endpoint,
+      statusCode: 0,
+      isConnectionError: true,
+      engineUrl: currentEngine,
+      message: `Unable to connect to backend engine at [${currentEngine}]. Verify your network connection or engine runner.`,
+    });
     throw err;
   }
 
@@ -336,6 +354,17 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     } catch {
       // fallback
     }
+
+    // Capture 404, 500, or 5xx server errors for global toast notification
+    if (response.status === 404 || response.status >= 500) {
+      emitApiError({
+        endpoint,
+        statusCode: response.status,
+        engineUrl: apiBase || (typeof window !== 'undefined' ? window.location.origin : ''),
+        message: errMsg,
+      });
+    }
+
     const err: any = new Error(errMsg);
     err.status = response.status;
     throw err;

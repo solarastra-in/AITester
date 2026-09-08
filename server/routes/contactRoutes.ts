@@ -76,9 +76,8 @@ contactRouter.get('/categories', (_req: Request, res: Response) => {
       { id: 'feedback', label: 'Feature Proposal & Engineering Feedback', sla: 'Reviewed weekly' },
     ],
     supportChannels: [
-      { channel: 'Global Enterprise Desk', email: 'enterprise@verity-qa.dev', hours: '24/7/365' },
-      { channel: 'Technical QA Community', email: 'support@verity-qa.dev', hours: 'Mon–Fri 08:00–20:00 UTC' },
-      { channel: 'Security & Compliance Officer', email: 'security@verity-qa.dev', hours: '24/7 Critical Incidents' },
+      { channel: 'Email', email: 'info.whyor@gmail.com', hours: '24/7' },
+      { channel: 'Phone', email: '+1 708 607 2070 / +91 90636 92200', hours: '24/7' },
     ],
   });
 });

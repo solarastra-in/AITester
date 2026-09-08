@@ -270,7 +270,7 @@ export const EngineSettingsModal: React.FC<EngineSettingsModalProps> = ({
                 type="text"
                 value={engineUrl}
                 onChange={(e) => setEngineUrl(e.target.value.trim())}
-                placeholder="https://ais-dev-zxirjfnjh6bl2ylg7svoja-4552824319.us-west2.run.app"
+                placeholder="https://ais-pre-zxirjfnjh6bl2ylg7svoja-4552824319.us-west2.run.app"
                 className="w-full rounded-xl border border-[#1E2235] bg-[#06070B] px-3.5 py-2.5 font-mono text-xs text-emerald-300 placeholder-slate-600 focus:border-emerald-500 focus:outline-none transition"
               />
             </div>

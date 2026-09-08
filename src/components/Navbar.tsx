@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { signInWithGoogle } from '../services/firebase';
 import { User, Organization, AppView } from '../types';
-import { testApiConnection, getApiBaseUrl } from '../services/api';
+import { testApiConnection, getApiBaseUrl, api } from '../services/api';
 import { EngineSettingsModal } from './EngineSettingsModal';
 
 interface NavbarProps {
@@ -32,12 +32,23 @@ interface NavbarProps {
   onGoogleSignInSuccess?: (user: User) => void;
 }
 
-const DEMO_PERSONAS = [
-  { role: 'platform_admin', label: 'Platform Superadmin', email: 'admin@verity.dev', badge: 'Superadmin', color: 'bg-rose-500/20 text-rose-300 border-rose-500/30' },
-  { role: 'org_admin', label: 'Customer Admin (Sarah)', email: 'qa.lead@acmecorp.com', badge: 'Org Admin', color: 'bg-amber-500/20 text-amber-300 border-amber-500/30' },
-  { role: 'member', label: 'Team Member (Alex)', email: 'alex.engineer@acmecorp.com', badge: 'Engineer', color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' },
-  { role: 'standalone', label: 'Standalone Developer', email: 'developer@indie.io', badge: 'Standalone', color: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30' },
-];
+// Display metadata derived from a real user's role — not a hand-maintained
+// duplicate of the seed data (which could silently drift out of sync with
+// it). The actual accounts (email, name) are fetched live from
+// GET /api/auth/demo-personas, so "Switch Journey Persona" always reflects
+// whatever demo accounts really exist in the database.
+const ROLE_DISPLAY: Record<string, { badge: string; color: string }> = {
+  platform_admin: { badge: 'Superadmin', color: 'bg-rose-500/20 text-rose-300 border-rose-500/30' },
+  org_admin: { badge: 'Org Admin', color: 'bg-amber-500/20 text-amber-300 border-amber-500/30' },
+  member: { badge: 'Engineer', color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' },
+  standalone: { badge: 'Standalone', color: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30' },
+};
+function roleLabel(role: string, name: string): string {
+  if (role === 'platform_admin') return 'Platform Superadmin';
+  if (role === 'org_admin') return `Customer Admin${name ? ` (${name.split(' ')[0]})` : ''}`;
+  if (role === 'member') return `Team Member${name ? ` (${name.split(' ')[0]})` : ''}`;
+  return 'Standalone Developer';
+}
 
 export const Navbar: React.FC<NavbarProps> = ({
   currentView,
@@ -53,10 +64,33 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [personaMenuOpen, setPersonaMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [isEngineModalOpen, setIsEngineModalOpen] = useState(false);
-  const [engineStatus, setEngineStatus] = useState<{ checked: boolean; ok: boolean; latencyMs?: number }>({
+  const [demoPersonas, setDemoPersonas] = useState<Array<{ id: string; email: string; name: string; role: string }>>([]);
+  const [engineStatus, setEngineStatus] = useState<{
+    checked: boolean;
+    ok: boolean;
+    latencyMs?: number;
+    status?: number;
+    error?: string;
+    lastPolled?: Date;
+  }>({
     checked: false,
     ok: false,
   });
+
+  useEffect(() => {
+    let cancelled = false;
+    api.getDemoPersonas()
+      .then(list => {
+        if (!cancelled) setDemoPersonas(list);
+      })
+      .catch(() => {
+        // Non-fatal — the persona switcher just shows nothing to pick if
+        // this fails; the rest of the app works normally either way.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -64,21 +98,56 @@ export const Navbar: React.FC<NavbarProps> = ({
       try {
         const res = await testApiConnection();
         if (mounted) {
-          setEngineStatus({ checked: true, ok: res.ok, latencyMs: res.latencyMs });
+          setEngineStatus({
+            checked: true,
+            ok: res.ok,
+            latencyMs: res.latencyMs,
+            status: res.status,
+            error: res.error,
+            lastPolled: new Date(),
+          });
         }
-      } catch {
-        if (mounted) setEngineStatus({ checked: true, ok: false });
+      } catch (err: any) {
+        if (mounted) {
+          setEngineStatus({
+            checked: true,
+            ok: false,
+            status: 0,
+            error: err?.message || 'Connection failed',
+            lastPolled: new Date(),
+          });
+        }
       }
     };
+
+    // Initial check
     checkStatus();
 
-    const handleUrlChanged = () => {
+    // Persistent polling of /api/health every 10 seconds
+    const pollTimer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
       checkStatus();
+    }, 10000);
+
+    const handleUrlChanged = () => checkStatus();
+    const handleVisibilityChange = () => {
+      if (!document.hidden) checkStatus();
     };
+    const handleOnline = () => checkStatus();
+    const handleOpenEngine = () => setIsEngineModalOpen(true);
+
     window.addEventListener('verity_api_url_changed', handleUrlChanged);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('verity_open_engine_settings', handleOpenEngine);
+
     return () => {
       mounted = false;
+      clearInterval(pollTimer);
       window.removeEventListener('verity_api_url_changed', handleUrlChanged);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('verity_open_engine_settings', handleOpenEngine);
     };
   }, []);
 
@@ -212,31 +281,118 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Right Section: Persona Switcher, Engine Config, Balance, Profile */}
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* API Engine Runner Status & Config Button */}
-          <button
-            type="button"
-            onClick={() => setIsEngineModalOpen(true)}
-            data-testid="api-engine-button"
-            className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition ${
-              engineStatus.checked && engineStatus.ok
-                ? 'border-emerald-500/30 bg-[#0F111A] text-slate-200 hover:border-emerald-500/60 hover:bg-[#131622]'
-                : 'border-amber-500/30 bg-[#0F111A] text-amber-200 hover:border-amber-500/60 hover:bg-[#131622]'
-            }`}
-            title="Configure Verity API Engine Runner URL"
-          >
-            <Server className="h-3.5 w-3.5 text-slate-400" />
-            <span className="hidden md:inline text-slate-400">Engine:</span>
-            <span className="flex items-center gap-1 font-semibold">
-              <span className={`h-2 w-2 rounded-full ${
-                engineStatus.checked && engineStatus.ok
-                  ? 'bg-emerald-400 animate-pulse'
-                  : 'bg-amber-400'
-              }`} />
-              <span className={engineStatus.checked && engineStatus.ok ? 'text-emerald-400' : 'text-amber-400'}>
-                {engineStatus.checked ? (engineStatus.ok ? 'Online' : 'Offline') : 'Checking...'}
+          {/* Persistent Backend Status Indicator & Health Poller */}
+          <div className="relative group">
+            <button
+              type="button"
+              onClick={() => setIsEngineModalOpen(true)}
+              data-testid="backend-status-indicator"
+              className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition shadow-sm ${
+                !engineStatus.checked
+                  ? 'border-slate-800 bg-[#0E1118] text-slate-400 hover:border-slate-700'
+                  : engineStatus.ok
+                  ? 'border-emerald-500/40 bg-[#07190F] text-emerald-300 hover:border-emerald-500/70 hover:bg-[#0B2215] ring-1 ring-emerald-500/20'
+                  : 'border-red-500/50 bg-[#18090C] text-red-300 hover:border-red-500/80 hover:bg-[#220D12] ring-1 ring-red-500/30'
+              }`}
+              title="Backend Status: Click to view health details or configure engine runner"
+              aria-label={`Backend Status: ${engineStatus.checked ? (engineStatus.ok ? 'Online' : 'Offline') : 'Checking'}`}
+            >
+              {/* Dynamic status dot */}
+              <span className="relative flex h-2.5 w-2.5 items-center justify-center">
+                <span
+                  className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                    !engineStatus.checked
+                      ? 'bg-slate-500 animate-pulse'
+                      : engineStatus.ok
+                      ? 'bg-emerald-400 animate-ping'
+                      : 'bg-red-500 animate-ping'
+                  }`}
+                />
+                <span
+                  className={`relative inline-flex h-2 w-2 rounded-full ${
+                    !engineStatus.checked
+                      ? 'bg-slate-400'
+                      : engineStatus.ok
+                      ? 'bg-emerald-400'
+                      : 'bg-red-500'
+                  }`}
+                />
               </span>
-            </span>
-          </button>
+
+              {/* Status Text */}
+              <span className="hidden sm:inline font-medium text-slate-400">
+                Backend:
+              </span>
+              <span
+                className={`font-semibold tracking-wide ${
+                  !engineStatus.checked
+                    ? 'text-slate-400'
+                    : engineStatus.ok
+                    ? 'text-emerald-300'
+                    : 'text-red-300'
+                }`}
+              >
+                {!engineStatus.checked
+                  ? 'Checking...'
+                  : engineStatus.ok
+                  ? 'Online'
+                  : 'Offline'}
+              </span>
+
+              {/* Latency badge when online */}
+              {engineStatus.checked && engineStatus.ok && engineStatus.latencyMs !== undefined && (
+                <span className="hidden md:inline-flex items-center rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-mono text-emerald-300 border border-emerald-500/30">
+                  {engineStatus.latencyMs}ms
+                </span>
+              )}
+            </button>
+
+            {/* Hover Tooltip / Status Flyout */}
+            <div className="absolute right-0 top-full mt-2 hidden group-hover:flex group-focus-within:flex flex-col w-64 rounded-xl border border-[#23293D] bg-[#0C0F17]/95 p-3 shadow-2xl backdrop-blur-md z-50 pointer-events-none text-xs">
+              <div className="flex items-center justify-between border-b border-white/5 pb-2 mb-2">
+                <span className="font-semibold text-white">Backend Health</span>
+                <span
+                  className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-mono font-bold uppercase ${
+                    engineStatus.ok
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                      : 'bg-red-500/20 text-red-300 border border-red-500/40'
+                  }`}
+                >
+                  <span className={`h-1.5 w-1.5 rounded-full ${engineStatus.ok ? 'bg-emerald-400' : 'bg-red-400'}`} />
+                  {engineStatus.ok ? 'Healthy (200 OK)' : 'Offline / Error'}
+                </span>
+              </div>
+
+              <div className="space-y-1.5 text-[11px] text-slate-300">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Endpoint:</span>
+                  <span className="font-mono text-slate-300">/api/health</span>
+                </div>
+                {engineStatus.latencyMs !== undefined && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Latency:</span>
+                    <span className="font-mono text-emerald-400">{engineStatus.latencyMs} ms</span>
+                  </div>
+                )}
+                {engineStatus.error && (
+                  <div className="rounded bg-red-950/40 border border-red-500/20 p-1.5 text-[10px] text-red-300 break-words mt-1">
+                    {engineStatus.error}
+                  </div>
+                )}
+                {engineStatus.lastPolled && (
+                  <div className="flex justify-between text-[10px] text-slate-500 pt-1 border-t border-white/5">
+                    <span>Last polled:</span>
+                    <span>{engineStatus.lastPolled.toLocaleTimeString()}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-2.5 pt-2 border-t border-white/5 text-[10px] text-slate-400 flex items-center justify-between">
+                <span>Click to configure runner</span>
+                <span className="text-emerald-400 font-mono">10s auto-poll</span>
+              </div>
+            </div>
+          </div>
 
           {/* Quick Persona Switcher for Live Demo & Review */}
           <div className="relative">
@@ -268,27 +424,30 @@ export const Navbar: React.FC<NavbarProps> = ({
                   Switch Journey Persona
                 </div>
                 <div className="space-y-1">
-                  {DEMO_PERSONAS.map(p => (
-                    <button
-                      key={p.role}
-                      data-testid={`persona-option-${p.role}`}
-                      onClick={() => {
-                        onSwitchPersona(p.role, p.email);
-                        setPersonaMenuOpen(false);
-                      }}
-                      className={`flex w-full items-start justify-between rounded-lg p-2 text-left transition hover:bg-[#131622] ${
-                        currentUser?.email === p.email ? 'bg-[#1A1D2B] ring-1 ring-emerald-500/40' : ''
-                      }`}
-                    >
-                      <div>
-                        <div className="text-xs font-semibold text-white">{p.label}</div>
-                        <div className="font-mono text-[10px] text-slate-400">{p.email}</div>
-                      </div>
-                      <span className={`rounded border px-1.5 py-0.5 text-[10px] font-medium ${p.color}`}>
-                        {p.badge}
-                      </span>
-                    </button>
-                  ))}
+                  {demoPersonas.map(p => {
+                    const display = ROLE_DISPLAY[p.role] || { badge: p.role, color: 'bg-slate-500/20 text-slate-300 border-slate-500/30' };
+                    return (
+                      <button
+                        key={p.id}
+                        data-testid={`persona-option-${p.role}`}
+                        onClick={() => {
+                          onSwitchPersona(p.role, p.email);
+                          setPersonaMenuOpen(false);
+                        }}
+                        className={`flex w-full items-start justify-between rounded-lg p-2 text-left transition hover:bg-[#131622] ${
+                          currentUser?.email === p.email ? 'bg-[#1A1D2B] ring-1 ring-emerald-500/40' : ''
+                        }`}
+                      >
+                        <div>
+                          <div className="text-xs font-semibold text-white">{roleLabel(p.role, p.name)}</div>
+                          <div className="font-mono text-[10px] text-slate-400">{p.email}</div>
+                        </div>
+                        <span className={`rounded border px-1.5 py-0.5 text-[10px] font-medium ${display.color}`}>
+                          {display.badge}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}

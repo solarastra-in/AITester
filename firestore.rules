@@ -10,6 +10,17 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
+    // Ownership/org check against a project this sub-resource belongs to.
+    // Used by datasets/suites/test_cases/test_runs/test_schedules below,
+    // none of which carry their own ownerUserId — they're only scoped by
+    // projectId, so their real owner is whoever owns that parent project.
+    function projectAllows(projectId) {
+      let project = get(/databases/$(database)/documents/projects/$(projectId));
+      return project.data.ownerUserId == request.auth.uid ||
+        (project.data.orgId != null && request.auth.token.orgId != null && project.data.orgId == request.auth.token.orgId) ||
+        request.auth.token.role == 'platform_admin';
+    }
+
     // Users collection: only authenticated users can read/write their own profile
     match /users/{userId} {
       allow read, write: if isOwner(userId);
@@ -30,38 +41,84 @@ service cloud.firestore {
       );
     }
 
-    // Datasets collection (Full CRUD for authenticated users)
+    // Datasets collection: carries its own ownerUserId, so check that
+    // directly (same pattern as projects) rather than via a project lookup —
+    // a dataset can be created before it's attached to a project.
+    // SECURITY FIX: previously `allow read, write: if isAuthenticated()`
+    // with no ownership check at all — any signed-in user (including a
+    // brand-new self-registered standalone account) could read or modify
+    // any other customer's dataset, including any auth tokens/credentials
+    // stored in it for their target systems.
     match /datasets/{datasetId} {
-      allow read, write: if isAuthenticated();
+      allow read: if isAuthenticated() && (
+        resource.data.ownerUserId == request.auth.uid ||
+        (resource.data.projectId is string && resource.data.projectId != '' && projectAllows(resource.data.projectId)) ||
+        request.auth.token.role == 'platform_admin'
+      );
+      allow create: if isAuthenticated() && request.resource.data.ownerUserId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && (
+        resource.data.ownerUserId == request.auth.uid ||
+        request.auth.token.role == 'platform_admin'
+      );
     }
 
-    // Suites collection
+    // Suites collection.
+    // SECURITY FIX: previously open to any authenticated user, cross-tenant.
     match /suites/{suiteId} {
-      allow read, write: if isAuthenticated();
+      allow read, update, delete: if isAuthenticated() && (
+        projectAllows(resource.data.projectId) || request.auth.token.role == 'platform_admin'
+      );
+      allow create: if isAuthenticated() && projectAllows(request.resource.data.projectId);
     }
 
-    // Test cases collection: only authenticated users can access
+    // Test cases collection.
+    // SECURITY FIX: previously open to any authenticated user, cross-tenant —
+    // this is the collection most likely to carry sensitive test data
+    // (target endpoints, expected payloads), so this was the most serious
+    // gap of the group.
     match /test_cases/{testCaseId} {
-      allow read, write: if isAuthenticated();
+      allow read, update, delete: if isAuthenticated() && (
+        projectAllows(resource.data.projectId) || request.auth.token.role == 'platform_admin'
+      );
+      allow create: if isAuthenticated() && projectAllows(request.resource.data.projectId);
     }
 
-    // Test runs / execution logs
+    // Test runs / execution logs.
+    // SECURITY FIX: previously open to any authenticated user, cross-tenant.
     match /test_runs/{runId} {
-      allow read, write: if isAuthenticated();
+      allow read, update, delete: if isAuthenticated() && (
+        projectAllows(resource.data.projectId) || request.auth.token.role == 'platform_admin'
+      );
+      allow create: if isAuthenticated() && projectAllows(request.resource.data.projectId);
     }
 
-    // Organizations
+    // Organizations.
+    // SECURITY FIX: read was previously `if isAuthenticated()` — any
+    // signed-in user, from any organization, could read every other
+    // organization's document (name, plan, credits balance). Now scoped to
+    // your own org (via the orgId claim on your auth token) or platform_admin.
     match /organizations/{orgId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && (request.auth.token.role == 'platform_admin' || request.auth.token.role == 'org_admin');
+      allow read: if isAuthenticated() && (
+        request.auth.token.orgId == orgId || request.auth.token.role == 'platform_admin'
+      );
+      allow write: if isAuthenticated() && (
+        (request.auth.token.orgId == orgId && (request.auth.token.role == 'org_admin' || request.auth.token.role == 'platform_admin')) ||
+        request.auth.token.role == 'platform_admin'
+      );
     }
 
-    // Test Schedules
+    // Test Schedules.
+    // SECURITY FIX: previously open to any authenticated user, cross-tenant.
     match /test_schedules/{scheduleId} {
-      allow read, write: if isAuthenticated();
+      allow read, update, delete: if isAuthenticated() && (
+        projectAllows(resource.data.projectId) || request.auth.token.role == 'platform_admin'
+      );
+      allow create: if isAuthenticated() && projectAllows(request.resource.data.projectId);
     }
 
-    // Diagnostics / connection test
+    // Diagnostics / connection test — deliberately world-readable (used to
+    // verify Firestore connectivity from the client before auth completes),
+    // never holds real data.
     match /test/{docId} {
       allow read: if true;
       allow write: if isAuthenticated();
@@ -73,5 +130,3 @@ service cloud.firestore {
     }
   }
 }
-
-

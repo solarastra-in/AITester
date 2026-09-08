@@ -6,6 +6,7 @@ import { parseStructuredJson, parseStructuredCsv, parseMarkdownTable, extractPla
 import { runTestCase } from '../genericRunner.js';
 import { generateTestCases, analyzeTargetUrl, introspectWebsiteAndGenerateQuestions, buildSuiteFromJourney } from '../aiGenerate.js';
 import { chargeCredits, CREDIT_COST_PER_RUN, PREVIEW_DAILY_CAP } from '../billing.js';
+import { assertPublicUrl, SsrfBlockedError } from '../ssrfGuard.js';
 import { Project, Suite, TestCase, TestRun, TestSchedule } from '../types.js';
 
 export const projectRouter = Router();
@@ -93,7 +94,7 @@ projectRouter.get('/', (req: AuthRequest, res: Response) => {
 });
 
 // 2. Create new project (Step 1: Upload Site URL)
-projectRouter.post('/', (req: AuthRequest, res: Response) => {
+projectRouter.post('/', async (req: AuthRequest, res: Response) => {
   const { name, siteUrl, description } = req.body;
   if (!name || !siteUrl) {
     return res.status(400).json({ error: 'Project name and Target Site URL are required.' });
@@ -102,6 +103,19 @@ projectRouter.post('/', (req: AuthRequest, res: Response) => {
   let formattedUrl = siteUrl.trim();
   if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
     formattedUrl = `https://${formattedUrl}`;
+  }
+
+  // SSRF guard: rejects internal/private/cloud-metadata targets upfront,
+  // rather than only discovering the problem later when a test actually
+  // runs against it (see server/genericRunner.ts, which also checks this
+  // independently since DNS can change between now and then).
+  try {
+    await assertPublicUrl(formattedUrl);
+  } catch (err: any) {
+    if (err instanceof SsrfBlockedError) {
+      return res.status(400).json({ error: err.message });
+    }
+    throw err;
   }
 
   const projectId = `proj_${uuidv4().slice(0, 8)}`;
@@ -300,6 +314,18 @@ projectRouter.post('/build-journey', async (req: AuthRequest, res: Response) => 
   }
 
   const cleanUrl = url.trim();
+
+  // SSRF guard — same reasoning as POST /projects above; this is a second,
+  // alternate project-creation/update path (the interactive "build from
+  // journey" flow) that also accepts a user-supplied target URL directly.
+  try {
+    await assertPublicUrl(cleanUrl.startsWith('http') ? cleanUrl : `https://${cleanUrl}`);
+  } catch (err: any) {
+    if (err instanceof SsrfBlockedError) {
+      return res.status(400).json({ error: err.message });
+    }
+    throw err;
+  }
 
   let project = projectId ? db.findProjectById(projectId) : null;
   if (!project) {
@@ -774,6 +800,9 @@ projectRouter.delete('/:id', loadProject, (req: ProjectRequest, res: Response) =
   db.data.testCases = db.data.testCases.filter(c => !suiteIds.includes(c.suiteId));
   db.data.testRuns = db.data.testRuns.filter(r => r.projectId !== projectId);
   db.data.suites = db.data.suites.filter(s => s.projectId !== projectId);
+  if (db.data.testSchedules) {
+    db.data.testSchedules = db.data.testSchedules.filter(s => s.projectId !== projectId);
+  }
   db.data.projects = db.data.projects.filter(p => p.id !== projectId);
   db.save();
 
@@ -1402,7 +1431,18 @@ export function calculateNextRunDate(
 export async function executeScheduleInternal(schedule: TestSchedule, triggeredByUserId: string = 'cron_scheduler') {
   const project = db.data.projects.find(p => p.id === schedule.projectId);
   if (!project) {
-    throw new Error(`Project ${schedule.projectId} not found for schedule ${schedule.id}`);
+    console.warn(`[Scheduler] Project ${schedule.projectId} not found for schedule ${schedule.id}. Deactivating orphaned schedule.`);
+    schedule.enabled = false;
+    schedule.nextRunAt = null;
+    schedule.lastRunAt = new Date().toISOString();
+    schedule.lastRunPass = false;
+    schedule.lastRunMessage = `Project ${schedule.projectId} not found. Schedule deactivated.`;
+    db.save();
+    return {
+      pass: false,
+      message: `Project ${schedule.projectId} not found for schedule ${schedule.id}`,
+      runs: [],
+    };
   }
 
   // Identify cases to run
@@ -1740,8 +1780,26 @@ export function stopScheduler() {
 if (!(global as any).__verity_scheduler_interval) {
   (global as any).__verity_scheduler_interval = setInterval(async () => {
     try {
-      if (!db.data || !db.data.testSchedules) return;
+      if (!db.data || !db.data.testSchedules || !db.data.projects) return;
       const now = new Date();
+
+      // Deactivate any orphaned schedules whose projects were removed
+      let schedulesChanged = false;
+      for (const schedule of db.data.testSchedules) {
+        if (!db.data.projects.some(p => p.id === schedule.projectId)) {
+          if (schedule.enabled || schedule.nextRunAt) {
+            console.warn(`[Scheduler] Deactivating orphaned schedule '${schedule.name}' (${schedule.id}): Project ${schedule.projectId} not found.`);
+            schedule.enabled = false;
+            schedule.nextRunAt = null;
+            schedule.lastRunPass = false;
+            schedule.lastRunMessage = `Project ${schedule.projectId} not found.`;
+            schedulesChanged = true;
+          }
+        }
+      }
+      if (schedulesChanged) {
+        db.save();
+      }
 
       for (const schedule of db.data.testSchedules) {
         if (schedule.enabled && schedule.nextRunAt) {
@@ -1752,6 +1810,21 @@ if (!(global as any).__verity_scheduler_interval) {
               await executeScheduleInternal(schedule, 'auto_scheduler');
             } catch (err: any) {
               console.error(`[Scheduler] Error running schedule ${schedule.id}:`, err);
+              try {
+                schedule.nextRunAt = calculateNextRunDate(
+                  schedule.scheduleType,
+                  schedule.cronExpression,
+                  schedule.timeOfDay,
+                  schedule.dayOfWeek
+                );
+                schedule.lastRunAt = new Date().toISOString();
+                schedule.lastRunPass = false;
+                schedule.lastRunMessage = `Execution error: ${err.message}`;
+                db.save();
+              } catch {
+                schedule.enabled = false;
+                db.save();
+              }
             }
           }
         }

@@ -450,30 +450,11 @@ class Database {
           testRuns: parsed.testRuns || [],
           creditLedger: parsed.creditLedger || [],
           auditLogs: parsed.auditLogs || [],
-          testSchedules: (parsed.testSchedules && parsed.testSchedules.length > 0)
-            ? parsed.testSchedules
-            : [
-                {
-                  id: 'sched_daily_smoke',
-                  projectId: 'proj_github_api',
-                  suiteId: 'all',
-                  suiteName: 'All Suites',
-                  name: 'Daily Smoke & Health Ping',
-                  scheduleType: 'daily',
-                  cronExpression: '0 2 * * *',
-                  timeOfDay: '02:00',
-                  dayOfWeek: 1,
-                  executionMode: 'preview',
-                  enabled: true,
-                  notifyEmail: 'qa.lead@acmecorp.com',
-                  lastRunAt: new Date(Date.now() - 6 * 3600 * 1000).toISOString(),
-                  lastRunPass: true,
-                  lastRunMessage: 'Completed: 3 passed, 0 failed (3 total)',
-                  nextRunAt: new Date(Date.now() + 18 * 3600 * 1000).toISOString(),
-                  createdAt: new Date(Date.now() - 10 * 24 * 3600 * 1000).toISOString(),
-                  updatedAt: new Date(Date.now() - 6 * 3600 * 1000).toISOString(),
-                },
-              ],
+          testSchedules: (() => {
+            const raw = parsed.testSchedules || [];
+            const projectIds = new Set((parsed.projects || []).map((p: any) => p.id));
+            return raw.filter((s: any) => s && projectIds.has(s.projectId));
+          })(),
         };
       }
     } catch (e) {

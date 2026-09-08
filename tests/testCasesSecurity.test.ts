@@ -4,7 +4,6 @@ import os from 'os';
 import path from 'path';
 import express from 'express';
 import request from 'supertest';
-import { checkTestCaseSecurity } from '../server/auth.js';
 import { api, clearStoredToken } from '../src/services/api.js';
 
 let tmpDir: string;
@@ -22,6 +21,7 @@ beforeAll(async () => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'verity-security-test-'));
   process.chdir(tmpDir);
 
+  const { checkTestCaseSecurity } = await import('../server/auth.js');
   const { authRouter } = await import('../server/routes/authRoutes.js');
   const { projectRouter, stopScheduler: stop } = await import('../server/routes/projectRoutes.js');
   const { db } = await import('../server/db.js');
@@ -76,7 +76,7 @@ beforeAll(async () => {
     .set('Authorization', `Bearer ${acmeAdminToken}`)
     .send({
       name: 'Acme Secret API',
-      siteUrl: 'https://api.acme.corp',
+      siteUrl: 'https://registry.npmjs.org',
       description: 'Acme internal services',
     });
   expect(createProjRes.status).toBe(201);
@@ -90,7 +90,7 @@ beforeAll(async () => {
       title: 'Confidential Payment Flow Test',
       type: 'api',
       severity: 'critical',
-      spec: 'GET https://api.acme.corp/pay',
+      spec: 'GET https://registry.npmjs.org/pay',
     });
   expect(createCaseRes.status).toBe(201);
 });

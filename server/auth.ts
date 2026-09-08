@@ -4,7 +4,35 @@ import bcrypt from 'bcryptjs';
 import { db } from './db.js';
 import { User, UserRole } from './types.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'verity-super-secure-jwt-signing-secret-2026';
+// SECURITY: refuse to start in production without a real, operator-provided
+// signing secret. The previous unconditional fallback
+// ('verity-super-secure-jwt-signing-secret-2026') was a hardcoded string
+// committed to source control since this repo's very first commit — anyone
+// who has ever read this file could mint a valid JWT for ANY user, including
+// platform_admin, against any deployment that never explicitly set
+// JWT_SECRET. Because .env.example never documented this variable, that is
+// the likely state of any deployment made before this fix. Rotate
+// JWT_SECRET immediately in every live environment after this change ships
+// — this fix stops new tokens from using the weak secret, but it cannot
+// invalidate tokens that may already have been minted with it.
+const isProduction = process.env.NODE_ENV === 'production';
+const configuredSecret = process.env.JWT_SECRET;
+
+if (isProduction && !configuredSecret) {
+  throw new Error(
+    'JWT_SECRET environment variable is required in production. Refusing to start with an insecure default signing secret — set JWT_SECRET and redeploy.'
+  );
+}
+
+if (!configuredSecret && !isProduction) {
+  // eslint-disable-next-line no-console
+  console.warn(
+    '[SECURITY WARNING] JWT_SECRET is not set. Using an insecure development-only default signing secret. ' +
+      'This is fine for local development but this process will refuse to start with NODE_ENV=production unless JWT_SECRET is set.'
+  );
+}
+
+const JWT_SECRET = configuredSecret || 'INSECURE-DEV-ONLY-DEFAULT-DO-NOT-USE-IN-PRODUCTION';
 
 export interface AuthRequest extends Request {
   user?: User;
@@ -23,6 +51,24 @@ export function generateToken(user: User): string {
     JWT_SECRET,
     { expiresIn: '7d' }
   );
+}
+
+/**
+ * Verifies a raw bearer token and returns the resolved user, or null if the
+ * token is missing/invalid/expired or the user no longer exists. Shared so
+ * that other modules (e.g. the persona-switch security check in
+ * authRoutes.ts) verify tokens the exact same way requireAuth does, rather
+ * than each re-implementing JWT verification against a separately-resolved
+ * JWT_SECRET.
+ */
+export function verifyBearerToken(rawToken: string | undefined | null): User | null {
+  if (!rawToken) return null;
+  try {
+    const payload = jwt.verify(rawToken, JWT_SECRET) as { id: string };
+    return db.findUserById(payload.id) || null;
+  } catch {
+    return null;
+  }
 }
 
 export function publicUser(user: User) {

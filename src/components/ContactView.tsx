@@ -326,9 +326,8 @@ export const ContactView: React.FC<ContactViewProps> = ({ onStartStudio, onOpenP
                     <Mail className="h-4 w-4" />
                   </div>
                   <div>
-                    <div className="font-semibold text-white">Enterprise Engineering Desk</div>
-                    <div className="font-mono text-emerald-400 text-[11px] select-all">enterprise@verity-qa.dev</div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">24/7/365 dedicated queue • Sub-1 hour SLA</div>
+                    <div className="font-semibold text-white">Email</div>
+                    <a href="mailto:info.whyor@gmail.com" className="font-mono text-emerald-400 text-[11px] select-all hover:underline">info.whyor@gmail.com</a>
                   </div>
                 </div>
 
@@ -337,20 +336,10 @@ export const ContactView: React.FC<ContactViewProps> = ({ onStartStudio, onOpenP
                     <Headphones className="h-4 w-4" />
                   </div>
                   <div>
-                    <div className="font-semibold text-white">Technical QA Solutions</div>
-                    <div className="font-mono text-teal-400 text-[11px] select-all">support@verity-qa.dev</div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">Mon–Fri 08:00–20:00 UTC • Same-day resolution</div>
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-[#1E2235] bg-[#06070B] p-3 flex items-start gap-3">
-                  <div className="rounded-lg bg-amber-500/10 p-2 text-amber-400 border border-amber-500/20">
-                    <Shield className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <div className="font-semibold text-white">Security & Compliance Office</div>
-                    <div className="font-mono text-amber-400 text-[11px] select-all">security@verity-qa.dev</div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">SOC-2, HIPAA, & vulnerability disclosure</div>
+                    <div className="font-semibold text-white">Phone</div>
+                    <a href="tel:+17086072070" className="font-mono text-teal-400 text-[11px] select-all hover:underline">+1 708 607 2070</a>
+                    <span className="text-slate-500 text-[11px]"> · </span>
+                    <a href="tel:+919063692200" className="font-mono text-teal-400 text-[11px] select-all hover:underline">+91 90636 92200</a>
                   </div>
                 </div>
               </div>

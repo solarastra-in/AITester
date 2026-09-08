@@ -1,5 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import { ParsedCaseDraft, normalizeStructuredRow, setDotted, extractPlaceholders, getDotted } from './specParser.js';
+import { assertPublicUrl } from './ssrfGuard.js';
 
 interface GenerateOptions {
   provider?: 'gemini' | 'openai' | 'anthropic';
@@ -1468,6 +1469,13 @@ export async function performNetworkIntrospection(rawUrl: string): Promise<{
   if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
     cleanUrl = `https://${cleanUrl}`;
   }
+
+  // SSRF guard: this function fetches a user-supplied URL server-side and
+  // returns the response (status, headers, body snippet) directly back to
+  // the caller — without this check, any authenticated user could point it
+  // at an internal service or the cloud metadata endpoint
+  // (169.254.169.254) and read the result. See server/ssrfGuard.ts.
+  await assertPublicUrl(cleanUrl);
 
   const startTime = Date.now();
   let probedStatus = 200;
