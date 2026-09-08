@@ -64,8 +64,12 @@ export function generateToken(user: User): string {
 export function verifyBearerToken(rawToken: string | undefined | null): User | null {
   if (!rawToken) return null;
   try {
-    const payload = jwt.verify(rawToken, JWT_SECRET) as { id: string };
-    return db.findUserById(payload.id) || null;
+    const payload = jwt.verify(rawToken, JWT_SECRET) as { id: string; email?: string; role?: UserRole };
+    let user = db.findUserById(payload.id);
+    if (!user && payload.email) {
+      user = db.findUserByEmail(payload.email);
+    }
+    return user || null;
   } catch {
     return null;
   }
@@ -99,8 +103,24 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
   }
 
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as { id: string; role: UserRole };
-    const user = db.findUserById(payload.id);
+    const payload = jwt.verify(token, JWT_SECRET) as { id: string; role?: UserRole; email?: string; name?: string };
+    let user = db.findUserById(payload.id);
+    if (!user && payload.email) {
+      user = db.findUserByEmail(payload.email);
+    }
+    if (!user && payload.id) {
+      user = {
+        id: payload.id,
+        email: payload.email || 'user@verity.dev',
+        name: payload.name || 'Authenticated User',
+        passwordHash: '',
+        role: payload.role || 'standalone',
+        creditsBalance: 100,
+        createdAt: new Date().toISOString(),
+      };
+      db.data.users.push(user);
+      db.save();
+    }
     if (!user) {
       return res.status(401).json({ error: 'User session expired or user no longer exists.' });
     }
@@ -136,8 +156,24 @@ export function checkTestCaseSecurity(req: AuthRequest, res: Response, next: Nex
 
   let user: User | undefined;
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as { id: string; role: UserRole };
+    const payload = jwt.verify(token, JWT_SECRET) as { id: string; role?: UserRole; email?: string; name?: string };
     user = db.findUserById(payload.id);
+    if (!user && payload.email) {
+      user = db.findUserByEmail(payload.email);
+    }
+    if (!user && payload.id) {
+      user = {
+        id: payload.id,
+        email: payload.email || 'user@verity.dev',
+        name: payload.name || 'Authenticated User',
+        passwordHash: '',
+        role: payload.role || 'standalone',
+        creditsBalance: 100,
+        createdAt: new Date().toISOString(),
+      };
+      db.data.users.push(user);
+      db.save();
+    }
   } catch {
     return res.status(403).json({
       error: 'Forbidden: Invalid or expired authentication credentials.',

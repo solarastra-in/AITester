@@ -18,6 +18,7 @@ import {
   Suite,
 } from '../types';
 import { emitApiError, emitGlobalToast } from '../contexts/NotificationContext';
+import { auth } from './firebase';
 
 const TOKEN_KEY = 'verity_auth_token';
 
@@ -105,21 +106,128 @@ export interface SetApiUrlOptions {
 }
 
 /**
+ * Checks whether a given target URL points to the same origin/host as the running frontend application.
+ */
+export function isSameOrigin(url?: string | null): boolean {
+  if (!url || url === '/api' || url.startsWith('/')) return true;
+  if (typeof window === 'undefined' || !window.location) return true;
+  try {
+    const parsed = new URL(url, window.location.origin);
+    return parsed.origin === window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Discovers any configured VITE_API_URL across multiple runtime and build environments.
+ * Checks in order:
+ * 1. Vite build-time env: `import.meta.env.VITE_API_URL`
+ * 2. Node/SSR process env: `process.env.VITE_API_URL`
+ * 3. Runtime window globals injected by container/HTML: `window.__VERITY_API_URL__`, `window.VITE_API_URL`, etc.
+ */
+export function discoverViteApiUrl(): string | undefined {
+  // 1. Vite import.meta.env
+  try {
+    const metaEnv = typeof import.meta !== 'undefined' ? (import.meta as any).env : undefined;
+    if (metaEnv?.VITE_API_URL && typeof metaEnv.VITE_API_URL === 'string') {
+      const trimmed = metaEnv.VITE_API_URL.trim();
+      if (trimmed && trimmed !== 'undefined' && trimmed !== 'null') {
+        return trimmed;
+      }
+    }
+  } catch {
+    // Ignore bundler / environment evaluation errors
+  }
+
+  // 2. Process env (Node / SSR / Docker / CI environments)
+  try {
+    if (typeof process !== 'undefined' && process.env?.VITE_API_URL && typeof process.env.VITE_API_URL === 'string') {
+      const trimmed = process.env.VITE_API_URL.trim();
+      if (trimmed && trimmed !== 'undefined' && trimmed !== 'null') {
+        return trimmed;
+      }
+    }
+  } catch {
+    // Ignore process access errors
+  }
+
+  // 3. Runtime window globals injected by server templates or micro-frontends
+  if (typeof window !== 'undefined') {
+    const win = window as any;
+    const injected =
+      win.__VERITY_API_URL__ ||
+      win.VITE_API_URL ||
+      win.__ENV__?.VITE_API_URL ||
+      win.VERITY_API_URL ||
+      win.__API_URL__ ||
+      win.API_URL;
+    if (injected && typeof injected === 'string') {
+      const trimmed = injected.trim();
+      if (trimmed && trimmed !== 'undefined' && trimmed !== 'null') {
+        return trimmed;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Resolves a full, normalized URL from an endpoint and an optional base URL.
+ * Ensures '/api' prefix is never duplicated (e.g., '/api' + '/api/health' -> '/api/health')
+ * and endpoints without '/api' receive the correct prefix when targeting a same-origin backend.
+ */
+export function resolveApiUrl(endpoint: string, customBase?: string): string {
+  if (/^https?:\/\//i.test(endpoint)) {
+    return endpoint;
+  }
+
+  const base = (customBase !== undefined ? customBase : getApiBaseUrl()).trim();
+
+  // If base is empty, ensure leading slash
+  if (!base) {
+    return endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  }
+
+  const cleanBase = base.replace(/\/+$/, '');
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+
+  // If base is literally '/api' or ends with '/api':
+  if (cleanBase === '/api' || cleanBase.endsWith('/api')) {
+    if (cleanEndpoint.startsWith('/api/')) {
+      // Avoid '/api/api/...' duplication
+      return `${cleanBase}${cleanEndpoint.slice(4)}`;
+    }
+    if (cleanEndpoint === '/api') {
+      return cleanBase;
+    }
+    return `${cleanBase}${cleanEndpoint}`;
+  }
+
+  // Base is a domain without '/api' (e.g. 'https://ais-pre-...run.app')
+  if (cleanEndpoint.startsWith('/api/') || cleanEndpoint === '/api') {
+    return `${cleanBase}${cleanEndpoint}`;
+  }
+
+  return `${cleanBase}${cleanEndpoint}`;
+}
+
+/**
  * Resolves the active API base URL dynamically in order of precedence:
- * 1. In-memory override set via `setApiBaseUrl(url)` / `api.setApiUrl(url)`
+ * 1. In-memory programmatic override set via `setApiBaseUrl(url)` / `api.setApiUrl(url)`
  * 2. URL search params (`?apiUrl=...` or `?api_url=...` or `?backend=...`)
  * 3. Browser localStorage persistence (`verity_api_engine_url` / `verity_api_url`)
- * 4. Runtime window global injected into index.html (`window.__VERITY_API_URL__` or `window.VERITY_API_URL`)
- * 5. Build-time Vite env variable (`import.meta.env.VITE_API_URL`) — an explicit
- *    deployment configuration always wins over the domain-guessing fallback below.
- * 6. Domain-level smart fallback (e.g. whyor.in / vercel.app uses Cloud Run engine) —
- *    last resort only, when nothing above explicitly configured a target backend.
- * 7. Empty string (relative same-origin `/api/*`)
+ * 4. Robust VITE_API_URL discovery mechanism (import.meta.env, process.env, runtime window globals)
+ * 5. Intelligent deployment domain routing for purely static deployments (e.g. vercel.app, pages.dev)
+ * 6. Same-origin default: Defaults to '/api' for same-origin requests when running on the same domain,
+ *    preventing 404s when the backend and frontend are served together.
  */
 export function getApiBaseUrl(): string {
   // 1. Programmatic in-memory override
   if (inMemoryApiUrl !== null) {
-    return inMemoryApiUrl.trim().replace(/\/$/, '');
+    const sanitized = inMemoryApiUrl.trim().replace(/\/+$/, '');
+    return sanitized || '/api';
   }
 
   // 2. URL search params (convenient for ad-hoc QA, staging links, or customer support sessions)
@@ -128,7 +236,11 @@ export function getApiBaseUrl(): string {
       const searchParams = new URLSearchParams(window.location.search);
       const queryUrl = searchParams.get('apiUrl') || searchParams.get('api_url') || searchParams.get('backend');
       if (queryUrl && queryUrl.trim()) {
-        return queryUrl.trim().replace(/\/$/, '');
+        const sanitized = queryUrl.trim().replace(/\/+$/, '');
+        if (sanitized === '' || sanitized === '/' || isSameOrigin(sanitized)) {
+          return '/api';
+        }
+        return sanitized;
       }
     } catch {
       // ignore URL parsing errors in sandboxed environments
@@ -140,54 +252,48 @@ export function getApiBaseUrl(): string {
     try {
       const saved = localStorage.getItem(API_URL_STORAGE_KEY) || localStorage.getItem('verity_api_url');
       if (saved !== null && saved.trim()) {
-        return saved.trim().replace(/\/$/, '');
+        const sanitized = saved.trim().replace(/\/+$/, '');
+        // If saved URL is empty, root, or points to the current origin, default to '/api'
+        if (sanitized === '' || sanitized === '/' || isSameOrigin(sanitized)) {
+          return '/api';
+        }
+        return sanitized;
       }
     } catch {
       // ignore storage access errors
     }
   }
 
-  // 4. Runtime window global configuration (e.g. Docker container / k8s injected scripts)
-  if (typeof window !== 'undefined') {
-    const win = window as any;
-    const runtimeInjected = win.__VERITY_API_URL__ || win.VERITY_API_URL || win.__API_URL__ || win.API_URL;
-    if (runtimeInjected && typeof runtimeInjected === 'string' && runtimeInjected.trim()) {
-      return runtimeInjected.trim().replace(/\/$/, '');
+  // 4. Robust VITE_API_URL discovery mechanism (import.meta.env, process.env, runtime window globals)
+  const discoveredViteUrl = discoverViteApiUrl();
+  if (discoveredViteUrl) {
+    const sanitized = discoveredViteUrl.replace(/\/+$/, '');
+    // If set to root, empty, '/api', or same origin domain, default to '/api'
+    if (sanitized === '' || sanitized === '/' || sanitized === '/api' || isSameOrigin(sanitized)) {
+      return '/api';
     }
+    return sanitized;
   }
 
-  // 5. Build-time environment variable — an explicit deployment configuration
-  // takes priority over the domain-guessing fallback below. This used to be
-  // step 6, checked AFTER the domain-based guess, which meant VITE_API_URL
-  // was silently ignored for anyone on a whyor.in/vercel.app/pages.dev
-  // domain — exactly the domains most likely to have it actually configured
-  // in their hosting provider's environment variables. That ordering bug is
-  // what caused the Studio to try to reach the wrong (dev) Cloud Run URL
-  // instead of whatever backend was really configured for this deployment.
-  const metaEnv = typeof import.meta !== 'undefined' ? (import.meta as any).env : undefined;
-  if (metaEnv && metaEnv.VITE_API_URL && metaEnv.VITE_API_URL.trim()) {
-    return (metaEnv.VITE_API_URL as string).trim().replace(/\/$/, '');
-  }
-
-  // 6. Intelligent deployment domain routing (e.g. static hosting on Vercel or whyor.in) —
-  // last-resort guess, only used when nothing above explicitly configured a
-  // target backend.
+  // 5. Intelligent deployment domain routing for static-only hosts (e.g. Cloudflare Pages or Vercel static)
   if (typeof window !== 'undefined' && window.location) {
     const host = window.location.hostname;
-    if (host.includes('whyor.in') || host.includes('vercel.app') || host.includes('pages.dev')) {
+    // Only route to external engine if hosted strictly on a third-party static CDN and NOT on same-origin Cloud Run / localhost
+    if ((host.includes('vercel.app') || host.includes('pages.dev')) && !host.includes('run.app') && !host.includes('localhost')) {
       return DEFAULT_CLOUD_RUN_ENGINE_URL;
     }
   }
 
-  // 7. Same-origin relative fallback
-  return '';
+  // 6. Same-origin default: Defaults to '/api' for same-origin requests when running on the same domain,
+  // preventing 404s when the backend and frontend are served together.
+  return '/api';
 }
 
 export const getApiUrl = getApiBaseUrl;
 
 /**
  * Sets the API base URL dynamically at the application level.
- * @param url The new API base URL (e.g., "https://my-backend.corp.com", "http://localhost:3000", or "" for same-origin).
+ * @param url The new API base URL (e.g., "https://my-backend.corp.com", "/api", or "" for same-origin).
  *            Pass `null` to clear the in-memory override and revert to storage/defaults.
  * @param options Persistence and event notification settings.
  */
@@ -261,9 +367,10 @@ export async function testApiConnection(customUrl?: string): Promise<{
   data?: any;
   error?: string;
 }> {
-  const base = (customUrl !== undefined ? customUrl : getApiBaseUrl()).trim().replace(/\/$/, '');
-  const url = `${base}/api/health`;
+  const base = (customUrl !== undefined ? customUrl : getApiBaseUrl()).trim().replace(/\/+$/, '');
+  const url = resolveApiUrl('/api/health', base);
   const start = Date.now();
+  const effectiveEngine = base || (typeof window !== 'undefined' ? `${window.location.origin}/api` : '/api');
   try {
     const res = await fetch(url, {
       method: 'GET',
@@ -275,7 +382,7 @@ export async function testApiConnection(customUrl?: string): Promise<{
         ok: false,
         status: res.status,
         latencyMs,
-        engineUrl: base || (typeof window !== 'undefined' ? window.location.origin : ''),
+        engineUrl: effectiveEngine,
         error: `Server responded with HTTP ${res.status} (${res.statusText || 'Error'})`,
       };
     }
@@ -284,7 +391,7 @@ export async function testApiConnection(customUrl?: string): Promise<{
       ok: true,
       status: res.status,
       latencyMs,
-      engineUrl: base || (typeof window !== 'undefined' ? window.location.origin : ''),
+      engineUrl: effectiveEngine,
       data,
     };
   } catch (err: any) {
@@ -293,14 +400,46 @@ export async function testApiConnection(customUrl?: string): Promise<{
       ok: false,
       status: 0,
       latencyMs,
-      engineUrl: base || (typeof window !== 'undefined' ? window.location.origin : ''),
+      engineUrl: effectiveEngine,
       error: err.name === 'TimeoutError' ? 'Connection timed out after 10s' : (err.message || 'Network unreachable'),
     };
   }
 }
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const token = getStoredToken();
+  let token = getStoredToken();
+
+  // If there is no stored token, check if Firebase has an authenticated user and sync session
+  if (!token && typeof window !== 'undefined' && endpoint !== '/api/auth/google-session') {
+    try {
+      const fbUser = auth.currentUser;
+      if (fbUser && fbUser.email) {
+        const syncUrl = resolveApiUrl('/api/auth/google-session');
+        const syncRes = await fetch(syncUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            uid: fbUser.uid,
+            email: fbUser.email,
+            name: fbUser.displayName || '',
+          }),
+        });
+        if (syncRes.ok) {
+          const syncData = await syncRes.json();
+          if (syncData?.token) {
+            token = syncData.token;
+            setStoredToken(token);
+            if (syncData.user) {
+              currentApiUser = syncData.user;
+            }
+          }
+        }
+      }
+    } catch {
+      // Proceed without token
+    }
+  }
+
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string> || {}),
@@ -311,7 +450,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   }
 
   const apiBase = getApiBaseUrl();
-  const fullUrl = endpoint.startsWith('http') ? endpoint : `${apiBase}${endpoint}`;
+  const fullUrl = resolveApiUrl(endpoint, apiBase);
 
   let response: Response;
   try {
@@ -320,7 +459,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
       headers,
     });
   } catch (netErr: any) {
-    const currentEngine = apiBase || (typeof window !== 'undefined' ? window.location.origin : '');
+    const currentEngine = apiBase || (typeof window !== 'undefined' ? `${window.location.origin}/api` : '/api');
     const err: any = new Error(
       `Unable to connect to Verity API Engine at [${currentEngine}]. ` +
       `Check your network or click 'API Engine' to configure your runner endpoint.`
@@ -395,6 +534,18 @@ export const api = {
     });
     setStoredToken(res.token);
     currentApiUser = res.user;
+    return res;
+  },
+
+  async syncGoogleAuth(data: { uid: string; email: string; name?: string }): Promise<{ token: string; user: User; organization: Organization | null }> {
+    const res = await request<{ token: string; user: User; organization: Organization | null }>('/api/auth/google-session', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    if (res?.token) {
+      setStoredToken(res.token);
+      currentApiUser = res.user;
+    }
     return res;
   },
 
@@ -875,6 +1026,9 @@ export const api = {
   resetApiUrl,
   onApiUrlChange,
   testApiConnection,
+  resolveApiUrl,
+  isSameOrigin,
+  discoverViteApiUrl,
   DEFAULT_CLOUD_RUN_ENGINE_URL,
   API_URL_STORAGE_KEY,
   API_URL_CHANGE_EVENT,

@@ -41,8 +41,8 @@ import {
   CheckSquare,
   Minus
 } from 'lucide-react';
-import { api, UrlAnalysisResult } from '../services/api';
-import { projectService, testCaseService, testRunService, signInWithGoogle } from '../services/firebase';
+import { api, UrlAnalysisResult, getStoredToken } from '../services/api';
+import { projectService, testCaseService, testRunService, signInWithGoogle, auth } from '../services/firebase';
 import { Project, TestCase, TestRun, User, Organization, Suite, TestSchedule } from '../types';
 import { AnalyticsDashboard } from './AnalyticsDashboard';
 import { InteractiveDataModal } from './InteractiveDataModal';
@@ -54,24 +54,6 @@ import { ConfirmModal } from './ConfirmModal';
 import { AlertModal } from './AlertModal';
 import { IntrospectionJourneyModal } from './IntrospectionJourneyModal';
 import { TestSchedulerTab } from './TestSchedulerTab';
-
-// Display metadata derived from a real user's role — see the identical
-// comment in Navbar.tsx, which shares this pattern (and used to share a
-// hand-duplicated DEMO_PERSONAS array with this file that could drift out
-// of sync with the real seed data; both now fetch live from
-// GET /api/auth/demo-personas instead).
-const ROLE_DISPLAY: Record<string, { badge: string; color: string }> = {
-  platform_admin: { badge: 'Superadmin', color: 'bg-rose-500/20 text-rose-300 border-rose-500/30' },
-  org_admin: { badge: 'Org Admin', color: 'bg-amber-500/20 text-amber-300 border-amber-500/30' },
-  member: { badge: 'Engineer', color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' },
-  standalone: { badge: 'Standalone', color: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30' },
-};
-function studioRoleLabel(role: string, name: string): string {
-  if (role === 'platform_admin') return 'Platform Superadmin';
-  if (role === 'org_admin') return `Customer Admin${name ? ` (${name.split(' ')[0]})` : ''}`;
-  if (role === 'member') return `Team Member${name ? ` (${name.split(' ')[0]})` : ''}`;
-  return 'Standalone Developer';
-}
 
 interface ProjectStudioProps {
   currentUser: User | null;
@@ -91,7 +73,6 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [projectData, setProjectData] = useState<Project | null>(null);
-  const [demoPersonas, setDemoPersonas] = useState<Array<{ id: string; email: string; name: string; role: string }>>([]);
 
   const [cases, setCases] = useState<TestCase[]>([]);
   const [suites, setSuites] = useState<Suite[]>([]);
@@ -101,6 +82,7 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({
   const [allNeededFields, setAllNeededFields] = useState<string[]>([]);
 
   const [loading, setLoading] = useState(true);
+  const [isSigningInGoogle, setIsSigningInGoogle] = useState(false);
   const [isRunningAll, setIsRunningAll] = useState(false);
   const [runningCaseId, setRunningCaseId] = useState<string | null>(null);
 
@@ -242,10 +224,11 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({
     try {
       setLoading(true);
       const list = await api.getProjects();
-      setProjects(list);
-      if (list.length > 0) {
-        if (!selectedProjectId || !list.some(p => p.id === selectedProjectId)) {
-          setSelectedProjectId(list[0].id);
+      const validList = Array.isArray(list) ? list.filter(p => p && p.id) : [];
+      setProjects(validList);
+      if (validList.length > 0) {
+        if (!selectedProjectId || !validList.some(p => p?.id === selectedProjectId)) {
+          setSelectedProjectId(validList[0].id);
         }
       } else {
         setSelectedProjectId(null);
@@ -266,21 +249,6 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({
   };
 
   useEffect(() => {
-    if (currentUser) return; // only needed for the logged-out persona picker below
-    let cancelled = false;
-    api.getDemoPersonas()
-      .then(list => {
-        if (!cancelled) setDemoPersonas(list);
-      })
-      .catch(() => {
-        // Non-fatal — the picker just shows nothing if this fails.
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [currentUser]);
-
-  useEffect(() => {
     if (!currentUser) {
       setProjects([]);
       setSelectedProjectId(null);
@@ -296,10 +264,11 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({
 
     // Subscribe to Firestore Projects collection in real time with user security scoping
     const unsubscribe = projectService.subscribeProjects(currentUser, (firestoreProjects) => {
-      if (firestoreProjects && firestoreProjects.length > 0) {
-        setProjects(firestoreProjects);
-        if (!selectedProjectId || !firestoreProjects.some(p => p.id === selectedProjectId)) {
-          setSelectedProjectId(firestoreProjects[0].id);
+      const validProjects = Array.isArray(firestoreProjects) ? firestoreProjects.filter(p => p && p.id) : [];
+      if (validProjects.length > 0) {
+        setProjects(validProjects);
+        if (!selectedProjectId || !validProjects.some(p => p?.id === selectedProjectId)) {
+          setSelectedProjectId(validProjects[0].id);
         }
       }
     });
@@ -495,20 +464,45 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({
   };
 
   // 3. Create Project (Firestore + Backend)
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
+
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProjName.trim() || !newProjUrl.trim()) return;
+
+    if (!currentUser) {
+      showAlert('Please sign in before creating a project.', 'Authentication Required', 'info');
+      setIsNewProjectModalOpen(false);
+      onOpenAuth?.('login');
+      return;
+    }
+
+    setIsCreatingProject(true);
     try {
+      // Ensure backend session token is valid for Google / Firebase authenticated users
+      if (!getStoredToken() && auth.currentUser) {
+        try {
+          await api.syncGoogleAuth({
+            uid: auth.currentUser.uid,
+            email: auth.currentUser.email || currentUser.email,
+            name: auth.currentUser.displayName || currentUser.name,
+          });
+        } catch (syncErr) {
+          console.warn('Google auth session pre-sync notice:', syncErr);
+        }
+      }
+
       const created = await api.createProject(newProjName.trim(), newProjUrl.trim(), newProjDesc.trim());
+      const effectiveCreatedId = created?.id || `proj_${Date.now()}`;
       try {
         await projectService.createProject({
-          id: created.id,
-          name: created.name,
-          siteUrl: created.siteUrl,
-          description: created.description,
-          ownerUserId: currentUser?.id || 'demo_user',
+          id: effectiveCreatedId,
+          name: created?.name || newProjName.trim(),
+          siteUrl: created?.siteUrl || newProjUrl.trim(),
+          description: created?.description || newProjDesc.trim(),
+          ownerUserId: currentUser?.id || auth.currentUser?.uid || 'user',
           orgId: currentOrg?.id || null,
-          dataset: created.dataset || { baseUrl: created.siteUrl },
+          dataset: created?.dataset || { baseUrl: created?.siteUrl || newProjUrl.trim() },
         });
       } catch (fErr) {
         console.warn('Firestore project create sync note:', fErr);
@@ -519,9 +513,11 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({
       setNewProjUrl('');
       setNewProjDesc('');
       await loadProjects();
-      setSelectedProjectId(created.id);
+      setSelectedProjectId(effectiveCreatedId);
     } catch (err: any) {
       showAlert(err.message || 'Failed to create project.');
+    } finally {
+      setIsCreatingProject(false);
     }
   };
 
@@ -595,9 +591,9 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({
             console.warn('Firestore project delete sync note:', fErr);
           }
 
-          const remaining = projects.filter(p => p.id !== selectedProjectId);
+          const remaining = projects.filter(p => p && p.id && p.id !== selectedProjectId);
           setProjects(remaining);
-          if (remaining.length > 0) {
+          if (remaining.length > 0 && remaining[0]?.id) {
             setSelectedProjectId(remaining[0].id);
           } else {
             setSelectedProjectId(null);
@@ -1076,28 +1072,46 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({
             Authentication Required to Access Test Studio
           </h1>
           <p className="mt-3 text-sm text-slate-400 leading-relaxed max-w-xl mx-auto">
-            Test cases, regression suites, dynamic environment datasets, and execution telemetry are protected and strictly partitioned by organization and user identity. Please sign in or switch to a persona to view and manage your test projects.
+            Test cases, regression suites, dynamic environment datasets, and execution telemetry are protected and strictly partitioned by organization and user identity. Please sign in to view and manage your test projects.
           </p>
 
           <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
             <button
+              disabled={isSigningInGoogle}
               onClick={async () => {
+                if (isSigningInGoogle) return;
+                setIsSigningInGoogle(true);
                 try {
                   await signInWithGoogle();
-                } catch (e) {
-                  console.error('Sign in failed', e);
+                } catch (e: any) {
+                  if (
+                    e?.code !== 'auth/cancelled-popup-request' &&
+                    e?.code !== 'auth/popup-closed-by-user' &&
+                    !e?.message?.includes('cancelled-popup-request') &&
+                    !e?.message?.includes('popup-closed-by-user')
+                  ) {
+                    console.error('Sign in failed', e);
+                  }
+                } finally {
+                  setIsSigningInGoogle(false);
                 }
               }}
               data-testid="studio-auth-google-btn"
-              className="flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-slate-950 shadow hover:bg-slate-100 transition cursor-pointer"
+              className={`flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-slate-950 shadow hover:bg-slate-100 transition cursor-pointer ${
+                isSigningInGoogle ? 'opacity-60 cursor-wait' : ''
+              }`}
             >
-              <svg className="h-4 w-4" viewBox="0 0 24 24">
-                <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"/>
-                <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
-                <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
-                <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
-              </svg>
-              Sign in with Google
+              {isSigningInGoogle ? (
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-900 border-t-transparent" />
+              ) : (
+                <svg className="h-4 w-4" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"/>
+                  <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
+                  <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
+                  <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+                </svg>
+              )}
+              <span>{isSigningInGoogle ? 'Connecting...' : 'Sign in with Google'}</span>
             </button>
 
             <button
@@ -1107,34 +1121,6 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({
             >
               Email Log In
             </button>
-          </div>
-
-          {/* Quick Demo Persona Switcher */}
-          <div className="mt-10 border-t border-[#1E2235] pt-8 text-left">
-            <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Or select a demo persona to test RBAC data boundaries:
-            </div>
-            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {demoPersonas.map(p => {
-                const display = ROLE_DISPLAY[p.role] || { badge: p.role, color: 'bg-slate-500/20 text-slate-300 border-slate-500/30' };
-                return (
-                  <button
-                    key={p.id}
-                    data-testid={`studio-persona-btn-${p.role}`}
-                    onClick={() => onSwitchPersona?.(p.role, p.email)}
-                    className="flex items-center justify-between rounded-xl border border-[#1E2235] bg-[#121520] p-3 text-left hover:border-emerald-500/40 hover:bg-[#171B29] transition cursor-pointer"
-                  >
-                    <div>
-                      <div className="text-xs font-bold text-white">{studioRoleLabel(p.role, p.name)}</div>
-                      <div className="text-[11px] font-mono text-slate-400">{p.email}</div>
-                    </div>
-                    <span className={`rounded border px-2 py-0.5 text-[10px] font-semibold ${display.color}`}>
-                      {display.badge}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
           </div>
         </div>
       </div>
@@ -1155,7 +1141,7 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({
                 data-testid="project-switcher-select"
                 className="w-full sm:w-auto rounded-xl border border-[#1E2235] bg-[#0F111A] px-3.5 py-2 text-sm font-bold text-white focus:border-emerald-500 focus:outline-none cursor-pointer"
               >
-                {projects.map(p => (
+                {(projects || []).filter(p => p && p.id).map(p => (
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
               </select>
@@ -2642,10 +2628,16 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({
                   </button>
                   <button
                     type="submit"
+                    disabled={isCreatingProject}
                     data-testid="new-project-submit"
-                    className="flex-1 sm:flex-initial rounded-xl bg-emerald-500 px-4 py-2 text-xs font-bold text-slate-950 hover:bg-emerald-400 transition min-h-[40px] sm:min-h-0"
+                    className={`flex-1 sm:flex-initial rounded-xl bg-emerald-500 px-4 py-2 text-xs font-bold text-slate-950 hover:bg-emerald-400 transition min-h-[40px] sm:min-h-0 flex items-center justify-center gap-1.5 ${
+                      isCreatingProject ? 'opacity-60 cursor-wait' : ''
+                    }`}
                   >
-                    Create Project
+                    {isCreatingProject && (
+                      <div className="h-3 w-3 animate-spin rounded-full border-2 border-slate-950 border-t-transparent" />
+                    )}
+                    <span>{isCreatingProject ? 'Creating...' : 'Create Project'}</span>
                   </button>
                 </div>
               </div>
@@ -3028,14 +3020,19 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({
             setBatchModalState(prev => ({ ...prev, isOpen: false }));
             if (selectedProjectId) loadSelectedProject(selectedProjectId);
           }}
+          project={projectData}
           projectId={selectedProjectId}
           projectName={projectData.name}
-          testCases={cases.filter(c => c.type !== 'manual')}
+          testCases={(cases || []).filter(c => c && c.type !== 'manual')}
           mode={batchModalState.mode}
           onOpenBilling={onOpenBilling}
+          onRunFinished={async () => {
+            if (selectedProjectId) await loadSelectedProject(selectedProjectId);
+          }}
           onRunComplete={(results) => {
             setCases(prev => prev.map(c => {
-              const matched = results.find(r => r.caseId === c.id);
+              if (!c) return c;
+              const matched = (results || []).find(r => r && r.caseId === c.id);
               return matched ? { ...c, lastResult: matched.testRun } : c;
             }));
           }}

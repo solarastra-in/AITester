@@ -27,6 +27,7 @@ import {
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { Project, TestCase, TestRun, Suite, User, TestSchedule } from '../types';
+import { api, clearStoredToken, getStoredToken } from './api';
 
 // Initialize Firebase App
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
@@ -120,27 +121,56 @@ export interface FirestoreDataset {
 // AUTHENTICATION WITH GOOGLE
 // ----------------------------------------------------------------------
 
-export async function signInWithGoogle(): Promise<User> {
-  try {
-    const result = await signInWithPopup(auth, googleProvider);
-    const fbUser = result.user;
-    return await syncGoogleUserToFirestore(fbUser);
-  } catch (err: any) {
-    if (err?.code === 'auth/unauthorized-domain' || err?.message?.includes('unauthorized-domain')) {
-      const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'this domain';
-      const friendlyErr: any = new Error(
-        `Firebase Authentication: '${currentHost}' is not in Firebase's Authorized Domains list. Please add '${currentHost}' in Firebase Console -> Authentication -> Settings -> Authorized domains tab.`
-      );
-      friendlyErr.code = 'auth/unauthorized-domain';
-      friendlyErr.domain = currentHost;
-      console.error(friendlyErr.message);
-      throw friendlyErr;
-    }
-    throw err;
+let activeGoogleSignInPromise: Promise<User | null> | null = null;
+
+export async function signInWithGoogle(): Promise<User | null> {
+  // If a Google sign-in popup is already open or in flight, return the active promise
+  // instead of opening a concurrent popup, which causes Firebase to abort with auth/cancelled-popup-request
+  if (activeGoogleSignInPromise) {
+    return activeGoogleSignInPromise;
   }
+
+  activeGoogleSignInPromise = (async () => {
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const fbUser = result.user;
+      return await syncGoogleUserToFirestore(fbUser);
+    } catch (err: any) {
+      // Normal cancellation: user closed popup, clicked outside, or rapid duplicate request
+      const isCancellation =
+        err?.code === 'auth/cancelled-popup-request' ||
+        err?.code === 'auth/popup-closed-by-user' ||
+        err?.code === 'auth/popup-blocked' ||
+        err?.message?.includes('cancelled-popup-request') ||
+        err?.message?.includes('popup-closed-by-user') ||
+        err?.message?.includes('popup-blocked');
+
+      if (isCancellation) {
+        // Safe, graceful exit without raising uncaught console errors
+        return null;
+      }
+
+      if (err?.code === 'auth/unauthorized-domain' || err?.message?.includes('unauthorized-domain')) {
+        const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'this domain';
+        const friendlyErr: any = new Error(
+          `Firebase Authentication: '${currentHost}' is not in Firebase's Authorized Domains list. Please add '${currentHost}' in Firebase Console -> Authentication -> Settings -> Authorized domains tab.`
+        );
+        friendlyErr.code = 'auth/unauthorized-domain';
+        friendlyErr.domain = currentHost;
+        console.error(friendlyErr.message);
+        throw friendlyErr;
+      }
+      throw err;
+    } finally {
+      activeGoogleSignInPromise = null;
+    }
+  })();
+
+  return activeGoogleSignInPromise;
 }
 
 export async function signOutGoogle(): Promise<void> {
+  clearStoredToken();
   await signOut(auth);
 }
 
@@ -185,12 +215,36 @@ export async function syncGoogleUserToFirestore(fbUser: FirebaseUser): Promise<U
     });
   }
 
+  // Synchronize with backend API server to mint a valid JWT session token
+  try {
+    await api.syncGoogleAuth({
+      uid: fbUser.uid,
+      email: appUser.email,
+      name: appUser.name,
+    });
+  } catch (syncErr) {
+    console.warn('Backend Google Auth token sync notice:', syncErr);
+  }
+
   return appUser;
 }
 
 export function subscribeAuthState(callback: (user: User | null, fbUser: FirebaseUser | null) => void) {
   return onAuthStateChanged(auth, async (fbUser) => {
     if (fbUser) {
+      // Ensure backend session token is synchronized if missing
+      if (!getStoredToken()) {
+        try {
+          await api.syncGoogleAuth({
+            uid: fbUser.uid,
+            email: fbUser.email || 'user@verity.dev',
+            name: fbUser.displayName || 'Google Developer',
+          });
+        } catch (syncErr) {
+          console.warn('Backend Google Auth token sync notice in subscribeAuthState:', syncErr);
+        }
+      }
+
       try {
         const userRef = doc(db, 'users', fbUser.uid);
         const userSnap = await getDoc(userRef);
@@ -213,6 +267,7 @@ export function subscribeAuthState(callback: (user: User | null, fbUser: Firebas
         }, fbUser);
       }
     } else {
+      clearStoredToken();
       callback(null, null);
     }
   });
@@ -271,7 +326,7 @@ export const datasetService = {
         q = query(collection(db, 'datasets'));
       }
       const snap = await getDocs(q);
-      return snap.docs.map(d => d.data() as FirestoreDataset);
+      return snap.docs.map(d => ({ id: d.id, ...((d.data() as object) || {}) } as unknown as FirestoreDataset));
     } catch (err) {
       handleFirestoreError(err, OperationType.GET, 'datasets');
     }
@@ -290,7 +345,7 @@ export const datasetService = {
     }
     const q = query(collection(db, 'datasets'), where('projectId', '==', projectId));
     return onSnapshot(q, (snap) => {
-      const list = snap.docs.map(d => d.data() as FirestoreDataset);
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() } as FirestoreDataset));
       callback(list);
     }, (err) => {
       console.warn('Datasets snapshot notice:', err);
@@ -407,7 +462,7 @@ export const projectService = {
         q = query(collection(db, 'projects'), where('ownerUserId', '==', auth.currentUser.uid));
       }
       const snap = await getDocs(q);
-      return snap.docs.map(d => d.data() as Project);
+      return snap.docs.map(d => ({ id: d.id, ...((d.data() as object) || {}) } as unknown as Project));
     } catch (err) {
       handleFirestoreError(err, OperationType.GET, 'projects');
     }
@@ -428,7 +483,7 @@ export const projectService = {
       q = query(collection(db, 'projects'), where('ownerUserId', '==', auth.currentUser.uid));
     }
     return onSnapshot(q, (snap) => {
-      const list = snap.docs.map(d => d.data() as Project);
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() } as Project));
       callback(list);
     }, (err) => {
       console.warn('Projects snapshot notice:', err);
@@ -439,7 +494,7 @@ export const projectService = {
   async getProject(projectId: string): Promise<Project | null> {
     const snap = await getDoc(doc(db, 'projects', projectId));
     if (!snap.exists()) return null;
-    return snap.data() as Project;
+    return { id: snap.id, ...snap.data() } as Project;
   },
 
   // Update Project
@@ -517,7 +572,7 @@ export const testCaseService = {
     try {
       const q = query(collection(db, 'test_cases'), where('projectId', '==', projectId));
       const snap = await getDocs(q);
-      return snap.docs.map(d => d.data() as TestCase);
+      return snap.docs.map(d => ({ id: d.id, ...d.data() } as TestCase));
     } catch (err) {
       handleFirestoreError(err, OperationType.GET, 'test_cases');
     }
@@ -536,7 +591,7 @@ export const testCaseService = {
     }
     const q = query(collection(db, 'test_cases'), where('projectId', '==', projectId));
     return onSnapshot(q, (snap) => {
-      const list = snap.docs.map(d => d.data() as TestCase);
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() } as TestCase));
       callback(list);
     }, (err) => {
       console.warn('TestCases snapshot notice:', err);
@@ -586,7 +641,7 @@ export const testRunService = {
   async getTestRuns(projectId: string): Promise<TestRun[]> {
     const q = query(collection(db, 'test_runs'), where('projectId', '==', projectId));
     const snap = await getDocs(q);
-    return snap.docs.map(d => d.data() as TestRun);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() } as TestRun));
   },
 
   // Delete single test run
@@ -611,7 +666,7 @@ export const scheduleService = {
     try {
       const q = query(collection(db, 'test_schedules'), where('projectId', '==', projectId));
       const snap = await getDocs(q);
-      return snap.docs.map(d => d.data() as TestSchedule);
+      return snap.docs.map(d => ({ id: d.id, ...d.data() } as TestSchedule));
     } catch (err: any) {
       console.warn('Firestore getSchedules notice:', err);
       return [];

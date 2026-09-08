@@ -59,6 +59,28 @@ function getGeminiClient(): GoogleGenAI {
   return geminiClient;
 }
 
+/**
+ * Detects whether a path targets an ephemeral, content-hashed static build asset (Vite, Webpack, Next.js, Rollup).
+ * These assets change on every code deployment, causing persistent 404 false alarms in automated test suites.
+ */
+export function isEphemeralHashedAsset(pathStr: string): boolean {
+  if (!pathStr || typeof pathStr !== 'string') return false;
+  const clean = pathStr.split('?')[0].split('#')[0].trim();
+
+  // 1. Files with build hashes in name (e.g. index-l5opthvd.js, index-DQy2Zb7Y.css, main.8f73b1a2.js, chunk.4b8c9d0e.css)
+  if (/[-._][a-zA-Z0-9_-]{6,}\.(?:js|css|map|wasm)$/i.test(clean)) return true;
+  // 2. Next.js static asset chunk directories
+  if (/\/_next\/static\//i.test(clean)) return true;
+  // 3. Webpack chunk / bundle pattern
+  if (/\.(?:chunk|bundle)\.[a-zA-Z0-9_-]+\.(?:js|css)/i.test(clean)) return true;
+  // 4. Asset directories with index or bundle files
+  if (/\/assets\/index-[a-zA-Z0-9]+\.(?:js|css)/i.test(clean)) return true;
+  // 5. Explicitly ignore compiled css/js bundles inside asset or static directories
+  if (/\/(?:assets|static\/js|static\/css|dist)\/.*\.(?:js|css|map)$/i.test(clean)) return true;
+
+  return false;
+}
+
 const SYSTEM_PROMPT = `You are Verity AI, an expert Principal QA Automation Architect.
 Your task is to analyze a target website URL, API documentation, or QA requirements and generate structured automated test cases adhering strictly to the Verity Test Spec schema.
 
@@ -88,7 +110,10 @@ Each test case object MUST follow this schema:
   "instructions": "Only for type=manual"
 }
 
-Ensure you use double curly braces {{placeholder_name}} for dynamic data, auth tokens, test IDs, or secret keys so Verity's Interactive Dataset Engine can automatically prompt the user for dataset values.`;
+CRITICAL RULES & ANTI-PATTERNS:
+- NEVER EVER generate test cases targeting ephemeral, content-hashed static build assets (e.g. /assets/index-*.js, /assets/*.css, _next/static/chunks/*, /static/js/*.chunk.js). Bundlers change these hashes on every deployment, causing persistent 404 false alarms!
+- Only target stable, canonical endpoints: root SPA paths (/), public site documents (/robots.txt, /sitemap.xml), API routes (/api/*, /v1/*), auth endpoints (/auth/login), health probes (/health, /api/health), or semantic backend resources.
+- Ensure you use double curly braces {{placeholder_name}} for dynamic data, auth tokens, test IDs, or secret keys so Verity's Interactive Dataset Engine can automatically prompt the user for dataset values.`;
 
 export interface UrlAnalysisResult {
   detectedType: string;
@@ -118,6 +143,7 @@ Output ONLY a raw, valid JSON object matching this schema:
   "suggestedOpenApiDoc": "string (succinct OpenAPI / endpoint reference list)"
 }
 
+CRITICAL: Do NOT suggest ephemeral, content-hashed build assets (e.g. /assets/index-*.js, *.css, _next/static/*) as endpoints or scenarios. Only suggest stable API, health, auth, or canonical documents (/robots.txt, /sitemap.xml).
 Do NOT wrap in markdown backticks.`;
 
 // In-memory cache for analyzed URLs to avoid duplicate API hits
@@ -261,7 +287,8 @@ function buildSmartAnalysis(cleanUrl: string, userHint?: string): UrlAnalysisRes
       ],
       suggestedEndpoints: [
         { method: 'GET', path: '/', purpose: 'Verify WhyOr Dispatch SPA root availability and theme' },
-        { method: 'GET', path: '/assets/index-l5opthvd.js', purpose: 'Verify main JavaScript client bundle' },
+        { method: 'GET', path: '/robots.txt', purpose: 'Verify search engine crawling policy and sitemap directives' },
+        { method: 'GET', path: '/sitemap.xml', purpose: 'Verify XML sitemap index accessibility' },
         { method: 'POST', path: '/api/dispatch', purpose: 'Dispatch prompt with semantic cost-optimal model routing' },
         { method: 'POST', path: '/v1/dispatch', purpose: 'High complexity prompt dispatch with quality routing' },
         { method: 'POST', path: '/api/chat/sessions', purpose: 'Initialize multi-turn conversation session' },
@@ -478,7 +505,16 @@ Generate 6 to 10 realistic, high-value functional test cases with explicit endpo
 
         const parsed = JSON.parse(text);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map(normalizeStructuredRow);
+          const cleanCases = parsed.filter((row: any) => {
+            const reqs = Array.isArray(row.requests) ? row.requests : [{ path: row.path || row.endpoint }];
+            const hasHashedAsset = reqs.some((r: any) => isEphemeralHashedAsset(r?.path || r?.endpoint || ''));
+            if (hasHashedAsset) {
+              console.warn(`[Verity Test Sanitizer] Blocked automatic creation of ephemeral hashed asset test: "${row.title || row.id}"`);
+              return false;
+            }
+            return true;
+          });
+          return cleanCases.map(normalizeStructuredRow);
         }
       } else if (lastError) {
         handleGeminiError(lastError, 'test generation');
@@ -523,53 +559,58 @@ function generateSmartFallbackCases(
         expected_status: '200, 304',
       },
       {
-        id: 'WHYO-SPA-002',
-        category: 'Static Assets & Bundles',
-        title: 'Verify WhyOr Dispatch main JavaScript bundle loads and is executable',
+        id: 'WHYO-SEO-002',
+        category: 'Search Engine & Crawling Directives',
+        title: 'Verify robots.txt crawling policy and search engine indexing directives',
         priority: 'High',
-        tags: ['assets', 'bundle', 'smoke'],
+        tags: ['seo', 'robots', 'smoke'],
         type: 'http',
         requests: [
           {
-            name: 'Main JS Bundle',
+            name: 'Robots.txt Policy Probe',
             method: 'GET',
-            path: '/assets/index-l5opthvd.js',
-            headers: { 'User-Agent': '{{userAgent}}' },
+            path: '/robots.txt',
+            headers: { Accept: 'text/plain' },
           },
         ],
-        expected_status: '200, 304',
+        expected_status: '200',
+        expected_body_contains: 'User-agent',
       },
       {
-        id: 'WHYO-SPA-003',
-        category: 'Static Assets & Bundles',
-        title: 'Verify compiled Tailwind stylesheet and UI design tokens load successfully',
+        id: 'WHYO-SEO-003',
+        category: 'Search Engine & Crawling Directives',
+        title: 'Verify XML sitemap index accessibility and URL catalog structure',
         priority: 'Medium',
-        tags: ['assets', 'css', 'ui'],
+        tags: ['seo', 'sitemap', 'xml'],
         type: 'http',
         requests: [
           {
-            name: 'Main CSS Stylesheet',
+            name: 'Sitemap XML Probe',
             method: 'GET',
-            path: '/assets/index-DQy2Zb7Y.css',
+            path: '/sitemap.xml',
+            headers: { Accept: 'application/xml,text/xml' },
           },
         ],
-        expected_status: '200, 304',
+        expected_status: '200',
+        expected_body_contains: 'urlset',
       },
       {
-        id: 'WHYO-SPA-004',
-        category: 'Brand & Meta Assets',
-        title: 'Verify OpenGraph social card image and metadata preview asset availability',
-        priority: 'Low',
-        tags: ['seo', 'assets', 'og'],
+        id: 'WHYO-SEC-004',
+        category: 'Platform Security & Metadata',
+        title: 'Verify SPA canonical metadata, OpenGraph declarations and document charset',
+        priority: 'Medium',
+        tags: ['metadata', 'security', 'seo'],
         type: 'http',
         requests: [
           {
-            name: 'OpenGraph Image Check',
+            name: 'Root HTML Metadata Verification',
             method: 'GET',
-            path: '/og-image.png',
+            path: '/',
+            headers: { Accept: 'text/html' },
           },
         ],
         expected_status: '200, 304',
+        expected_body_contains: 'canonical|og:title',
       },
       {
         id: 'WHYO-HLTH-005',
@@ -1572,9 +1613,11 @@ export async function performNetworkIntrospection(rawUrl: string): Promise<{
       securitySignals.push('Multi-Provider BYOK Key Validation');
     }
 
-    // Discover endpoint paths in bundle or markup
+    // Discover endpoint paths in bundle or markup, ignoring static asset build files
     const endpointMatches = htmlSnippet.match(/\/(?:api|v1|auth|chat|models|ledger|dispatch|users|items|health)[a-zA-Z0-9_\-\/.]*/g) || [];
-    const uniquePaths = Array.from(new Set(endpointMatches)).slice(0, 10);
+    const uniquePaths = Array.from(new Set(endpointMatches))
+      .filter(p => !isEphemeralHashedAsset(p) && !/\.(?:js|css|png|jpg|jpeg|gif|svg|ico|webp|woff2?|map|wasm)$/i.test(p))
+      .slice(0, 10);
     for (const p of uniquePaths) {
       let method = 'GET';
       let purpose = 'Public endpoint or health check';
@@ -1650,7 +1693,8 @@ export async function introspectWebsiteAndGenerateQuestions(
     if (discoveredEndpoints.length === 0) {
       discoveredEndpoints.push(
         { method: 'GET', path: '/', purpose: 'Root SPA shell & HTML markup verification', requiresAuth: false },
-        { method: 'GET', path: '/assets/index-l5opthvd.js', purpose: 'Verify main JavaScript client bundle', requiresAuth: false },
+        { method: 'GET', path: '/robots.txt', purpose: 'Verify search engine crawling policy and sitemap directives', requiresAuth: false },
+        { method: 'GET', path: '/sitemap.xml', purpose: 'Verify XML sitemap index accessibility', requiresAuth: false },
         { method: 'POST', path: '/api/dispatch', purpose: 'Thompson-sampling semantic prompt routing to cheapest model', requiresAuth: true },
         { method: 'POST', path: '/v1/dispatch', purpose: 'High-complexity prompt routing to reasoning tier', requiresAuth: true },
         { method: 'POST', path: '/api/chat/sessions', purpose: 'Create and initialize multi-turn conversation session', requiresAuth: true },
@@ -2161,6 +2205,18 @@ export async function buildSuiteFromJourney(
     };
     generatedDrafts.push(normalizeStructuredRow(detailCase, generatedDrafts.length));
   }
+
+  // 4.5 Filter out any generated or custom draft that targets ephemeral hashed build assets
+  generatedDrafts = generatedDrafts.filter(draft => {
+    if (draft.type === 'http' && draft.spec && 'requests' in draft.spec && Array.isArray((draft.spec as any).requests)) {
+      const hasHashed = (draft.spec as any).requests.some((r: any) => isEphemeralHashedAsset(r.path));
+      if (hasHashed) {
+        console.warn(`[Verity Test Sanitizer] Filtered out ephemeral hashed asset draft in journey: "${draft.title || draft.ext_id}"`);
+        return false;
+      }
+    }
+    return true;
+  });
 
   // 5. Audit all required dataFields and ensure zero missing fields in dataset
   for (const c of generatedDrafts) {

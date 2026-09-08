@@ -86,16 +86,23 @@ export const TestSchedulerTab: React.FC<TestSchedulerTabProps> = ({
 
   // Fetch schedules for project
   const loadSchedules = async () => {
+    if (!project?.id) {
+      setSchedules([]);
+      setLoading(false);
+      return;
+    }
     try {
       setRefreshing(true);
       const data = await api.getSchedules(project.id);
-      setSchedules(data);
+      setSchedules(data || []);
     } catch (err: any) {
       console.warn('Backend getSchedules notice, checking fallback:', err);
       try {
-        const fbData = await scheduleService.getSchedules(project.id);
-        if (fbData && fbData.length > 0) {
-          setSchedules(fbData);
+        if (project?.id) {
+          const fbData = await scheduleService.getSchedules(project.id);
+          if (fbData && fbData.length > 0) {
+            setSchedules(fbData);
+          }
         }
       } catch (fbErr) {
         console.warn('Firestore getSchedules fallback notice:', fbErr);
@@ -108,7 +115,7 @@ export const TestSchedulerTab: React.FC<TestSchedulerTabProps> = ({
 
   useEffect(() => {
     loadSchedules();
-  }, [project.id]);
+  }, [project?.id]);
 
   const automatedCasesCount = useMemo(() => {
     return testCases.filter(c => c.type !== 'manual').length;
@@ -175,6 +182,12 @@ export const TestSchedulerTab: React.FC<TestSchedulerTabProps> = ({
       enabled: formEnabled,
     };
 
+    if (!project?.id) {
+      setFormError('Project identifier missing.');
+      setFormSubmitting(false);
+      return;
+    }
+
     try {
       if (editingSchedule) {
         const updated = await api.updateSchedule(project.id, editingSchedule.id, payload);
@@ -195,6 +208,7 @@ export const TestSchedulerTab: React.FC<TestSchedulerTabProps> = ({
 
   // Toggle Enabled
   const handleToggleSchedule = async (s: TestSchedule) => {
+    if (!project?.id) return;
     try {
       const updated = await api.toggleSchedule(project.id, s.id);
       setSchedules(prev => prev.map(item => item.id === s.id ? updated : item));
@@ -206,6 +220,7 @@ export const TestSchedulerTab: React.FC<TestSchedulerTabProps> = ({
 
   // Run Now (Immediate Trigger)
   const handleTriggerNow = async (s: TestSchedule) => {
+    if (!project?.id) return;
     try {
       setTriggeringId(s.id);
       const res = await api.triggerSchedule(project.id, s.id);
@@ -225,6 +240,7 @@ export const TestSchedulerTab: React.FC<TestSchedulerTabProps> = ({
 
   // Delete Schedule
   const handleDeleteSchedule = async (s: TestSchedule) => {
+    if (!project?.id) return;
     if (!window.confirm(`Delete schedule trigger '${s.name}'? Automated runs for this schedule will cease.`)) {
       return;
     }

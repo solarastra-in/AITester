@@ -24,16 +24,26 @@ export const AuthModals: React.FC<AuthModalsProps> = ({ mode, onClose, onSuccess
   if (!mode) return null;
 
   const handleGoogleAuth = async () => {
+    if (isGoogleLoading) return;
     setError(null);
     setSuccessMessage(null);
     setIsGoogleLoading(true);
     try {
       const user = await signInWithGoogle();
-      onSuccess(user);
-      onClose();
+      if (user) {
+        onSuccess(user);
+        onClose();
+      }
     } catch (err: any) {
-      console.error('Google sign-in error:', err);
-      setError(err.message || 'Failed to authenticate with Google.');
+      if (
+        err?.code !== 'auth/cancelled-popup-request' &&
+        err?.code !== 'auth/popup-closed-by-user' &&
+        !err?.message?.includes('cancelled-popup-request') &&
+        !err?.message?.includes('popup-closed-by-user')
+      ) {
+        console.error('Google sign-in error:', err);
+        setError(err.message || 'Failed to authenticate with Google.');
+      }
     } finally {
       setIsGoogleLoading(false);
     }

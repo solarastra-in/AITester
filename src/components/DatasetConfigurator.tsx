@@ -81,7 +81,7 @@ export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
   const [revealedSecrets, setRevealedSecrets] = useState<Record<string, boolean>>({});
 
   // Active simulated test case for Step 4 (Resolution Preview)
-  const [selectedSimCaseId, setSelectedSimCaseId] = useState<string>(testCases[0]?.id || '');
+  const [selectedSimCaseId, setSelectedSimCaseId] = useState<string>(testCases?.[0]?.id || '');
   const [activeTabFilter, setActiveTabFilter] = useState<'all' | 'missing' | 'auth' | 'ids'>('all');
 
   // Firestore Datasets Management State (Full CRUD)
@@ -139,15 +139,16 @@ export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
   useEffect(() => {
     if (!project?.id) return;
     const unsubscribe = datasetService.subscribeDatasets(project.id, (list) => {
-      setFirestoreDatasets(list);
-      if (list.length > 0) {
+      const validList = Array.isArray(list) ? list.filter(d => d && d.id) : [];
+      setFirestoreDatasets(validList);
+      if (validList.length > 0) {
         // If no dataset selected or current is invalid, select the default or first
         setSelectedDatasetId(prev => {
-          if (prev && list.some(d => d.id === prev)) {
+          if (prev && validList.some(d => d.id === prev)) {
             return prev;
           }
-          const def = list.find(d => d.isDefault) || list[0];
-          return def.id;
+          const def = validList.find(d => d.isDefault) || validList[0];
+          return def?.id || validList[0]?.id || '';
         });
       }
     });
@@ -169,7 +170,7 @@ export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
   // Firestore CRUD: Create New Dataset
   const handleCreateNewDataset = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!datasetFormName.trim()) return;
+    if (!datasetFormName.trim() || !project?.id) return;
     try {
       setIsSaving(true);
       const newDs = await datasetService.createDataset({
@@ -177,7 +178,7 @@ export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
         name: datasetFormName.trim(),
         environment: datasetFormEnv,
         description: datasetFormDesc.trim(),
-        variables: cloneCurrentVars ? localDataset : { baseUrl: project.siteUrl },
+        variables: cloneCurrentVars ? localDataset : { baseUrl: project?.siteUrl || '' },
         isDefault: firestoreDatasets.length === 0,
       });
       setSelectedDatasetId(newDs.id);
@@ -541,7 +542,7 @@ export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
   };
 
   // Selected test case for Step 4 Resolution Simulation
-  const activeSimCase = testCases.find(c => c.id === selectedSimCaseId) || testCases[0];
+  const activeSimCase = (testCases || []).find(c => c && c.id === selectedSimCaseId) || testCases?.[0] || null;
 
   // Resolve template string with current localDataset
   const resolveTemplateString = (input: string): { resolved: string; missingPlaceholders: string[] } => {

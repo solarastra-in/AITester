@@ -6,7 +6,7 @@
       "name": "Platform Superadmin",
       "passwordHash": "$2b$10$PFPsH20p0oIpjkUfZ/Duce/Kt4o2hH9hIczBl3cECNRhoCtb4iVGW",
       "role": "platform_admin",
-      "creditsBalance": 9994,
+      "creditsBalance": 9993,
       "createdAt": "2026-08-03T17:05:24.722Z"
     },
     {
@@ -38,6 +38,15 @@
       "role": "standalone",
       "creditsBalance": 50,
       "createdAt": "2026-08-23T17:05:25.028Z"
+    },
+    {
+      "id": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "email": "neerajjain0911@gmail.com",
+      "name": "Neeraj Jain",
+      "passwordHash": "",
+      "role": "standalone",
+      "creditsBalance": 52,
+      "createdAt": "2026-09-08T12:49:14.592Z"
     }
   ],
   "organizations": [
@@ -70,6 +79,42 @@
     }
   ],
   "projects": [
+    {
+      "id": "proj_026402e7",
+      "ownerUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "orgId": null,
+      "name": "AI whyor",
+      "siteUrl": "https://ai.whyor.in",
+      "description": "AI whyor",
+      "dataset": {
+        "baseUrl": "https://ai.whyor.in",
+        "authTokens": {
+          "guest": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMyIsImF1ZCI6InZlcml0eS1xYSIsImlhdCI6MTY3MjUzMTAwMH0.mock_signature_8xz2v73y",
+          "user": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMyIsImF1ZCI6InZlcml0eS1xYSIsImlhdCI6MTY3MjUzMTAwMH0.mock_signature_as0616yg",
+          "admin": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMyIsImF1ZCI6InZlcml0eS1xYSIsImlhdCI6MTY3MjUzMTAwMH0.mock_signature_mr34g2sr"
+        },
+        "models": {
+          "smart_model": "synthetic_models.smart_model_a36vq"
+        },
+        "prompt_samples": {
+          "code_query": "active_status_q",
+          "complex_query": "active_status_q",
+          "invalid_empty": "977",
+          "simple_query": "active_status_q"
+        },
+        "credentials_test": {
+          "invalid_key": "822",
+          "masked_key": "synthetic_credentials_test.masked_key_e4qzn",
+          "provider": "718"
+        },
+        "session_id": "894",
+        "team_id": "137",
+        "trial_email": "qa.tester_378@example.com",
+        "userAgent": "synthetic_userAgent_46t3y"
+      },
+      "createdAt": "2026-09-08T12:51:08.679Z",
+      "updatedAt": "2026-09-08T12:54:33.456Z"
+    },
     {
       "id": "proj_a4456523",
       "ownerUserId": "usr_org_admin_a",
@@ -488,6 +533,13 @@
       "name": "Custom Test Suite",
       "source": "manual",
       "createdAt": "2026-09-07T09:46:46.670Z"
+    },
+    {
+      "id": "suite_6dbe736c",
+      "projectId": "proj_026402e7",
+      "name": "WhyOr Dispatch End-to-End System & Architecture Suite",
+      "source": "ai_generated",
+      "createdAt": "2026-09-08T12:52:50.168Z"
     }
   ],
   "testCases": [
@@ -1111,36 +1163,36 @@
       "projectId": "proj_90fec6ba",
       "suiteId": "suite_whyor_master_fec6ba",
       "suiteName": "WhyOr Dispatch End-to-End System & Architecture Suite",
-      "extId": "WHYO-SPA-002",
-      "category": "Static Assets & Bundles",
-      "title": "Verify WhyOr Dispatch main JavaScript bundle loads and is executable",
+      "extId": "WHYO-SEO-002",
+      "category": "Search Engine & Crawling Directives",
+      "title": "Verify robots.txt crawling policy and search engine indexing directives",
       "priority": "High",
       "tags": [
-        "assets",
-        "bundle",
+        "seo",
+        "robots",
         "smoke"
       ],
       "type": "http",
       "spec": {
         "requests": [
           {
-            "name": "Main JS Bundle",
+            "name": "Robots.txt Policy Probe",
             "method": "GET",
-            "path": "/assets/index-l5opthvd.js",
+            "path": "/robots.txt",
             "headers": {
-              "User-Agent": "{{userAgent}}"
+              "Accept": "text/plain"
             }
           }
         ],
         "expect": {
           "statusIn": [
-            200,
-            304
+            200
           ],
           "bodyContains": [
-            "dispatch",
-            "ledger"
-          ]
+            "User-agent"
+          ],
+          "bodyNotContains": [],
+          "headerEquals": {}
         }
       },
       "dataFields": [
@@ -1154,29 +1206,36 @@
       "projectId": "proj_90fec6ba",
       "suiteId": "suite_whyor_master_fec6ba",
       "suiteName": "WhyOr Dispatch End-to-End System & Architecture Suite",
-      "extId": "WHYO-SPA-003",
-      "category": "Static Assets & Bundles",
-      "title": "Verify compiled Tailwind stylesheet and UI design tokens load successfully",
+      "extId": "WHYO-SEO-003",
+      "category": "Search Engine & Crawling Directives",
+      "title": "Verify XML sitemap index accessibility and URL catalog structure",
       "priority": "Medium",
       "tags": [
-        "assets",
-        "css",
-        "ui"
+        "seo",
+        "sitemap",
+        "xml"
       ],
       "type": "http",
       "spec": {
         "requests": [
           {
-            "name": "Main CSS Stylesheet",
+            "name": "Sitemap XML Probe",
             "method": "GET",
-            "path": "/assets/index-DQy2Zb7Y.css"
+            "path": "/sitemap.xml",
+            "headers": {
+              "Accept": "application/xml,text/xml"
+            }
           }
         ],
         "expect": {
           "statusIn": [
-            200,
-            304
-          ]
+            200
+          ],
+          "bodyContains": [
+            "urlset"
+          ],
+          "bodyNotContains": [],
+          "headerEquals": {}
         }
       },
       "dataFields": [],
@@ -2094,36 +2153,36 @@
       "projectId": "proj_mg9jb8xuq",
       "suiteId": "suite_whyor_master_jb8xuq",
       "suiteName": "WhyOr Dispatch End-to-End System & Architecture Suite",
-      "extId": "WHYO-SPA-002",
-      "category": "Static Assets & Bundles",
-      "title": "Verify WhyOr Dispatch main JavaScript bundle loads and is executable",
+      "extId": "WHYO-SEO-002",
+      "category": "Search Engine & Crawling Directives",
+      "title": "Verify robots.txt crawling policy and search engine indexing directives",
       "priority": "High",
       "tags": [
-        "assets",
-        "bundle",
+        "seo",
+        "robots",
         "smoke"
       ],
       "type": "http",
       "spec": {
         "requests": [
           {
-            "name": "Main JS Bundle",
+            "name": "Robots.txt Policy Probe",
             "method": "GET",
-            "path": "/assets/index-l5opthvd.js",
+            "path": "/robots.txt",
             "headers": {
-              "User-Agent": "{{userAgent}}"
+              "Accept": "text/plain"
             }
           }
         ],
         "expect": {
           "statusIn": [
-            200,
-            304
+            200
           ],
           "bodyContains": [
-            "dispatch",
-            "ledger"
-          ]
+            "User-agent"
+          ],
+          "bodyNotContains": [],
+          "headerEquals": {}
         }
       },
       "dataFields": [
@@ -2137,29 +2196,36 @@
       "projectId": "proj_mg9jb8xuq",
       "suiteId": "suite_whyor_master_jb8xuq",
       "suiteName": "WhyOr Dispatch End-to-End System & Architecture Suite",
-      "extId": "WHYO-SPA-003",
-      "category": "Static Assets & Bundles",
-      "title": "Verify compiled Tailwind stylesheet and UI design tokens load successfully",
+      "extId": "WHYO-SEO-003",
+      "category": "Search Engine & Crawling Directives",
+      "title": "Verify XML sitemap index accessibility and URL catalog structure",
       "priority": "Medium",
       "tags": [
-        "assets",
-        "css",
-        "ui"
+        "seo",
+        "sitemap",
+        "xml"
       ],
       "type": "http",
       "spec": {
         "requests": [
           {
-            "name": "Main CSS Stylesheet",
+            "name": "Sitemap XML Probe",
             "method": "GET",
-            "path": "/assets/index-DQy2Zb7Y.css"
+            "path": "/sitemap.xml",
+            "headers": {
+              "Accept": "application/xml,text/xml"
+            }
           }
         ],
         "expect": {
           "statusIn": [
-            200,
-            304
-          ]
+            200
+          ],
+          "bodyContains": [
+            "urlset"
+          ],
+          "bodyNotContains": [],
+          "headerEquals": {}
         }
       },
       "dataFields": [],
@@ -3077,36 +3143,36 @@
       "projectId": "proj_442e18bc",
       "suiteId": "suite_whyor_master_2e18bc",
       "suiteName": "WhyOr Dispatch End-to-End System & Architecture Suite",
-      "extId": "WHYO-SPA-002",
-      "category": "Static Assets & Bundles",
-      "title": "Verify WhyOr Dispatch main JavaScript bundle loads and is executable",
+      "extId": "WHYO-SEO-002",
+      "category": "Search Engine & Crawling Directives",
+      "title": "Verify robots.txt crawling policy and search engine indexing directives",
       "priority": "High",
       "tags": [
-        "assets",
-        "bundle",
+        "seo",
+        "robots",
         "smoke"
       ],
       "type": "http",
       "spec": {
         "requests": [
           {
-            "name": "Main JS Bundle",
+            "name": "Robots.txt Policy Probe",
             "method": "GET",
-            "path": "/assets/index-l5opthvd.js",
+            "path": "/robots.txt",
             "headers": {
-              "User-Agent": "{{userAgent}}"
+              "Accept": "text/plain"
             }
           }
         ],
         "expect": {
           "statusIn": [
-            200,
-            304
+            200
           ],
           "bodyContains": [
-            "dispatch",
-            "ledger"
-          ]
+            "User-agent"
+          ],
+          "bodyNotContains": [],
+          "headerEquals": {}
         }
       },
       "dataFields": [
@@ -3120,29 +3186,36 @@
       "projectId": "proj_442e18bc",
       "suiteId": "suite_whyor_master_2e18bc",
       "suiteName": "WhyOr Dispatch End-to-End System & Architecture Suite",
-      "extId": "WHYO-SPA-003",
-      "category": "Static Assets & Bundles",
-      "title": "Verify compiled Tailwind stylesheet and UI design tokens load successfully",
+      "extId": "WHYO-SEO-003",
+      "category": "Search Engine & Crawling Directives",
+      "title": "Verify XML sitemap index accessibility and URL catalog structure",
       "priority": "Medium",
       "tags": [
-        "assets",
-        "css",
-        "ui"
+        "seo",
+        "sitemap",
+        "xml"
       ],
       "type": "http",
       "spec": {
         "requests": [
           {
-            "name": "Main CSS Stylesheet",
+            "name": "Sitemap XML Probe",
             "method": "GET",
-            "path": "/assets/index-DQy2Zb7Y.css"
+            "path": "/sitemap.xml",
+            "headers": {
+              "Accept": "application/xml,text/xml"
+            }
           }
         ],
         "expect": {
           "statusIn": [
-            200,
-            304
-          ]
+            200
+          ],
+          "bodyContains": [
+            "urlset"
+          ],
+          "bodyNotContains": [],
+          "headerEquals": {}
         }
       },
       "dataFields": [],
@@ -4102,34 +4175,35 @@
     {
       "id": "tc_84918fd2",
       "suiteId": "suite_af8bd46f",
-      "extId": "WHYO-SPA-002",
-      "category": "Static Assets & Bundles",
-      "title": "Verify WhyOr Dispatch main JavaScript bundle loads and is executable",
+      "extId": "WHYO-SEO-002",
+      "category": "Search Engine & Crawling Directives",
+      "title": "Verify robots.txt crawling policy and search engine indexing directives",
       "priority": "High",
       "type": "http",
       "tags": [
-        "assets",
-        "bundle",
+        "seo",
+        "robots",
         "smoke"
       ],
       "spec": {
         "requests": [
           {
-            "name": "Main JS Bundle",
+            "name": "Robots.txt Policy Probe",
             "method": "GET",
-            "path": "/assets/index-l5opthvd.js",
+            "path": "/robots.txt",
             "authPersona": null,
             "headers": {
-              "User-Agent": "{{userAgent}}"
+              "Accept": "text/plain"
             }
           }
         ],
         "expect": {
           "statusIn": [
-            200,
-            304
+            200
           ],
-          "bodyContains": [],
+          "bodyContains": [
+            "User-agent"
+          ],
           "bodyNotContains": [],
           "headerEquals": {}
         }
@@ -4142,32 +4216,35 @@
     {
       "id": "tc_da3935f1",
       "suiteId": "suite_af8bd46f",
-      "extId": "WHYO-SPA-003",
-      "category": "Static Assets & Bundles",
-      "title": "Verify compiled Tailwind stylesheet and UI design tokens load successfully",
+      "extId": "WHYO-SEO-003",
+      "category": "Search Engine & Crawling Directives",
+      "title": "Verify XML sitemap index accessibility and URL catalog structure",
       "priority": "Medium",
       "type": "http",
       "tags": [
-        "assets",
-        "css",
-        "ui"
+        "seo",
+        "sitemap",
+        "xml"
       ],
       "spec": {
         "requests": [
           {
-            "name": "Main CSS Stylesheet",
+            "name": "Sitemap XML Probe",
             "method": "GET",
-            "path": "/assets/index-DQy2Zb7Y.css",
+            "path": "/sitemap.xml",
             "authPersona": null,
-            "headers": {}
+            "headers": {
+              "Accept": "application/xml,text/xml"
+            }
           }
         ],
         "expect": {
           "statusIn": [
-            200,
-            304
+            200
           ],
-          "bodyContains": [],
+          "bodyContains": [
+            "urlset"
+          ],
           "bodyNotContains": [],
           "headerEquals": {}
         }
@@ -4178,24 +4255,26 @@
     {
       "id": "tc_dd93b895",
       "suiteId": "suite_af8bd46f",
-      "extId": "WHYO-SPA-004",
-      "category": "Brand & Meta Assets",
-      "title": "Verify OpenGraph social card image and metadata preview asset availability",
-      "priority": "Low",
+      "extId": "WHYO-SEC-004",
+      "category": "Platform Security & Metadata",
+      "title": "Verify SPA canonical metadata, OpenGraph declarations and document charset",
+      "priority": "Medium",
       "type": "http",
       "tags": [
-        "seo",
-        "assets",
-        "og"
+        "metadata",
+        "security",
+        "seo"
       ],
       "spec": {
         "requests": [
           {
-            "name": "OpenGraph Image Check",
+            "name": "Root HTML Metadata Verification",
             "method": "GET",
-            "path": "/og-image.png",
+            "path": "/",
             "authPersona": null,
-            "headers": {}
+            "headers": {
+              "Accept": "text/html"
+            }
           }
         ],
         "expect": {
@@ -4203,7 +4282,9 @@
             200,
             304
           ],
-          "bodyContains": [],
+          "bodyContains": [
+            "canonical"
+          ],
           "bodyNotContains": [],
           "headerEquals": {}
         }
@@ -5103,9 +5184,2124 @@
       "spec": "GET https://api.acme.corp/pay",
       "dataFields": [],
       "createdAt": "2026-09-07T09:46:46.670Z"
+    },
+    {
+      "id": "tc_be68f911",
+      "suiteId": "suite_6dbe736c",
+      "extId": "WHYO-SPA-001",
+      "category": "Platform Smoke & Shell",
+      "title": "Verify WhyOr Dispatch root SPA loads with status 200 and valid HTML shell",
+      "priority": "High",
+      "tags": [
+        "smoke",
+        "spa",
+        "html"
+      ],
+      "type": "http",
+      "spec": {
+        "requests": [
+          {
+            "name": "Root SPA Request",
+            "method": "GET",
+            "path": "/",
+            "authPersona": null,
+            "headers": {
+              "Accept": "text/html,application/xhtml+xml"
+            }
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            200,
+            304
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [],
+      "createdAt": "2026-09-08T12:52:50.168Z"
+    },
+    {
+      "id": "tc_66de04b7",
+      "suiteId": "suite_6dbe736c",
+      "extId": "WHYO-SEO-002",
+      "category": "Search Engine & Crawling Directives",
+      "title": "Verify robots.txt crawling policy and search engine indexing directives",
+      "priority": "High",
+      "tags": [
+        "seo",
+        "robots",
+        "smoke"
+      ],
+      "type": "http",
+      "spec": {
+        "requests": [
+          {
+            "name": "Robots.txt Policy Probe",
+            "method": "GET",
+            "path": "/robots.txt",
+            "authPersona": null,
+            "headers": {
+              "Accept": "text/plain"
+            }
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            200
+          ],
+          "bodyContains": [
+            "User-agent"
+          ],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [
+        "userAgent"
+      ],
+      "createdAt": "2026-09-08T12:52:50.168Z"
+    },
+    {
+      "id": "tc_c211fd5a",
+      "suiteId": "suite_6dbe736c",
+      "extId": "WHYO-SEO-003",
+      "category": "Search Engine & Crawling Directives",
+      "title": "Verify XML sitemap index accessibility and URL catalog structure",
+      "priority": "Medium",
+      "tags": [
+        "seo",
+        "sitemap",
+        "xml"
+      ],
+      "type": "http",
+      "spec": {
+        "requests": [
+          {
+            "name": "Sitemap XML Probe",
+            "method": "GET",
+            "path": "/sitemap.xml",
+            "authPersona": null,
+            "headers": {
+              "Accept": "application/xml,text/xml"
+            }
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            200
+          ],
+          "bodyContains": [
+            "urlset"
+          ],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [],
+      "createdAt": "2026-09-08T12:52:50.168Z"
+    },
+    {
+      "id": "tc_bd6cf47d",
+      "suiteId": "suite_6dbe736c",
+      "extId": "WHYO-SEC-004",
+      "category": "Platform Security & Metadata",
+      "title": "Verify SPA canonical metadata, OpenGraph declarations and document charset",
+      "priority": "Medium",
+      "tags": [
+        "metadata",
+        "security",
+        "seo"
+      ],
+      "type": "http",
+      "spec": {
+        "requests": [
+          {
+            "name": "Root HTML Metadata Verification",
+            "method": "GET",
+            "path": "/",
+            "authPersona": null,
+            "headers": {
+              "Accept": "text/html"
+            }
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            200,
+            304
+          ],
+          "bodyContains": [
+            "canonical"
+          ],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [],
+      "createdAt": "2026-09-08T12:52:50.168Z"
+    },
+    {
+      "id": "tc_7497e387",
+      "suiteId": "suite_6dbe736c",
+      "extId": "WHYO-HLTH-005",
+      "category": "System & Gateway Health",
+      "title": "Probe API gateway health check endpoint and verify operational status",
+      "priority": "High",
+      "tags": [
+        "health",
+        "api",
+        "gateway"
+      ],
+      "type": "http",
+      "spec": {
+        "requests": [
+          {
+            "name": "Gateway Health Probe",
+            "method": "GET",
+            "path": "/api/health",
+            "authPersona": null,
+            "headers": {
+              "Accept": "application/json"
+            }
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            200
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [],
+      "createdAt": "2026-09-08T12:52:50.168Z"
+    },
+    {
+      "id": "tc_046b40a1",
+      "suiteId": "suite_6dbe736c",
+      "extId": "WHYO-ROUT-006",
+      "category": "AI Dispatch & Routing Engine",
+      "title": "Dispatch simple query with semantic router to cheapest low-cost model",
+      "priority": "High",
+      "tags": [
+        "ai",
+        "dispatch",
+        "routing"
+      ],
+      "type": "http",
+      "spec": {
+        "requests": [
+          {
+            "name": "Low Complexity Prompt Dispatch",
+            "method": "POST",
+            "path": "/api/dispatch",
+            "authPersona": "user",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "prompt": "{{prompt_samples.simple_query}}",
+              "routingMode": "cheapest",
+              "stream": false
+            }
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            200,
+            201
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [
+        "prompt_samples.simple_query"
+      ],
+      "createdAt": "2026-09-08T12:52:50.168Z"
+    },
+    {
+      "id": "tc_4b595cb6",
+      "suiteId": "suite_6dbe736c",
+      "extId": "WHYO-ROUT-007",
+      "category": "AI Dispatch & Routing Engine",
+      "title": "Dispatch complex engineering prompt routing to high-capability reasoning tier",
+      "priority": "High",
+      "tags": [
+        "ai",
+        "dispatch",
+        "reasoning"
+      ],
+      "type": "http",
+      "spec": {
+        "requests": [
+          {
+            "name": "High Complexity Prompt Dispatch",
+            "method": "POST",
+            "path": "/v1/dispatch",
+            "authPersona": "user",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "prompt": "{{prompt_samples.complex_query}}",
+              "routingMode": "quality_first",
+              "stream": false
+            }
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            200,
+            201
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [
+        "prompt_samples.complex_query"
+      ],
+      "createdAt": "2026-09-08T12:52:50.168Z"
+    },
+    {
+      "id": "tc_a05341ee",
+      "suiteId": "suite_6dbe736c",
+      "extId": "WHYO-ROUT-008",
+      "category": "AI Dispatch & Routing Engine",
+      "title": "Execute prompt dispatch with explicit model override (Claude 3.7 Sonnet)",
+      "priority": "High",
+      "tags": [
+        "ai",
+        "override",
+        "models"
+      ],
+      "type": "http",
+      "spec": {
+        "requests": [
+          {
+            "name": "Model Override Dispatch",
+            "method": "POST",
+            "path": "/api/dispatch",
+            "authPersona": "user",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "prompt": "{{prompt_samples.code_query}}",
+              "modelOverride": "{{models.smart_model}}"
+            }
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            200,
+            201
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [
+        "prompt_samples.code_query",
+        "models.smart_model"
+      ],
+      "createdAt": "2026-09-08T12:52:50.168Z"
+    },
+    {
+      "id": "tc_53891c3d",
+      "suiteId": "suite_6dbe736c",
+      "extId": "WHYO-ROUT-009",
+      "category": "Validation & Guardrails",
+      "title": "Reject empty prompt payload with validation error (400 or 422)",
+      "priority": "Medium",
+      "tags": [
+        "negative",
+        "validation",
+        "guardrails"
+      ],
+      "type": "http",
+      "spec": {
+        "requests": [
+          {
+            "name": "Empty Prompt Submission",
+            "method": "POST",
+            "path": "/api/dispatch",
+            "authPersona": "user",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "prompt": "{{prompt_samples.invalid_empty}}"
+            }
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            400,
+            422
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [
+        "prompt_samples.invalid_empty"
+      ],
+      "createdAt": "2026-09-08T12:52:50.168Z"
+    },
+    {
+      "id": "tc_41950e93",
+      "suiteId": "suite_6dbe736c",
+      "extId": "WHYO-CORR-010",
+      "category": "Bayesian Quality & Corroboration",
+      "title": "Execute Bayesian multi-model corroboration vote on prompt output",
+      "priority": "Medium",
+      "tags": [
+        "quality",
+        "bayesian",
+        "corroborate"
+      ],
+      "type": "http",
+      "spec": {
+        "requests": [
+          {
+            "name": "Output Corroboration Check",
+            "method": "POST",
+            "path": "/api/dispatch/corroborate",
+            "authPersona": "user",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "prompt": "{{prompt_samples.simple_query}}",
+              "candidateModels": [
+                "gemini-3.7-flash",
+                "claude-3.5-sonnet"
+              ]
+            }
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            200,
+            201
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [
+        "prompt_samples.simple_query"
+      ],
+      "createdAt": "2026-09-08T12:52:50.168Z"
+    },
+    {
+      "id": "tc_2c40ed67",
+      "suiteId": "suite_6dbe736c",
+      "extId": "WHYO-CHAT-011",
+      "category": "AI Chat & Context Sessions",
+      "title": "Create new multi-turn conversation session and initialize context",
+      "priority": "High",
+      "tags": [
+        "chat",
+        "sessions",
+        "context"
+      ],
+      "type": "http",
+      "spec": {
+        "requests": [
+          {
+            "name": "Initialize Chat Session",
+            "method": "POST",
+            "path": "/api/chat/sessions",
+            "authPersona": "user",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "title": "Verity Automated Test Session",
+              "initialPrompt": "{{prompt_samples.simple_query}}"
+            }
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            200,
+            201
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [
+        "prompt_samples.simple_query"
+      ],
+      "createdAt": "2026-09-08T12:52:50.168Z"
+    },
+    {
+      "id": "tc_77a48ba7",
+      "suiteId": "suite_6dbe736c",
+      "extId": "WHYO-FILE-012",
+      "category": "Workspace & Studio",
+      "title": "Upload and preprocess source document for zero-loss context compression",
+      "priority": "Medium",
+      "tags": [
+        "workspace",
+        "preprocessing",
+        "context"
+      ],
+      "type": "http",
+      "spec": {
+        "requests": [
+          {
+            "name": "Preprocess Context File",
+            "method": "POST",
+            "path": "/api/preprocess/file",
+            "authPersona": "user",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "fileName": "spec.txt",
+              "content": "Architecture specification for Thompson sampling multi-model router.",
+              "compress": true
+            }
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            200,
+            201
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [],
+      "createdAt": "2026-09-08T12:52:50.168Z"
+    },
+    {
+      "id": "tc_cd08f007",
+      "suiteId": "suite_6dbe736c",
+      "extId": "WHYO-LEDG-013",
+      "category": "Context Ledger & Auditing",
+      "title": "Save conversation turns to hash-chained tamper-evident context ledger",
+      "priority": "High",
+      "tags": [
+        "ledger",
+        "cryptographic",
+        "context"
+      ],
+      "type": "http",
+      "spec": {
+        "requests": [
+          {
+            "name": "Save Context Turn",
+            "method": "POST",
+            "path": "/api/context/save",
+            "authPersona": "user",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "sessionId": "{{session_id}}",
+              "userQuery": "{{prompt_samples.code_query}}",
+              "modelResponse": "export const useDebounce = () => {}",
+              "tokenUsage": {
+                "input": 45,
+                "output": 85
+              }
+            }
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            200,
+            201
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [
+        "session_id",
+        "prompt_samples.code_query"
+      ],
+      "createdAt": "2026-09-08T12:52:50.168Z"
+    },
+    {
+      "id": "tc_d3e76c46",
+      "suiteId": "suite_6dbe736c",
+      "extId": "WHYO-LEDG-014",
+      "category": "Context Ledger & Auditing",
+      "title": "Retrieve context ledger records and verify cryptographic chain continuity",
+      "priority": "High",
+      "tags": [
+        "ledger",
+        "audit",
+        "integrity"
+      ],
+      "type": "http",
+      "spec": {
+        "requests": [
+          {
+            "name": "Fetch Context Ledger",
+            "method": "GET",
+            "path": "/api/ledger?session_id={{session_id}}",
+            "authPersona": "user",
+            "headers": {}
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            200
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [
+        "session_id"
+      ],
+      "createdAt": "2026-09-08T12:52:50.168Z"
+    },
+    {
+      "id": "tc_261fafe7",
+      "suiteId": "suite_6dbe736c",
+      "extId": "WHYO-CAT-015",
+      "category": "Models & Tools Catalog",
+      "title": "Retrieve active multi-provider model catalog and token pricing matrix",
+      "priority": "Medium",
+      "tags": [
+        "catalog",
+        "pricing",
+        "models"
+      ],
+      "type": "http",
+      "spec": {
+        "requests": [
+          {
+            "name": "Fetch Model Catalog",
+            "method": "GET",
+            "path": "/api/models",
+            "authPersona": null,
+            "headers": {
+              "Accept": "application/json"
+            }
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            200
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [],
+      "createdAt": "2026-09-08T12:52:50.168Z"
+    },
+    {
+      "id": "tc_d7eff124",
+      "suiteId": "suite_6dbe736c",
+      "extId": "WHYO-CAT-016",
+      "category": "Models & Tools Catalog",
+      "title": "Probe real-time availability and provider status for active models",
+      "priority": "Medium",
+      "tags": [
+        "catalog",
+        "availability",
+        "health"
+      ],
+      "type": "http",
+      "spec": {
+        "requests": [
+          {
+            "name": "Model Availability Probe",
+            "method": "GET",
+            "path": "/api/models/availability",
+            "authPersona": null,
+            "headers": {}
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            200
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [],
+      "createdAt": "2026-09-08T12:52:50.168Z"
+    },
+    {
+      "id": "tc_4c7a52aa",
+      "suiteId": "suite_6dbe736c",
+      "extId": "WHYO-BYOK-017",
+      "category": "Company BYOK & Credentials",
+      "title": "Verify third-party API key connectivity for {{credentials_test.provider}}",
+      "priority": "High",
+      "tags": [
+        "byok",
+        "credentials",
+        "security"
+      ],
+      "type": "http",
+      "spec": {
+        "requests": [
+          {
+            "name": "Verify BYOK Credentials",
+            "method": "POST",
+            "path": "/api/credentials/verify",
+            "authPersona": "user",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "provider": "{{credentials_test.provider}}",
+              "apiKey": "{{credentials_test.masked_key}}"
+            }
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            200
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [
+        "credentials_test.provider",
+        "credentials_test.masked_key"
+      ],
+      "createdAt": "2026-09-08T12:52:50.168Z"
+    },
+    {
+      "id": "tc_d7c9b6b5",
+      "suiteId": "suite_6dbe736c",
+      "extId": "WHYO-BYOK-018",
+      "category": "Company BYOK & Credentials",
+      "title": "Reject malformed or empty provider API key with validation error",
+      "priority": "Medium",
+      "tags": [
+        "negative",
+        "byok",
+        "validation"
+      ],
+      "type": "http",
+      "spec": {
+        "requests": [
+          {
+            "name": "Malformed Key Submission",
+            "method": "POST",
+            "path": "/api/credentials/verify",
+            "authPersona": "user",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "provider": "{{credentials_test.provider}}",
+              "apiKey": "{{credentials_test.invalid_key}}"
+            }
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            400,
+            422
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [
+        "credentials_test.provider",
+        "credentials_test.invalid_key"
+      ],
+      "createdAt": "2026-09-08T12:52:50.168Z"
+    },
+    {
+      "id": "tc_bd5c0b66",
+      "suiteId": "suite_6dbe736c",
+      "extId": "WHYO-GATE-019",
+      "category": "Subscription Bridge & Gateway",
+      "title": "Probe linked flat subscription gateway status ($0.00/token bridge)",
+      "priority": "Medium",
+      "tags": [
+        "gateway",
+        "subscription",
+        "bridge"
+      ],
+      "type": "http",
+      "spec": {
+        "requests": [
+          {
+            "name": "Gateway Bridge Status",
+            "method": "GET",
+            "path": "/api/credentials/subscription/gateway-status",
+            "authPersona": "user",
+            "headers": {}
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            200
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [],
+      "createdAt": "2026-09-08T12:52:50.168Z"
+    },
+    {
+      "id": "tc_e1cd6b2b",
+      "suiteId": "suite_6dbe736c",
+      "extId": "WHYO-TRL-020",
+      "category": "Pricing & Trial Onboarding",
+      "title": "Submit 7-day trial email registration for {{trial_email}}",
+      "priority": "High",
+      "tags": [
+        "trial",
+        "auth",
+        "onboarding"
+      ],
+      "type": "http",
+      "spec": {
+        "requests": [
+          {
+            "name": "Register Free Trial Email",
+            "method": "POST",
+            "path": "/api/auth/register-email-trial",
+            "authPersona": null,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "email": "{{trial_email}}"
+            }
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            200,
+            201
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [
+        "trial_email"
+      ],
+      "createdAt": "2026-09-08T12:52:50.168Z"
+    },
+    {
+      "id": "tc_d2e60715",
+      "suiteId": "suite_6dbe736c",
+      "extId": "WHYO-TRL-021",
+      "category": "Pricing & Trial Onboarding",
+      "title": "Verify daily limit status and remaining token quota for active user",
+      "priority": "Medium",
+      "tags": [
+        "limits",
+        "quota",
+        "user"
+      ],
+      "type": "http",
+      "spec": {
+        "requests": [
+          {
+            "name": "Daily Limit Status",
+            "method": "GET",
+            "path": "/api/user/daily-limit-status",
+            "authPersona": "user",
+            "headers": {}
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            200
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [],
+      "createdAt": "2026-09-08T12:52:50.168Z"
+    },
+    {
+      "id": "tc_77212803",
+      "suiteId": "suite_6dbe736c",
+      "extId": "WHYO-TEAM-022",
+      "category": "Team & Governance",
+      "title": "Retrieve aggregate token usage rollup for {{team_id}} with lead persona",
+      "priority": "High",
+      "tags": [
+        "team",
+        "governance",
+        "usage"
+      ],
+      "type": "http",
+      "spec": {
+        "requests": [
+          {
+            "name": "Team Token Usage Rollup",
+            "method": "GET",
+            "path": "/v1/team/{{team_id}}/usage",
+            "authPersona": "team_lead",
+            "headers": {}
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            200
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [
+        "team_id"
+      ],
+      "createdAt": "2026-09-08T12:52:50.168Z"
+    },
+    {
+      "id": "tc_f638931d",
+      "suiteId": "suite_6dbe736c",
+      "extId": "WHYO-ADM-023",
+      "category": "SuperAdmin Console & Security",
+      "title": "Verify protected platform audit logs reject unauthenticated guest access (401/403)",
+      "priority": "High",
+      "tags": [
+        "security",
+        "rbac",
+        "admin"
+      ],
+      "type": "http",
+      "spec": {
+        "requests": [
+          {
+            "name": "Unauthorized Audit Log Attempt",
+            "method": "GET",
+            "path": "/api/admin/audit-logs",
+            "authPersona": null,
+            "headers": {}
+          }
+        ],
+        "expect": {
+          "statusIn": [
+            401,
+            403
+          ],
+          "bodyContains": [],
+          "bodyNotContains": [],
+          "headerEquals": {}
+        }
+      },
+      "dataFields": [],
+      "createdAt": "2026-09-08T12:52:50.168Z"
+    },
+    {
+      "id": "tc_fd2dc32e",
+      "suiteId": "suite_6dbe736c",
+      "extId": "WHYO-LOAD-024",
+      "category": "Performance & Concurrency",
+      "title": "Burst load concurrency test on WhyOr Dispatch root gateway",
+      "priority": "Medium",
+      "tags": [
+        "load",
+        "concurrency",
+        "sla"
+      ],
+      "type": "load",
+      "spec": {
+        "request": {
+          "name": "Burst load concurrency test on WhyOr Dispatch root gateway",
+          "method": "GET",
+          "path": "/",
+          "authPersona": null,
+          "headers": {}
+        },
+        "totalRequests": 12,
+        "concurrency": 4,
+        "expectRateLimited": false,
+        "maxP95Ms": 2500
+      },
+      "dataFields": [],
+      "createdAt": "2026-09-08T12:52:50.168Z"
     }
   ],
   "testRuns": [
+    {
+      "id": "run_d7398958",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_fd2dc32e",
+      "ranAt": "2026-09-08T13:56:35.611Z",
+      "pass": true,
+      "message": "p95 latency 106ms within budget (≤ 2500ms)",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "stats": {
+        "total": 12,
+        "statusCounts": {
+          "200": 12
+        },
+        "p50": 18,
+        "p95": 106,
+        "p99": 106
+      }
+    },
+    {
+      "id": "run_be369c74",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_f638931d",
+      "ranAt": "2026-09-08T13:56:35.095Z",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): GET https://ai.whyor.in/api/admin/audit-logs returned 404. Expected status [401, 403] | Route Error: Target server responded with \"The page could not be found\" or route not registered",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "requests": [
+        {
+          "name": "Unauthorized Audit Log Attempt",
+          "method": "GET",
+          "url": "https://ai.whyor.in/api/admin/audit-logs",
+          "status": 404,
+          "durationMs": 15,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {}
+        }
+      ]
+    },
+    {
+      "id": "run_6e95e384",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_77212803",
+      "ranAt": "2026-09-08T13:56:34.671Z",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): GET https://ai.whyor.in/v1/team/137/usage returned 404. Expected status [200] | Route Error: Target server responded with \"The page could not be found\" or route not registered",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "requests": [
+        {
+          "name": "Team Token Usage Rollup",
+          "method": "GET",
+          "url": "https://ai.whyor.in/v1/team/137/usage",
+          "status": 404,
+          "durationMs": 13,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {}
+        }
+      ]
+    },
+    {
+      "id": "run_c0bab7df",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_d2e60715",
+      "ranAt": "2026-09-08T13:56:34.249Z",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): GET https://ai.whyor.in/api/user/daily-limit-status returned 404. Expected status [200] | Route Error: Target server responded with \"The page could not be found\" or route not registered",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "requests": [
+        {
+          "name": "Daily Limit Status",
+          "method": "GET",
+          "url": "https://ai.whyor.in/api/user/daily-limit-status",
+          "status": 404,
+          "durationMs": 15,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {
+            "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMyIsImF1ZCI6InZlcml0eS1xYSIsImlhdCI6MTY3MjUzMTAwMH0.mock_signature_as0616yg"
+          }
+        }
+      ]
+    },
+    {
+      "id": "run_98afed05",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_e1cd6b2b",
+      "ranAt": "2026-09-08T13:56:33.828Z",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): POST https://ai.whyor.in/api/auth/register-email-trial returned 404. Expected status [200, 201] | Route Error: Target server responded with \"The page could not be found\" or route not registered",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "requests": [
+        {
+          "name": "Register Free Trial Email",
+          "method": "POST",
+          "url": "https://ai.whyor.in/api/auth/register-email-trial",
+          "status": 404,
+          "durationMs": 14,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {
+            "Content-Type": "application/json"
+          },
+          "requestBody": "{\"email\":\"qa.tester_378@example.com\"}"
+        }
+      ]
+    },
+    {
+      "id": "run_613f0c28",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_bd5c0b66",
+      "ranAt": "2026-09-08T13:56:33.406Z",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): GET https://ai.whyor.in/api/credentials/subscription/gateway-status returned 404. Expected status [200] | Route Error: Target server responded with \"The page could not be found\" or route not registered",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "requests": [
+        {
+          "name": "Gateway Bridge Status",
+          "method": "GET",
+          "url": "https://ai.whyor.in/api/credentials/subscription/gateway-status",
+          "status": 404,
+          "durationMs": 16,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {
+            "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMyIsImF1ZCI6InZlcml0eS1xYSIsImlhdCI6MTY3MjUzMTAwMH0.mock_signature_as0616yg"
+          }
+        }
+      ]
+    },
+    {
+      "id": "run_028a14ca",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_d7c9b6b5",
+      "ranAt": "2026-09-08T13:56:32.886Z",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): POST https://ai.whyor.in/api/credentials/verify returned 404. Expected status [400, 422] | Route Error: Target server responded with \"The page could not be found\" or route not registered",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "requests": [
+        {
+          "name": "Malformed Key Submission",
+          "method": "POST",
+          "url": "https://ai.whyor.in/api/credentials/verify",
+          "status": 404,
+          "durationMs": 14,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {
+            "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMyIsImF1ZCI6InZlcml0eS1xYSIsImlhdCI6MTY3MjUzMTAwMH0.mock_signature_as0616yg",
+            "Content-Type": "application/json"
+          },
+          "requestBody": "{\"provider\":\"718\",\"apiKey\":\"822\"}"
+        }
+      ]
+    },
+    {
+      "id": "run_1f545d01",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_4c7a52aa",
+      "ranAt": "2026-09-08T13:56:32.393Z",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): POST https://ai.whyor.in/api/credentials/verify returned 404. Expected status [200] | Route Error: Target server responded with \"The page could not be found\" or route not registered",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "requests": [
+        {
+          "name": "Verify BYOK Credentials",
+          "method": "POST",
+          "url": "https://ai.whyor.in/api/credentials/verify",
+          "status": 404,
+          "durationMs": 22,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {
+            "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMyIsImF1ZCI6InZlcml0eS1xYSIsImlhdCI6MTY3MjUzMTAwMH0.mock_signature_as0616yg",
+            "Content-Type": "application/json"
+          },
+          "requestBody": "{\"provider\":\"718\",\"apiKey\":\"synthetic_credentials_test.masked_key_e4qzn\"}"
+        }
+      ]
+    },
+    {
+      "id": "run_aefdfeec",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_d7eff124",
+      "ranAt": "2026-09-08T13:56:31.866Z",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): GET https://ai.whyor.in/api/models/availability returned 404. Expected status [200] | Route Error: Target server responded with \"The page could not be found\" or route not registered",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "requests": [
+        {
+          "name": "Model Availability Probe",
+          "method": "GET",
+          "url": "https://ai.whyor.in/api/models/availability",
+          "status": 404,
+          "durationMs": 15,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {}
+        }
+      ]
+    },
+    {
+      "id": "run_93305733",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_261fafe7",
+      "ranAt": "2026-09-08T13:56:31.427Z",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): GET https://ai.whyor.in/api/models returned 404. Expected status [200] | Route Error: Target server responded with \"The page could not be found\" or route not registered",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "requests": [
+        {
+          "name": "Fetch Model Catalog",
+          "method": "GET",
+          "url": "https://ai.whyor.in/api/models",
+          "status": 404,
+          "durationMs": 14,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {
+            "Accept": "application/json"
+          }
+        }
+      ]
+    },
+    {
+      "id": "run_08ddcc70",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_d3e76c46",
+      "ranAt": "2026-09-08T13:56:31.009Z",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): GET https://ai.whyor.in/api/ledger?session_id=894 returned 404. Expected status [200] | Route Error: Target server responded with \"The page could not be found\" or route not registered",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "requests": [
+        {
+          "name": "Fetch Context Ledger",
+          "method": "GET",
+          "url": "https://ai.whyor.in/api/ledger?session_id=894",
+          "status": 404,
+          "durationMs": 14,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {
+            "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMyIsImF1ZCI6InZlcml0eS1xYSIsImlhdCI6MTY3MjUzMTAwMH0.mock_signature_as0616yg"
+          }
+        }
+      ]
+    },
+    {
+      "id": "run_ecc8431d",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_cd08f007",
+      "ranAt": "2026-09-08T13:56:30.582Z",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): POST https://ai.whyor.in/api/context/save returned 404. Expected status [200, 201] | Route Error: Target server responded with \"The page could not be found\" or route not registered",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "requests": [
+        {
+          "name": "Save Context Turn",
+          "method": "POST",
+          "url": "https://ai.whyor.in/api/context/save",
+          "status": 404,
+          "durationMs": 20,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {
+            "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMyIsImF1ZCI6InZlcml0eS1xYSIsImlhdCI6MTY3MjUzMTAwMH0.mock_signature_as0616yg",
+            "Content-Type": "application/json"
+          },
+          "requestBody": "{\"sessionId\":\"894\",\"userQuery\":\"active_status_q\",\"modelResponse\":\"export const useDebounce = () => {}\",\"tokenUsage\":{\"input\":45,\"output\":85}}"
+        }
+      ]
+    },
+    {
+      "id": "run_57f01211",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_77a48ba7",
+      "ranAt": "2026-09-08T13:56:30.148Z",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): POST https://ai.whyor.in/api/preprocess/file returned 404. Expected status [200, 201] | Route Error: Target server responded with \"The page could not be found\" or route not registered",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "requests": [
+        {
+          "name": "Preprocess Context File",
+          "method": "POST",
+          "url": "https://ai.whyor.in/api/preprocess/file",
+          "status": 404,
+          "durationMs": 17,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {
+            "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMyIsImF1ZCI6InZlcml0eS1xYSIsImlhdCI6MTY3MjUzMTAwMH0.mock_signature_as0616yg",
+            "Content-Type": "application/json"
+          },
+          "requestBody": "{\"fileName\":\"spec.txt\",\"content\":\"Architecture specification for Thompson sampling multi-model router.\",\"compress\":true}"
+        }
+      ]
+    },
+    {
+      "id": "run_5200d860",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_2c40ed67",
+      "ranAt": "2026-09-08T13:56:29.723Z",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): POST https://ai.whyor.in/api/chat/sessions returned 404. Expected status [200, 201] | Route Error: Target server responded with \"The page could not be found\" or route not registered",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "requests": [
+        {
+          "name": "Initialize Chat Session",
+          "method": "POST",
+          "url": "https://ai.whyor.in/api/chat/sessions",
+          "status": 404,
+          "durationMs": 13,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {
+            "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMyIsImF1ZCI6InZlcml0eS1xYSIsImlhdCI6MTY3MjUzMTAwMH0.mock_signature_as0616yg",
+            "Content-Type": "application/json"
+          },
+          "requestBody": "{\"title\":\"Verity Automated Test Session\",\"initialPrompt\":\"active_status_q\"}"
+        }
+      ]
+    },
+    {
+      "id": "run_1720438c",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_41950e93",
+      "ranAt": "2026-09-08T13:56:29.273Z",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): POST https://ai.whyor.in/api/dispatch/corroborate returned 404. Expected status [200, 201] | Route Error: Target server responded with \"The page could not be found\" or route not registered",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "requests": [
+        {
+          "name": "Output Corroboration Check",
+          "method": "POST",
+          "url": "https://ai.whyor.in/api/dispatch/corroborate",
+          "status": 404,
+          "durationMs": 15,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {
+            "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMyIsImF1ZCI6InZlcml0eS1xYSIsImlhdCI6MTY3MjUzMTAwMH0.mock_signature_as0616yg",
+            "Content-Type": "application/json"
+          },
+          "requestBody": "{\"prompt\":\"active_status_q\",\"candidateModels\":[\"gemini-3.7-flash\",\"claude-3.5-sonnet\"]}"
+        }
+      ]
+    },
+    {
+      "id": "run_561c1e58",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_53891c3d",
+      "ranAt": "2026-09-08T13:56:28.848Z",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): POST https://ai.whyor.in/api/dispatch returned 404. Expected status [400, 422] | Route Error: Target server responded with \"The page could not be found\" or route not registered",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "requests": [
+        {
+          "name": "Empty Prompt Submission",
+          "method": "POST",
+          "url": "https://ai.whyor.in/api/dispatch",
+          "status": 404,
+          "durationMs": 31,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {
+            "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMyIsImF1ZCI6InZlcml0eS1xYSIsImlhdCI6MTY3MjUzMTAwMH0.mock_signature_as0616yg",
+            "Content-Type": "application/json"
+          },
+          "requestBody": "{\"prompt\":\"977\"}"
+        }
+      ]
+    },
+    {
+      "id": "run_beb903bf",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_a05341ee",
+      "ranAt": "2026-09-08T13:56:28.408Z",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): POST https://ai.whyor.in/api/dispatch returned 404. Expected status [200, 201] | Route Error: Target server responded with \"The page could not be found\" or route not registered",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "requests": [
+        {
+          "name": "Model Override Dispatch",
+          "method": "POST",
+          "url": "https://ai.whyor.in/api/dispatch",
+          "status": 404,
+          "durationMs": 16,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {
+            "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMyIsImF1ZCI6InZlcml0eS1xYSIsImlhdCI6MTY3MjUzMTAwMH0.mock_signature_as0616yg",
+            "Content-Type": "application/json"
+          },
+          "requestBody": "{\"prompt\":\"active_status_q\",\"modelOverride\":\"synthetic_models.smart_model_a36vq\"}"
+        }
+      ]
+    },
+    {
+      "id": "run_1f707f3d",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_4b595cb6",
+      "ranAt": "2026-09-08T13:56:27.980Z",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): POST https://ai.whyor.in/v1/dispatch returned 404. Expected status [200, 201] | Route Error: Target server responded with \"The page could not be found\" or route not registered",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "requests": [
+        {
+          "name": "High Complexity Prompt Dispatch",
+          "method": "POST",
+          "url": "https://ai.whyor.in/v1/dispatch",
+          "status": 404,
+          "durationMs": 14,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {
+            "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMyIsImF1ZCI6InZlcml0eS1xYSIsImlhdCI6MTY3MjUzMTAwMH0.mock_signature_as0616yg",
+            "Content-Type": "application/json"
+          },
+          "requestBody": "{\"prompt\":\"active_status_q\",\"routingMode\":\"quality_first\",\"stream\":false}"
+        }
+      ]
+    },
+    {
+      "id": "run_bc1b4588",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_046b40a1",
+      "ranAt": "2026-09-08T13:56:27.445Z",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): POST https://ai.whyor.in/api/dispatch returned 404. Expected status [200, 201] | Route Error: Target server responded with \"The page could not be found\" or route not registered",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "requests": [
+        {
+          "name": "Low Complexity Prompt Dispatch",
+          "method": "POST",
+          "url": "https://ai.whyor.in/api/dispatch",
+          "status": 404,
+          "durationMs": 14,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {
+            "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMyIsImF1ZCI6InZlcml0eS1xYSIsImlhdCI6MTY3MjUzMTAwMH0.mock_signature_as0616yg",
+            "Content-Type": "application/json"
+          },
+          "requestBody": "{\"prompt\":\"active_status_q\",\"routingMode\":\"cheapest\",\"stream\":false}"
+        }
+      ]
+    },
+    {
+      "id": "run_f8c34c45",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_7497e387",
+      "ranAt": "2026-09-08T13:56:27.011Z",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): GET https://ai.whyor.in/api/health returned 404. Expected status [200] | Route Error: Target server responded with \"The page could not be found\" or route not registered",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "requests": [
+        {
+          "name": "Gateway Health Probe",
+          "method": "GET",
+          "url": "https://ai.whyor.in/api/health",
+          "status": 404,
+          "durationMs": 15,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {
+            "Accept": "application/json"
+          }
+        }
+      ]
+    },
+    {
+      "id": "run_b5f8c068",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_be68f911",
+      "ranAt": "2026-09-08T13:56:25.113Z",
+      "pass": true,
+      "message": "Status code verified [200]",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "requests": [
+        {
+          "name": "Root SPA Request",
+          "method": "GET",
+          "url": "https://ai.whyor.in/",
+          "status": 200,
+          "durationMs": 68,
+          "error": null,
+          "dataPreview": "<!doctype html>\n<html lang=\"en\" class=\"dark\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n\n    <!-- Primary -->\n    <title>WhyOr Dispatch — AI Model Router & Token Cost Optimization</title>\n    <meta name=\"description\" content=\"Route every prompt to the cheapest AI model that can handle it. Complexity-based multi-model routing across Claude, GPT, Gemini, and more — with a portable context ledger and Thompson-sampling accuracy that improves from real usage.\" />\n    <meta name=\"keywords\" content=\"AI model router, LLM cost optimization, multi-model AI routing, token efficiency AI, AI orchestration platform, complexity-based LLM routing, cheapest AI model API, AI model selection\" />\n    <link rel=\"canonical\" href=\"https://ai.whyor.in/\" />\n    <meta name=\"robots\" content=\"index, follow\" />\n\n    <!-- Open Graph -->\n    <meta property=\"og:title\" content=\"WhyOr Dispatch — AI Model Router & Token Cost Optimization\" />\n    <m",
+          "requestHeaders": {
+            "Accept": "text/html,application/xhtml+xml"
+          }
+        }
+      ]
+    },
+    {
+      "id": "run_3715235e",
+      "projectId": "proj_90fec6ba",
+      "testCaseId": "tc_whyo_c6ba_01",
+      "ranAt": "2026-09-08T13:38:06.411Z",
+      "pass": true,
+      "message": "Status code verified [200] | Found required substrings: \"WhyOr Dispatch\", \"<div id=\"root\">\", \"dark\"",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "usr_superadmin",
+      "requests": [
+        {
+          "name": "Root SPA Request",
+          "method": "GET",
+          "url": "https://ai.whyor.in/",
+          "status": 200,
+          "durationMs": 50,
+          "error": null,
+          "dataPreview": "<!doctype html>\n<html lang=\"en\" class=\"dark\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n\n    <!-- Primary -->\n    <title>WhyOr Dispatch — AI Model Router & Token Cost Optimization</title>\n    <meta name=\"description\" content=\"Route every prompt to the cheapest AI model that can handle it. Complexity-based multi-model routing across Claude, GPT, Gemini, and more — with a portable context ledger and Thompson-sampling accuracy that improves from real usage.\" />\n    <meta name=\"keywords\" content=\"AI model router, LLM cost optimization, multi-model AI routing, token efficiency AI, AI orchestration platform, complexity-based LLM routing, cheapest AI model API, AI model selection\" />\n    <link rel=\"canonical\" href=\"https://ai.whyor.in/\" />\n    <meta name=\"robots\" content=\"index, follow\" />\n\n    <!-- Open Graph -->\n    <meta property=\"og:title\" content=\"WhyOr Dispatch — AI Model Router & Token Cost Optimization\" />\n    <m",
+          "requestHeaders": {
+            "Accept": "text/html,application/xhtml+xml"
+          }
+        }
+      ]
+    },
+    {
+      "id": "run_43cdcdba",
+      "projectId": "proj_90fec6ba",
+      "testCaseId": "tc_whyo_c6ba_01",
+      "ranAt": "2026-09-08T13:37:56.106Z",
+      "pass": true,
+      "message": "Status code verified [200] | Found required substrings: \"WhyOr Dispatch\", \"<div id=\"root\">\", \"dark\"",
+      "executedBy": "preview",
+      "creditsCharged": 0,
+      "runByUserId": "usr_superadmin",
+      "requests": [
+        {
+          "name": "Root SPA Request",
+          "method": "GET",
+          "url": "https://ai.whyor.in/",
+          "status": 200,
+          "durationMs": 112,
+          "error": null,
+          "dataPreview": "<!doctype html>\n<html lang=\"en\" class=\"dark\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n\n    <!-- Primary -->\n    <title>WhyOr Dispatch — AI Model Router & Token Cost Optimization</title>\n    <meta name=\"description\" content=\"Route every prompt to the cheapest AI model that can handle it. Complexity-based multi-model routing across Claude, GPT, Gemini, and more — with a portable context ledger and Thompson-sampling accuracy that improves from real usage.\" />\n    <meta name=\"keywords\" content=\"AI model router, LLM cost optimization, multi-model AI routing, token efficiency AI, AI orchestration platform, complexity-based LLM routing, cheapest AI model API, AI model selection\" />\n    <link rel=\"canonical\" href=\"https://ai.whyor.in/\" />\n    <meta name=\"robots\" content=\"index, follow\" />\n\n    <!-- Open Graph -->\n    <meta property=\"og:title\" content=\"WhyOr Dispatch — AI Model Router & Token Cost Optimization\" />\n    <m",
+          "requestHeaders": {
+            "Accept": "text/html,application/xhtml+xml"
+          }
+        }
+      ]
+    },
+    {
+      "id": "run_57bd0ec2",
+      "projectId": "proj_90fec6ba",
+      "testCaseId": "tc_whyo_c6ba_01",
+      "ranAt": "2026-09-08T13:37:13.012Z",
+      "pass": false,
+      "message": "Status mismatch: expected [200, 304], got [200] | Found required substrings: \"WhyOr Dispatch\", \"<div id=\"root\">\", \"dark\"",
+      "executedBy": "preview",
+      "creditsCharged": 0,
+      "runByUserId": "usr_superadmin",
+      "requests": [
+        {
+          "name": "Root SPA Request",
+          "method": "GET",
+          "url": "https://ai.whyor.in/",
+          "status": 200,
+          "durationMs": 55,
+          "error": null,
+          "dataPreview": "<!doctype html>\n<html lang=\"en\" class=\"dark\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n\n    <!-- Primary -->\n    <title>WhyOr Dispatch — AI Model Router & Token Cost Optimization</title>\n    <meta name=\"description\" content=\"Route every prompt to the cheapest AI model that can handle it. Complexity-based multi-model routing across Claude, GPT, Gemini, and more — with a portable context ledger and Thompson-sampling accuracy that improves from real usage.\" />\n    <meta name=\"keywords\" content=\"AI model router, LLM cost optimization, multi-model AI routing, token efficiency AI, AI orchestration platform, complexity-based LLM routing, cheapest AI model API, AI model selection\" />\n    <link rel=\"canonical\" href=\"https://ai.whyor.in/\" />\n    <meta name=\"robots\" content=\"index, follow\" />\n\n    <!-- Open Graph -->\n    <meta property=\"og:title\" content=\"WhyOr Dispatch — AI Model Router & Token Cost Optimization\" />\n    <m",
+          "requestHeaders": {
+            "Accept": "text/html,application/xhtml+xml"
+          }
+        }
+      ]
+    },
+    {
+      "id": "run_9dd2c3dd",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_fd2dc32e",
+      "ranAt": "2026-09-08T13:30:13.997Z",
+      "pass": true,
+      "message": "p95 latency 87ms within budget (≤ 2500ms)",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "stats": {
+        "total": 12,
+        "statusCounts": {
+          "200": 12
+        },
+        "p50": 20,
+        "p95": 87,
+        "p99": 87
+      }
+    },
+    {
+      "id": "run_e8af4578",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_f638931d",
+      "ranAt": "2026-09-08T13:30:13.448Z",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): GET https://ai.whyor.in/api/admin/audit-logs returned 404. Expected status [401, 403] | Route Error: Target server responded with \"The page could not be found\" or route not registered",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "requests": [
+        {
+          "name": "Unauthorized Audit Log Attempt",
+          "method": "GET",
+          "url": "https://ai.whyor.in/api/admin/audit-logs",
+          "status": 404,
+          "durationMs": 15,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {}
+        }
+      ]
+    },
+    {
+      "id": "run_5c4e2138",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_77212803",
+      "ranAt": "2026-09-08T13:30:12.923Z",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): GET https://ai.whyor.in/v1/team/137/usage returned 404. Expected status [200] | Route Error: Target server responded with \"The page could not be found\" or route not registered",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "requests": [
+        {
+          "name": "Team Token Usage Rollup",
+          "method": "GET",
+          "url": "https://ai.whyor.in/v1/team/137/usage",
+          "status": 404,
+          "durationMs": 14,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {}
+        }
+      ]
+    },
+    {
+      "id": "run_d23ec754",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_d2e60715",
+      "ranAt": "2026-09-08T13:30:12.436Z",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): GET https://ai.whyor.in/api/user/daily-limit-status returned 404. Expected status [200] | Route Error: Target server responded with \"The page could not be found\" or route not registered",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "requests": [
+        {
+          "name": "Daily Limit Status",
+          "method": "GET",
+          "url": "https://ai.whyor.in/api/user/daily-limit-status",
+          "status": 404,
+          "durationMs": 55,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {
+            "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMyIsImF1ZCI6InZlcml0eS1xYSIsImlhdCI6MTY3MjUzMTAwMH0.mock_signature_as0616yg"
+          }
+        }
+      ]
+    },
+    {
+      "id": "run_f39845be",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_e1cd6b2b",
+      "ranAt": "2026-09-08T13:30:11.873Z",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): POST https://ai.whyor.in/api/auth/register-email-trial returned 404. Expected status [200, 201] | Route Error: Target server responded with \"The page could not be found\" or route not registered",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "requests": [
+        {
+          "name": "Register Free Trial Email",
+          "method": "POST",
+          "url": "https://ai.whyor.in/api/auth/register-email-trial",
+          "status": 404,
+          "durationMs": 14,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {
+            "Content-Type": "application/json"
+          },
+          "requestBody": "{\"email\":\"qa.tester_378@example.com\"}"
+        }
+      ]
+    },
+    {
+      "id": "run_8240515d",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_bd5c0b66",
+      "ranAt": "2026-09-08T13:30:11.355Z",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): GET https://ai.whyor.in/api/credentials/subscription/gateway-status returned 404. Expected status [200] | Route Error: Target server responded with \"The page could not be found\" or route not registered",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "requests": [
+        {
+          "name": "Gateway Bridge Status",
+          "method": "GET",
+          "url": "https://ai.whyor.in/api/credentials/subscription/gateway-status",
+          "status": 404,
+          "durationMs": 15,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {
+            "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMyIsImF1ZCI6InZlcml0eS1xYSIsImlhdCI6MTY3MjUzMTAwMH0.mock_signature_as0616yg"
+          }
+        }
+      ]
+    },
+    {
+      "id": "run_a5c86a8e",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_d7c9b6b5",
+      "ranAt": "2026-09-08T13:30:10.835Z",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): POST https://ai.whyor.in/api/credentials/verify returned 404. Expected status [400, 422] | Route Error: Target server responded with \"The page could not be found\" or route not registered",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "requests": [
+        {
+          "name": "Malformed Key Submission",
+          "method": "POST",
+          "url": "https://ai.whyor.in/api/credentials/verify",
+          "status": 404,
+          "durationMs": 27,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {
+            "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMyIsImF1ZCI6InZlcml0eS1xYSIsImlhdCI6MTY3MjUzMTAwMH0.mock_signature_as0616yg",
+            "Content-Type": "application/json"
+          },
+          "requestBody": "{\"provider\":\"718\",\"apiKey\":\"822\"}"
+        }
+      ]
+    },
+    {
+      "id": "run_3a31c3d1",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_4c7a52aa",
+      "ranAt": "2026-09-08T13:30:10.304Z",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): POST https://ai.whyor.in/api/credentials/verify returned 404. Expected status [200] | Route Error: Target server responded with \"The page could not be found\" or route not registered",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "requests": [
+        {
+          "name": "Verify BYOK Credentials",
+          "method": "POST",
+          "url": "https://ai.whyor.in/api/credentials/verify",
+          "status": 404,
+          "durationMs": 16,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {
+            "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMyIsImF1ZCI6InZlcml0eS1xYSIsImlhdCI6MTY3MjUzMTAwMH0.mock_signature_as0616yg",
+            "Content-Type": "application/json"
+          },
+          "requestBody": "{\"provider\":\"718\",\"apiKey\":\"synthetic_credentials_test.masked_key_e4qzn\"}"
+        }
+      ]
+    },
+    {
+      "id": "run_f2e93f99",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_d7eff124",
+      "ranAt": "2026-09-08T13:30:09.780Z",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): GET https://ai.whyor.in/api/models/availability returned 404. Expected status [200] | Route Error: Target server responded with \"The page could not be found\" or route not registered",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "requests": [
+        {
+          "name": "Model Availability Probe",
+          "method": "GET",
+          "url": "https://ai.whyor.in/api/models/availability",
+          "status": 404,
+          "durationMs": 16,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {}
+        }
+      ]
+    },
+    {
+      "id": "run_91e60e0b",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_261fafe7",
+      "ranAt": "2026-09-08T13:30:09.250Z",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): GET https://ai.whyor.in/api/models returned 404. Expected status [200] | Route Error: Target server responded with \"The page could not be found\" or route not registered",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "requests": [
+        {
+          "name": "Fetch Model Catalog",
+          "method": "GET",
+          "url": "https://ai.whyor.in/api/models",
+          "status": 404,
+          "durationMs": 16,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {
+            "Accept": "application/json"
+          }
+        }
+      ]
+    },
+    {
+      "id": "run_cc48f7a7",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_d3e76c46",
+      "ranAt": "2026-09-08T13:30:08.863Z",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): GET https://ai.whyor.in/api/ledger?session_id=894 returned 404. Expected status [200] | Route Error: Target server responded with \"The page could not be found\" or route not registered",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "requests": [
+        {
+          "name": "Fetch Context Ledger",
+          "method": "GET",
+          "url": "https://ai.whyor.in/api/ledger?session_id=894",
+          "status": 404,
+          "durationMs": 16,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {
+            "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMyIsImF1ZCI6InZlcml0eS1xYSIsImlhdCI6MTY3MjUzMTAwMH0.mock_signature_as0616yg"
+          }
+        }
+      ]
+    },
+    {
+      "id": "run_fb9a5097",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_cd08f007",
+      "ranAt": "2026-09-08T13:30:08.474Z",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): POST https://ai.whyor.in/api/context/save returned 404. Expected status [200, 201] | Route Error: Target server responded with \"The page could not be found\" or route not registered",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "requests": [
+        {
+          "name": "Save Context Turn",
+          "method": "POST",
+          "url": "https://ai.whyor.in/api/context/save",
+          "status": 404,
+          "durationMs": 15,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {
+            "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMyIsImF1ZCI6InZlcml0eS1xYSIsImlhdCI6MTY3MjUzMTAwMH0.mock_signature_as0616yg",
+            "Content-Type": "application/json"
+          },
+          "requestBody": "{\"sessionId\":\"894\",\"userQuery\":\"active_status_q\",\"modelResponse\":\"export const useDebounce = () => {}\",\"tokenUsage\":{\"input\":45,\"output\":85}}"
+        }
+      ]
+    },
+    {
+      "id": "run_824e5b56",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_77a48ba7",
+      "ranAt": "2026-09-08T13:30:08.093Z",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): POST https://ai.whyor.in/api/preprocess/file returned 404. Expected status [200, 201] | Route Error: Target server responded with \"The page could not be found\" or route not registered",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "requests": [
+        {
+          "name": "Preprocess Context File",
+          "method": "POST",
+          "url": "https://ai.whyor.in/api/preprocess/file",
+          "status": 404,
+          "durationMs": 15,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {
+            "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMyIsImF1ZCI6InZlcml0eS1xYSIsImlhdCI6MTY3MjUzMTAwMH0.mock_signature_as0616yg",
+            "Content-Type": "application/json"
+          },
+          "requestBody": "{\"fileName\":\"spec.txt\",\"content\":\"Architecture specification for Thompson sampling multi-model router.\",\"compress\":true}"
+        }
+      ]
+    },
+    {
+      "id": "run_e7c28799",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_2c40ed67",
+      "ranAt": "2026-09-08T13:30:07.704Z",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): POST https://ai.whyor.in/api/chat/sessions returned 404. Expected status [200, 201] | Route Error: Target server responded with \"The page could not be found\" or route not registered",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "requests": [
+        {
+          "name": "Initialize Chat Session",
+          "method": "POST",
+          "url": "https://ai.whyor.in/api/chat/sessions",
+          "status": 404,
+          "durationMs": 14,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {
+            "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMyIsImF1ZCI6InZlcml0eS1xYSIsImlhdCI6MTY3MjUzMTAwMH0.mock_signature_as0616yg",
+            "Content-Type": "application/json"
+          },
+          "requestBody": "{\"title\":\"Verity Automated Test Session\",\"initialPrompt\":\"active_status_q\"}"
+        }
+      ]
+    },
+    {
+      "id": "run_281c4e13",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_41950e93",
+      "ranAt": "2026-09-08T13:30:07.316Z",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): POST https://ai.whyor.in/api/dispatch/corroborate returned 404. Expected status [200, 201] | Route Error: Target server responded with \"The page could not be found\" or route not registered",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "requests": [
+        {
+          "name": "Output Corroboration Check",
+          "method": "POST",
+          "url": "https://ai.whyor.in/api/dispatch/corroborate",
+          "status": 404,
+          "durationMs": 16,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {
+            "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMyIsImF1ZCI6InZlcml0eS1xYSIsImlhdCI6MTY3MjUzMTAwMH0.mock_signature_as0616yg",
+            "Content-Type": "application/json"
+          },
+          "requestBody": "{\"prompt\":\"active_status_q\",\"candidateModels\":[\"gemini-3.7-flash\",\"claude-3.5-sonnet\"]}"
+        }
+      ]
+    },
+    {
+      "id": "run_f36344b9",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_53891c3d",
+      "ranAt": "2026-09-08T13:30:06.940Z",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): POST https://ai.whyor.in/api/dispatch returned 404. Expected status [400, 422] | Route Error: Target server responded with \"The page could not be found\" or route not registered",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "requests": [
+        {
+          "name": "Empty Prompt Submission",
+          "method": "POST",
+          "url": "https://ai.whyor.in/api/dispatch",
+          "status": 404,
+          "durationMs": 16,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {
+            "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMyIsImF1ZCI6InZlcml0eS1xYSIsImlhdCI6MTY3MjUzMTAwMH0.mock_signature_as0616yg",
+            "Content-Type": "application/json"
+          },
+          "requestBody": "{\"prompt\":\"977\"}"
+        }
+      ]
+    },
+    {
+      "id": "run_7073b13a",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_a05341ee",
+      "ranAt": "2026-09-08T13:30:06.561Z",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): POST https://ai.whyor.in/api/dispatch returned 404. Expected status [200, 201] | Route Error: Target server responded with \"The page could not be found\" or route not registered",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "requests": [
+        {
+          "name": "Model Override Dispatch",
+          "method": "POST",
+          "url": "https://ai.whyor.in/api/dispatch",
+          "status": 404,
+          "durationMs": 29,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {
+            "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMyIsImF1ZCI6InZlcml0eS1xYSIsImlhdCI6MTY3MjUzMTAwMH0.mock_signature_as0616yg",
+            "Content-Type": "application/json"
+          },
+          "requestBody": "{\"prompt\":\"active_status_q\",\"modelOverride\":\"synthetic_models.smart_model_a36vq\"}"
+        }
+      ]
+    },
+    {
+      "id": "run_4af96c75",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_4b595cb6",
+      "ranAt": "2026-09-08T13:30:06.163Z",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): POST https://ai.whyor.in/v1/dispatch returned 404. Expected status [200, 201] | Route Error: Target server responded with \"The page could not be found\" or route not registered",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "requests": [
+        {
+          "name": "High Complexity Prompt Dispatch",
+          "method": "POST",
+          "url": "https://ai.whyor.in/v1/dispatch",
+          "status": 404,
+          "durationMs": 25,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {
+            "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMyIsImF1ZCI6InZlcml0eS1xYSIsImlhdCI6MTY3MjUzMTAwMH0.mock_signature_as0616yg",
+            "Content-Type": "application/json"
+          },
+          "requestBody": "{\"prompt\":\"active_status_q\",\"routingMode\":\"quality_first\",\"stream\":false}"
+        }
+      ]
+    },
+    {
+      "id": "run_59e73ef1",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_046b40a1",
+      "ranAt": "2026-09-08T13:30:05.775Z",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): POST https://ai.whyor.in/api/dispatch returned 404. Expected status [200, 201] | Route Error: Target server responded with \"The page could not be found\" or route not registered",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "requests": [
+        {
+          "name": "Low Complexity Prompt Dispatch",
+          "method": "POST",
+          "url": "https://ai.whyor.in/api/dispatch",
+          "status": 404,
+          "durationMs": 19,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {
+            "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMyIsImF1ZCI6InZlcml0eS1xYSIsImlhdCI6MTY3MjUzMTAwMH0.mock_signature_as0616yg",
+            "Content-Type": "application/json"
+          },
+          "requestBody": "{\"prompt\":\"active_status_q\",\"routingMode\":\"cheapest\",\"stream\":false}"
+        }
+      ]
+    },
+    {
+      "id": "run_114c1079",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_7497e387",
+      "ranAt": "2026-09-08T13:30:05.392Z",
+      "pass": false,
+      "message": "Endpoint Not Found (HTTP 404): GET https://ai.whyor.in/api/health returned 404. Expected status [200] | Route Error: Target server responded with \"The page could not be found\" or route not registered",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "requests": [
+        {
+          "name": "Gateway Health Probe",
+          "method": "GET",
+          "url": "https://ai.whyor.in/api/health",
+          "status": 404,
+          "durationMs": 18,
+          "error": null,
+          "dataPreview": "{\"error\":{\"code\":\"404\",\"message\":\"The page could not be found\"}}",
+          "requestHeaders": {
+            "Accept": "application/json"
+          }
+        }
+      ]
+    },
+    {
+      "id": "run_7e50f533",
+      "projectId": "proj_026402e7",
+      "testCaseId": "tc_be68f911",
+      "ranAt": "2026-09-08T13:30:03.844Z",
+      "pass": false,
+      "message": "Status mismatch: expected [200, 304], got [200]",
+      "executedBy": "hosted",
+      "creditsCharged": 1,
+      "runByUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "requests": [
+        {
+          "name": "Root SPA Request",
+          "method": "GET",
+          "url": "https://ai.whyor.in/",
+          "status": 200,
+          "durationMs": 78,
+          "error": null,
+          "dataPreview": "<!doctype html>\n<html lang=\"en\" class=\"dark\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n\n    <!-- Primary -->\n    <title>WhyOr Dispatch — AI Model Router & Token Cost Optimization</title>\n    <meta name=\"description\" content=\"Route every prompt to the cheapest AI model that can handle it. Complexity-based multi-model routing across Claude, GPT, Gemini, and more — with a portable context ledger and Thompson-sampling accuracy that improves from real usage.\" />\n    <meta name=\"keywords\" content=\"AI model router, LLM cost optimization, multi-model AI routing, token efficiency AI, AI orchestration platform, complexity-based LLM routing, cheapest AI model API, AI model selection\" />\n    <link rel=\"canonical\" href=\"https://ai.whyor.in/\" />\n    <meta name=\"robots\" content=\"index, follow\" />\n\n    <!-- Open Graph -->\n    <meta property=\"og:title\" content=\"WhyOr Dispatch — AI Model Router & Token Cost Optimization\" />\n    <m",
+          "requestHeaders": {
+            "Accept": "text/html,application/xhtml+xml"
+          }
+        }
+      ]
+    },
     {
       "id": "run_5149dee8",
       "projectId": "proj_mg9jb8xuq",
@@ -15237,6 +17433,406 @@
   ],
   "creditLedger": [
     {
+      "id": "6bc8b69b-5ce7-44c4-a8d4-106ddf9d4571",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-LOAD-024 on AI whyor",
+      "balanceAfter": 52,
+      "createdAt": "2026-09-08T13:56:35.495Z"
+    },
+    {
+      "id": "36206439-ff71-41dd-9eb8-d44ae44c2809",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-ADM-023 on AI whyor",
+      "balanceAfter": 53,
+      "createdAt": "2026-09-08T13:56:35.072Z"
+    },
+    {
+      "id": "1443357b-589e-42b7-b15c-583c934f60e6",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-TEAM-022 on AI whyor",
+      "balanceAfter": 54,
+      "createdAt": "2026-09-08T13:56:34.650Z"
+    },
+    {
+      "id": "65325101-8314-4d31-b177-4b10c2b8b66f",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-TRL-021 on AI whyor",
+      "balanceAfter": 55,
+      "createdAt": "2026-09-08T13:56:34.225Z"
+    },
+    {
+      "id": "60a999ad-7887-4695-adac-dc1f25815d59",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-TRL-020 on AI whyor",
+      "balanceAfter": 56,
+      "createdAt": "2026-09-08T13:56:33.806Z"
+    },
+    {
+      "id": "7a461569-bb82-4ea7-ab77-85d3845f4ac4",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-GATE-019 on AI whyor",
+      "balanceAfter": 57,
+      "createdAt": "2026-09-08T13:56:33.381Z"
+    },
+    {
+      "id": "f2bfb69f-3054-4b25-a68c-83dc4adf045f",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-BYOK-018 on AI whyor",
+      "balanceAfter": 58,
+      "createdAt": "2026-09-08T13:56:32.864Z"
+    },
+    {
+      "id": "5e367f96-1cea-4881-b503-6a00075b61e9",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-BYOK-017 on AI whyor",
+      "balanceAfter": 59,
+      "createdAt": "2026-09-08T13:56:32.363Z"
+    },
+    {
+      "id": "db79e7dd-0232-4b3d-8088-dade5d0c9e87",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-CAT-016 on AI whyor",
+      "balanceAfter": 60,
+      "createdAt": "2026-09-08T13:56:31.843Z"
+    },
+    {
+      "id": "8756a5ec-e95e-4295-8e14-4ebb91572b99",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-CAT-015 on AI whyor",
+      "balanceAfter": 61,
+      "createdAt": "2026-09-08T13:56:31.405Z"
+    },
+    {
+      "id": "945369f8-646b-4848-aae1-430d3b9b40d3",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-LEDG-014 on AI whyor",
+      "balanceAfter": 62,
+      "createdAt": "2026-09-08T13:56:30.978Z"
+    },
+    {
+      "id": "1ba14a7e-e387-4acc-af01-6841311c2fc5",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-LEDG-013 on AI whyor",
+      "balanceAfter": 63,
+      "createdAt": "2026-09-08T13:56:30.554Z"
+    },
+    {
+      "id": "42c0a0d1-c042-402c-a855-c9dfc73093f5",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-FILE-012 on AI whyor",
+      "balanceAfter": 64,
+      "createdAt": "2026-09-08T13:56:30.123Z"
+    },
+    {
+      "id": "32a5ad59-a0cb-4ea3-8f7e-b7f8499e1514",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-CHAT-011 on AI whyor",
+      "balanceAfter": 65,
+      "createdAt": "2026-09-08T13:56:29.701Z"
+    },
+    {
+      "id": "2d8d8822-98b6-49d6-98f7-eeae4d20a088",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-CORR-010 on AI whyor",
+      "balanceAfter": 66,
+      "createdAt": "2026-09-08T13:56:29.251Z"
+    },
+    {
+      "id": "ba346f69-c306-477f-8a16-c48787cf3f44",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-ROUT-009 on AI whyor",
+      "balanceAfter": 67,
+      "createdAt": "2026-09-08T13:56:28.808Z"
+    },
+    {
+      "id": "483835a7-7df0-4f40-b26f-1d5a8712b022",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-ROUT-008 on AI whyor",
+      "balanceAfter": 68,
+      "createdAt": "2026-09-08T13:56:28.385Z"
+    },
+    {
+      "id": "53e55002-30e8-45b3-964b-2fde9573892b",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-ROUT-007 on AI whyor",
+      "balanceAfter": 69,
+      "createdAt": "2026-09-08T13:56:27.957Z"
+    },
+    {
+      "id": "86a9e97f-8c40-4bf4-bec2-9a0e446ad328",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-ROUT-006 on AI whyor",
+      "balanceAfter": 70,
+      "createdAt": "2026-09-08T13:56:27.424Z"
+    },
+    {
+      "id": "1c4962d0-2261-4a75-9195-efb98c5cb71d",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-HLTH-005 on AI whyor",
+      "balanceAfter": 71,
+      "createdAt": "2026-09-08T13:56:26.984Z"
+    },
+    {
+      "id": "253ccb38-264f-41c2-b07a-c4d812e6471a",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-SPA-004 on AI whyor",
+      "balanceAfter": 72,
+      "createdAt": "2026-09-08T13:56:26.543Z"
+    },
+    {
+      "id": "c93e9263-9afa-48f1-a92c-6bfb54031e6e",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-SPA-003 on AI whyor",
+      "balanceAfter": 73,
+      "createdAt": "2026-09-08T13:56:26.110Z"
+    },
+    {
+      "id": "db766116-41f4-4454-81be-38782f8a329b",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-SPA-002 on AI whyor",
+      "balanceAfter": 74,
+      "createdAt": "2026-09-08T13:56:25.596Z"
+    },
+    {
+      "id": "5ad345f6-e653-49b9-a1f3-6fd0c4b90455",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-SPA-001 on AI whyor",
+      "balanceAfter": 75,
+      "createdAt": "2026-09-08T13:56:25.018Z"
+    },
+    {
+      "id": "0af8aa29-c808-427a-9afd-bfa354862c13",
+      "userId": "usr_superadmin",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-SPA-001 on AI Website",
+      "balanceAfter": 9993,
+      "createdAt": "2026-09-08T13:38:06.354Z"
+    },
+    {
+      "id": "7ff680e6-5310-48c1-a0dc-ee918a2e4eb3",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-LOAD-024 on AI whyor",
+      "balanceAfter": 76,
+      "createdAt": "2026-09-08T13:30:13.885Z"
+    },
+    {
+      "id": "2f1cb5a7-5b65-4d5d-aae6-acafb251647b",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-ADM-023 on AI whyor",
+      "balanceAfter": 77,
+      "createdAt": "2026-09-08T13:30:13.426Z"
+    },
+    {
+      "id": "0dbd3664-d533-40c5-b24b-9dd557678c42",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-TEAM-022 on AI whyor",
+      "balanceAfter": 78,
+      "createdAt": "2026-09-08T13:30:12.902Z"
+    },
+    {
+      "id": "9a582b29-4174-4993-a809-5933ca6eb129",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-TRL-021 on AI whyor",
+      "balanceAfter": 79,
+      "createdAt": "2026-09-08T13:30:12.373Z"
+    },
+    {
+      "id": "a7b27e77-1cac-4e77-a166-5d004367bf7b",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-TRL-020 on AI whyor",
+      "balanceAfter": 80,
+      "createdAt": "2026-09-08T13:30:11.852Z"
+    },
+    {
+      "id": "c5e827b6-6919-4a17-bc9d-9639328753ad",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-GATE-019 on AI whyor",
+      "balanceAfter": 81,
+      "createdAt": "2026-09-08T13:30:11.333Z"
+    },
+    {
+      "id": "5b43e01c-2947-4537-9577-c50f014a170f",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-BYOK-018 on AI whyor",
+      "balanceAfter": 82,
+      "createdAt": "2026-09-08T13:30:10.801Z"
+    },
+    {
+      "id": "bb2dabd4-9498-47bb-b7c4-51f71dccaf2e",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-BYOK-017 on AI whyor",
+      "balanceAfter": 83,
+      "createdAt": "2026-09-08T13:30:10.280Z"
+    },
+    {
+      "id": "63019c8c-3a05-4067-8fb4-cbe39aa142d8",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-CAT-016 on AI whyor",
+      "balanceAfter": 84,
+      "createdAt": "2026-09-08T13:30:09.757Z"
+    },
+    {
+      "id": "fb7a7125-2164-4c0e-ae81-b61da7e6a6e9",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-CAT-015 on AI whyor",
+      "balanceAfter": 85,
+      "createdAt": "2026-09-08T13:30:09.228Z"
+    },
+    {
+      "id": "2f4655ca-dac9-4ae3-910b-9fe8d514d6d1",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-LEDG-014 on AI whyor",
+      "balanceAfter": 86,
+      "createdAt": "2026-09-08T13:30:08.840Z"
+    },
+    {
+      "id": "79f368f8-23b2-47ae-82f7-41827975bd74",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-LEDG-013 on AI whyor",
+      "balanceAfter": 87,
+      "createdAt": "2026-09-08T13:30:08.452Z"
+    },
+    {
+      "id": "86d843fd-b690-4240-bbd4-4f4b31bb8504",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-FILE-012 on AI whyor",
+      "balanceAfter": 88,
+      "createdAt": "2026-09-08T13:30:08.071Z"
+    },
+    {
+      "id": "e78b3b76-0e63-4fb8-829a-a3e4a4f35085",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-CHAT-011 on AI whyor",
+      "balanceAfter": 89,
+      "createdAt": "2026-09-08T13:30:07.683Z"
+    },
+    {
+      "id": "45165c44-075f-44bd-9370-f981a7e9806a",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-CORR-010 on AI whyor",
+      "balanceAfter": 90,
+      "createdAt": "2026-09-08T13:30:07.293Z"
+    },
+    {
+      "id": "2dbaf8df-4b57-4c64-96dc-3369b5417f87",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-ROUT-009 on AI whyor",
+      "balanceAfter": 91,
+      "createdAt": "2026-09-08T13:30:06.917Z"
+    },
+    {
+      "id": "d22f3b51-c91a-421e-bd53-f3a697f5ec98",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-ROUT-008 on AI whyor",
+      "balanceAfter": 92,
+      "createdAt": "2026-09-08T13:30:06.525Z"
+    },
+    {
+      "id": "c16a9a72-34ff-423e-ab5f-8827018490e8",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-ROUT-007 on AI whyor",
+      "balanceAfter": 93,
+      "createdAt": "2026-09-08T13:30:06.132Z"
+    },
+    {
+      "id": "8cf76614-2136-4485-9453-8a451034b140",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-ROUT-006 on AI whyor",
+      "balanceAfter": 94,
+      "createdAt": "2026-09-08T13:30:05.750Z"
+    },
+    {
+      "id": "560ee04b-55bd-4525-a1f7-acc2dffb643a",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-HLTH-005 on AI whyor",
+      "balanceAfter": 95,
+      "createdAt": "2026-09-08T13:30:05.365Z"
+    },
+    {
+      "id": "ef0e74bf-b6c6-49ea-979a-dfcc61ef2b93",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-SPA-004 on AI whyor",
+      "balanceAfter": 96,
+      "createdAt": "2026-09-08T13:30:04.987Z"
+    },
+    {
+      "id": "af721370-1ba3-454c-97bc-732f39b3f0fa",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-SPA-003 on AI whyor",
+      "balanceAfter": 97,
+      "createdAt": "2026-09-08T13:30:04.597Z"
+    },
+    {
+      "id": "78ee4306-290b-4036-a619-1b7be8753b82",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-SPA-002 on AI whyor",
+      "balanceAfter": 98,
+      "createdAt": "2026-09-08T13:30:04.202Z"
+    },
+    {
+      "id": "c97009f8-d33b-4ba5-92fc-51d7c464ea14",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": -1,
+      "reason": "Hosted Cloud Execution: WHYO-SPA-001 on AI whyor",
+      "balanceAfter": 99,
+      "createdAt": "2026-09-08T13:30:03.738Z"
+    },
+    {
+      "id": "d9f4c7af-e55d-49fd-95b8-378021bd4ada",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "delta": 100,
+      "reason": "Welcome Cloud Credits Allocation (Google Sign-In)",
+      "balanceAfter": 100,
+      "createdAt": "2026-09-08T12:49:14.592Z"
+    },
+    {
       "id": "cdee5559-44b8-41b9-90f4-c09a7026e13a",
       "userId": "usr_superadmin",
       "delta": -1,
@@ -15302,6 +17898,30 @@
     }
   ],
   "auditLogs": [
+    {
+      "id": "83a7d430-279b-4a43-b77c-de7299f33043",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "userEmail": "neerajjain0911@gmail.com",
+      "action": "AI_SUITE_GENERATED",
+      "details": "Generated AI test suite \"WhyOr Dispatch End-to-End System & Architecture Suite\" with 24 cases.",
+      "timestamp": "2026-09-08T12:52:50.168Z"
+    },
+    {
+      "id": "34a64ed9-d54b-4c31-b21f-0892d02647e1",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "userEmail": "neerajjain0911@gmail.com",
+      "action": "PROJECT_CREATED",
+      "details": "Created testing project \"AI whyor\" targeting URL https://ai.whyor.in",
+      "timestamp": "2026-09-08T12:51:08.679Z"
+    },
+    {
+      "id": "be0bab86-9648-4ece-8597-8df9d4744d0a",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "userEmail": "neerajjain0911@gmail.com",
+      "action": "GOOGLE_AUTH_LOGIN",
+      "details": "User signed in with Google identity.",
+      "timestamp": "2026-09-08T12:49:14.592Z"
+    },
     {
       "id": "ec7d02b7-1744-48fd-8984-cdbbbc871973",
       "userId": "usr_org_admin_a",

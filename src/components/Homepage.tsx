@@ -28,7 +28,7 @@ interface HomepageProps {
   onOpenFeatures?: () => void;
   onOpenDocs?: () => void;
   onOpenContact?: () => void;
-  onSelectPersona: (role: string, email: string) => void;
+  onSelectPersona?: (role: string, email: string) => void;
 }
 
 export const Homepage: React.FC<HomepageProps> = ({
@@ -37,31 +37,10 @@ export const Homepage: React.FC<HomepageProps> = ({
   onOpenFeatures,
   onOpenDocs,
   onOpenContact,
-  onSelectPersona,
 }) => {
   const [playgroundUrl, setPlaygroundUrl] = useState('https://httpbin.org/get');
   const [playgroundStatus, setPlaygroundStatus] = useState<'idle' | 'running' | 'success'>('idle');
   const [playgroundLatency, setPlaygroundLatency] = useState<number | null>(null);
-  const [demoPersonaEmails, setDemoPersonaEmails] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    let cancelled = false;
-    api.getDemoPersonas()
-      .then(list => {
-        if (cancelled) return;
-        const byRole: Record<string, string> = {};
-        list.forEach(p => { byRole[p.role] = p.email; });
-        setDemoPersonaEmails(byRole);
-      })
-      .catch(() => {
-        // Non-fatal — "Test Persona" buttons just won't do anything if this
-        // fails, rather than sending a stale/hardcoded email that might no
-        // longer match a real seed account.
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   // ROI Calculator state
   const [monthlyTests, setMonthlyTests] = useState(50000);
@@ -390,14 +369,9 @@ export const Homepage: React.FC<HomepageProps> = ({
                   <div key={idx} className="rounded-xl border border-[#1E2235] bg-[#0F111A] p-4 transition hover:border-[#2D334D]">
                     <div className="flex items-center justify-between">
                       <h4 className="text-sm font-bold text-white">{item.title}</h4>
-                      <button
-                        onClick={() => demoPersonaEmails[item.role] && onSelectPersona(item.role, demoPersonaEmails[item.role])}
-                        disabled={!demoPersonaEmails[item.role]}
-                        className="flex items-center gap-1 text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        <span>Test Persona</span>
-                        <ArrowRight className="h-3 w-3" />
-                      </button>
+                      <span className="rounded border border-[#1E2235] bg-[#121520] px-2 py-0.5 text-[10px] font-semibold text-emerald-400 capitalize">
+                        {item.role.replace('_', ' ')}
+                      </span>
                     </div>
                     <p className="mt-1 text-xs text-slate-400">{item.desc}</p>
                   </div>

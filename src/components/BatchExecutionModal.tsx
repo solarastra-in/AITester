@@ -32,21 +32,29 @@ export interface BatchLogItem {
 interface BatchExecutionModalProps {
   isOpen: boolean;
   onClose: () => void;
-  project: Project;
+  project?: Project | null;
+  projectId?: string;
+  projectName?: string;
   testCases: TestCase[];
   mode: 'preview' | 'hosted';
-  onRunFinished: () => Promise<void>;
-  onOpenDeployModal: () => void;
+  onRunFinished?: () => Promise<void>;
+  onOpenDeployModal?: () => void;
+  onOpenBilling?: () => void;
+  onRunComplete?: (results: Array<{ caseId: string; testRun: any }>) => void;
 }
 
 export const BatchExecutionModal: React.FC<BatchExecutionModalProps> = ({
   isOpen,
   onClose,
   project,
-  testCases,
+  projectId,
+  projectName,
+  testCases = [],
   mode,
   onRunFinished,
   onOpenDeployModal,
+  onOpenBilling,
+  onRunComplete,
 }) => {
   const [isRunning, setIsRunning] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -60,13 +68,17 @@ export const BatchExecutionModal: React.FC<BatchExecutionModalProps> = ({
 
   const terminalEndRef = useRef<HTMLDivElement>(null);
 
+  const effectiveProjectId = project?.id || projectId || '';
+  const effectiveProjectName = project?.name || projectName || 'Project';
+  const effectiveSiteUrl = project?.siteUrl || '';
+
   // Auto-scroll terminal
   useEffect(() => {
     terminalEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [logs]);
 
   // Automated runnable test cases
-  const runnableCases = testCases.filter(c => c.type !== 'manual');
+  const runnableCases = (testCases || []).filter(c => c && c.type !== 'manual');
 
   const addLog = (
     type: 'info' | 'pass' | 'fail' | 'warn' | 'dispatch',
@@ -106,10 +118,11 @@ export const BatchExecutionModal: React.FC<BatchExecutionModalProps> = ({
         ? `Runner: Verity Managed Cloud Runner (us-central1 Serverless Container)`
         : `Runner: Local Sandbox Preview Runner (Zero credit consumption)`
     );
-    addLog('info', `Target Host: ${project.siteUrl} (${runnableCases.length} automated test scenarios)`);
+    addLog('info', `Target Host: ${effectiveSiteUrl || 'configured host'} (${runnableCases.length} automated test scenarios)`);
 
     let localPassed = 0;
     let localFailed = 0;
+    const executedResults: Array<{ caseId: string; testRun: any }> = [];
 
     for (let i = 0; i < runnableCases.length; i++) {
       const tc = runnableCases[i];
@@ -121,10 +134,14 @@ export const BatchExecutionModal: React.FC<BatchExecutionModalProps> = ({
       });
 
       try {
-        const res = await api.runTestCase(project.id, tc.id, mode);
+        const res = await api.runTestCase(effectiveProjectId || tc.projectId, tc.id, mode);
         const reqResult = res.testRun?.requests?.[0];
         const status = reqResult?.status || 200;
         const latency = reqResult?.durationMs || Math.floor(Math.random() * 80 + 40);
+
+        if (res.testRun) {
+          executedResults.push({ caseId: tc.id, testRun: res.testRun });
+        }
 
         if (res.testRun?.pass) {
           localPassed++;
@@ -161,12 +178,26 @@ export const BatchExecutionModal: React.FC<BatchExecutionModalProps> = ({
     addLog(
       'info',
       `Batch suite complete in ${(elapsed / 1000).toFixed(2)}s: ${localPassed} Passed, ${localFailed} Failed (${Math.round(
-        (localPassed / runnableCases.length) * 100
+        (localPassed / (runnableCases.length || 1)) * 100
       )}% pass rate).`
     );
 
+    if (onRunComplete && executedResults.length > 0) {
+      try {
+        onRunComplete(executedResults);
+      } catch (e) {
+        console.warn('onRunComplete notice:', e);
+      }
+    }
+
     // Refresh project data
-    await onRunFinished();
+    if (onRunFinished) {
+      try {
+        await onRunFinished();
+      } catch (e) {
+        console.warn('onRunFinished notice:', e);
+      }
+    }
   };
 
   // Start on modal open if not started
@@ -180,8 +211,8 @@ export const BatchExecutionModal: React.FC<BatchExecutionModalProps> = ({
 
   const progressPercent = runnableCases.length > 0 ? Math.round((currentIndex / runnableCases.length) * 100) : 0;
   const token = api.getToken() || '';
-  const csvExportUrl = `/api/projects/${project.id}/export?format=csv&token=${encodeURIComponent(token)}`;
-  const jsonExportUrl = `/api/projects/${project.id}/export?format=json&token=${encodeURIComponent(token)}`;
+  const csvExportUrl = effectiveProjectId ? `/api/projects/${effectiveProjectId}/export?format=csv&token=${encodeURIComponent(token)}` : '#';
+  const jsonExportUrl = effectiveProjectId ? `/api/projects/${effectiveProjectId}/export?format=json&token=${encodeURIComponent(token)}` : '#';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
@@ -210,7 +241,10 @@ export const BatchExecutionModal: React.FC<BatchExecutionModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-slate-400">
-                Project: <strong className="text-white">{project.name}</strong> • Target: <code className="text-emerald-300">{project.siteUrl}</code>
+                Project: <strong className="text-white">{effectiveProjectName}</strong>
+                {effectiveSiteUrl && (
+                  <> • Target: <code className="text-emerald-300">{effectiveSiteUrl}</code></>
+                )}
               </p>
             </div>
           </div>
@@ -347,7 +381,7 @@ export const BatchExecutionModal: React.FC<BatchExecutionModalProps> = ({
             {/* Direct CSV Export */}
             <a
               href={csvExportUrl}
-              download={`${project.name.replace(/\W+/g, '_')}-report.csv`}
+              download={`${effectiveProjectName.replace(/\W+/g, '_')}-report.csv`}
               className="flex items-center gap-1.5 rounded-xl border border-[#1E2235] bg-[#131622] px-3.5 py-2 text-xs font-semibold text-slate-200 hover:bg-[#1A1D2B] transition"
               title="Download test results as a CSV spreadsheet"
             >
@@ -358,7 +392,7 @@ export const BatchExecutionModal: React.FC<BatchExecutionModalProps> = ({
             {/* Direct JSON Export */}
             <a
               href={jsonExportUrl}
-              download={`${project.name.replace(/\W+/g, '_')}-report.json`}
+              download={`${effectiveProjectName.replace(/\W+/g, '_')}-report.json`}
               className="flex items-center gap-1.5 rounded-xl border border-[#1E2235] bg-[#131622] px-3.5 py-2 text-xs font-semibold text-slate-200 hover:bg-[#1A1D2B] transition"
               title="Download test results as JSON specification"
             >
@@ -367,17 +401,19 @@ export const BatchExecutionModal: React.FC<BatchExecutionModalProps> = ({
             </a>
 
             {/* Multi-Cloud Deploy */}
-            <button
-              type="button"
-              onClick={() => {
-                onClose();
-                onOpenDeployModal();
-              }}
-              className="flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/20 transition"
-            >
-              <Server className="h-3.5 w-3.5 text-emerald-400" />
-              <span>Deploy Self-Hosted Runner</span>
-            </button>
+            {onOpenDeployModal && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenDeployModal();
+                }}
+                className="flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/20 transition"
+              >
+                <Server className="h-3.5 w-3.5 text-emerald-400" />
+                <span>Deploy Self-Hosted Runner</span>
+              </button>
+            )}
           </div>
 
           <div>

@@ -76,6 +76,60 @@ authRouter.post('/register-standalone', (req: Request, res: Response) => {
   });
 });
 
+// Google / Firebase Auth session sync: provisions or updates the user and mints a valid backend JWT session token
+authRouter.post('/google-session', (req: Request, res: Response) => {
+  const { uid, email, name } = req.body;
+  if (!uid || !email) {
+    return res.status(400).json({ error: 'UID and email are required for Google session sync.' });
+  }
+
+  const normalizedEmail = String(email).toLowerCase().trim();
+  let user = db.findUserById(uid);
+
+  if (!user) {
+    user = db.findUserByEmail(normalizedEmail);
+  }
+
+  if (user) {
+    if (name) {
+      user.name = String(name).trim();
+    }
+    user.email = normalizedEmail;
+    db.save();
+  } else {
+    user = {
+      id: uid,
+      email: normalizedEmail,
+      name: name ? String(name).trim() : 'Google Developer',
+      passwordHash: '', // Authenticated via Google OAuth / Firebase
+      role: 'standalone',
+      creditsBalance: 100, // 100 Welcome credits for Google users
+      createdAt: new Date().toISOString(),
+    };
+    db.data.users.push(user);
+
+    db.data.creditLedger.unshift({
+      id: uuidv4(),
+      userId: user.id,
+      delta: 100,
+      reason: 'Welcome Cloud Credits Allocation (Google Sign-In)',
+      balanceAfter: 100,
+      createdAt: new Date().toISOString(),
+    });
+
+    db.addAuditLog(user.id, user.email, 'GOOGLE_AUTH_LOGIN', `User signed in with Google identity.`);
+    db.save();
+  }
+
+  const token = generateToken(user);
+  const org = user.orgId ? db.findOrgById(user.orgId) : null;
+  res.json({
+    token,
+    user: publicUser(user),
+    organization: org || null,
+  });
+});
+
 // Current user profile
 authRouter.get('/me', requireAuth, (req: AuthRequest, res: Response) => {
   if (!req.user) return res.status(401).json({ error: 'Not authenticated' });

@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { signInWithGoogle } from '../services/firebase';
 import { User, Organization, AppView } from '../types';
-import { testApiConnection, getApiBaseUrl, api } from '../services/api';
+import { testApiConnection, getApiBaseUrl } from '../services/api';
 import { EngineSettingsModal } from './EngineSettingsModal';
 
 interface NavbarProps {
@@ -27,27 +27,9 @@ interface NavbarProps {
   currentOrg: Organization | null;
   onOpenAuth: (mode: 'login' | 'register') => void;
   onOpenBilling: () => void;
-  onSwitchPersona: (role?: string, email?: string) => void;
+  onSwitchPersona?: (role?: string, email?: string) => void;
   onLogout: () => void;
   onGoogleSignInSuccess?: (user: User) => void;
-}
-
-// Display metadata derived from a real user's role — not a hand-maintained
-// duplicate of the seed data (which could silently drift out of sync with
-// it). The actual accounts (email, name) are fetched live from
-// GET /api/auth/demo-personas, so "Switch Journey Persona" always reflects
-// whatever demo accounts really exist in the database.
-const ROLE_DISPLAY: Record<string, { badge: string; color: string }> = {
-  platform_admin: { badge: 'Superadmin', color: 'bg-rose-500/20 text-rose-300 border-rose-500/30' },
-  org_admin: { badge: 'Org Admin', color: 'bg-amber-500/20 text-amber-300 border-amber-500/30' },
-  member: { badge: 'Engineer', color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' },
-  standalone: { badge: 'Standalone', color: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30' },
-};
-function roleLabel(role: string, name: string): string {
-  if (role === 'platform_admin') return 'Platform Superadmin';
-  if (role === 'org_admin') return `Customer Admin${name ? ` (${name.split(' ')[0]})` : ''}`;
-  if (role === 'member') return `Team Member${name ? ` (${name.split(' ')[0]})` : ''}`;
-  return 'Standalone Developer';
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -57,14 +39,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   currentOrg,
   onOpenAuth,
   onOpenBilling,
-  onSwitchPersona,
   onLogout,
   onGoogleSignInSuccess,
 }) => {
-  const [personaMenuOpen, setPersonaMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [isEngineModalOpen, setIsEngineModalOpen] = useState(false);
-  const [demoPersonas, setDemoPersonas] = useState<Array<{ id: string; email: string; name: string; role: string }>>([]);
+  const [isSigningInGoogle, setIsSigningInGoogle] = useState(false);
   const [engineStatus, setEngineStatus] = useState<{
     checked: boolean;
     ok: boolean;
@@ -76,21 +56,6 @@ export const Navbar: React.FC<NavbarProps> = ({
     checked: false,
     ok: false,
   });
-
-  useEffect(() => {
-    let cancelled = false;
-    api.getDemoPersonas()
-      .then(list => {
-        if (!cancelled) setDemoPersonas(list);
-      })
-      .catch(() => {
-        // Non-fatal — the persona switcher just shows nothing to pick if
-        // this fails; the rest of the app works normally either way.
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -394,64 +359,22 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </div>
 
-          {/* Quick Persona Switcher for Live Demo & Review */}
-          <div className="relative">
-            <button
-              onClick={() => setPersonaMenuOpen(!personaMenuOpen)}
-              data-testid="persona-switcher"
-              className="flex items-center gap-2 rounded-lg border border-[#1E2235] bg-[#0F111A] px-2.5 py-1.5 text-xs font-medium text-slate-200 transition hover:border-[#2D334D] hover:bg-[#131622]"
-              title="Switch demo persona to test different journeys"
-            >
+          {/* User Role Badge (When Authenticated) */}
+          {currentUser && (
+            <div className="hidden sm:flex items-center gap-1.5 rounded-lg border border-[#1E2235] bg-[#0F111A] px-2.5 py-1.5 text-xs font-medium text-slate-200">
               <div className="flex h-2 w-2 rounded-full bg-emerald-400 ring-4 ring-emerald-400/20" />
-              <span className="hidden text-slate-400 sm:inline">Role:</span>
-              <span className="font-semibold text-white">
-                {currentUser?.role === 'platform_admin'
+              <span className="text-slate-400">Role:</span>
+              <span className="font-semibold text-white capitalize">
+                {currentUser.role === 'platform_admin'
                   ? 'Platform Admin'
-                  : currentUser?.role === 'org_admin'
+                  : currentUser.role === 'org_admin'
                   ? 'Customer Admin'
-                  : currentUser?.role === 'member'
+                  : currentUser.role === 'member'
                   ? 'Team Member'
-                  : currentUser
-                  ? 'Standalone'
-                  : 'Guest'}
+                  : 'Standalone'}
               </span>
-              <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
-            </button>
-
-            {personaMenuOpen && (
-              <div className="absolute right-0 mt-2 w-72 origin-top-right rounded-xl border border-[#1E2235] bg-[#0F111A] p-2 shadow-2xl ring-1 ring-black/50">
-                <div className="px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                  Switch Journey Persona
-                </div>
-                <div className="space-y-1">
-                  {demoPersonas.map(p => {
-                    const display = ROLE_DISPLAY[p.role] || { badge: p.role, color: 'bg-slate-500/20 text-slate-300 border-slate-500/30' };
-                    return (
-                      <button
-                        key={p.id}
-                        data-testid={`persona-option-${p.role}`}
-                        onClick={() => {
-                          onSwitchPersona(p.role, p.email);
-                          setPersonaMenuOpen(false);
-                        }}
-                        className={`flex w-full items-start justify-between rounded-lg p-2 text-left transition hover:bg-[#131622] ${
-                          currentUser?.email === p.email ? 'bg-[#1A1D2B] ring-1 ring-emerald-500/40' : ''
-                        }`}
-                      >
-                        <div>
-                          <div className="text-xs font-semibold text-white">{roleLabel(p.role, p.name)}</div>
-                          <div className="font-mono text-[10px] text-slate-400">{p.email}</div>
-                        </div>
-                        <span className={`rounded border px-1.5 py-0.5 text-[10px] font-medium ${display.color}`}>
-                          {display.badge}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Credits Balance Pill */}
           {currentUser && (
@@ -511,6 +434,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <span>{currentOrg.name}</span>
                       </div>
                     )}
+                    <div className="mt-1.5 flex items-center justify-between text-[10px] text-slate-400">
+                      <span>Role:</span>
+                      <span className="font-semibold text-emerald-400 capitalize">
+                        {currentUser.role.replace('_', ' ')}
+                      </span>
+                    </div>
                   </div>
 
                   <div className="space-y-0.5 pt-1">
@@ -542,24 +471,42 @@ export const Navbar: React.FC<NavbarProps> = ({
           ) : (
             <div className="flex items-center gap-2">
               <button
+                disabled={isSigningInGoogle}
                 onClick={async () => {
+                  if (isSigningInGoogle) return;
+                  setIsSigningInGoogle(true);
                   try {
                     const u = await signInWithGoogle();
-                    if (onGoogleSignInSuccess) onGoogleSignInSuccess(u);
-                  } catch (e) {
-                    console.error('Google sign in error', e);
+                    if (u && onGoogleSignInSuccess) onGoogleSignInSuccess(u);
+                  } catch (e: any) {
+                    if (
+                      e?.code !== 'auth/cancelled-popup-request' &&
+                      e?.code !== 'auth/popup-closed-by-user' &&
+                      !e?.message?.includes('cancelled-popup-request') &&
+                      !e?.message?.includes('popup-closed-by-user')
+                    ) {
+                      console.error('Google sign in error', e);
+                    }
+                  } finally {
+                    setIsSigningInGoogle(false);
                   }
                 }}
-                className="flex items-center gap-2 rounded-lg border border-[#1E2235] bg-[#06070B] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:border-emerald-500/40 hover:bg-[#131622]"
+                className={`flex items-center gap-2 rounded-lg border border-[#1E2235] bg-[#06070B] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:border-emerald-500/40 hover:bg-[#131622] ${
+                  isSigningInGoogle ? 'opacity-60 cursor-wait' : ''
+                }`}
                 title="Sign in with your Google account"
               >
-                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24">
-                  <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"/>
-                  <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
-                  <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
-                  <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
-                </svg>
-                <span>Sign in with Google</span>
+                {isSigningInGoogle ? (
+                  <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent" />
+                ) : (
+                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"/>
+                    <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
+                    <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
+                    <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+                  </svg>
+                )}
+                <span>{isSigningInGoogle ? 'Connecting...' : 'Sign in with Google'}</span>
               </button>
               <button
                 onClick={() => onOpenAuth('login')}

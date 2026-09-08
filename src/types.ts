@@ -158,6 +158,7 @@ export interface TestRun {
     dataPreview?: string;
     requestBody?: string;
     requestHeaders?: Record<string, string>;
+    executionMode?: string;
   }>;
   stats?: {
     total: number;

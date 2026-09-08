@@ -153,7 +153,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
           </div>
 
           {/* Project Switcher if in standalone mode and multiple projects */}
-          {projects.length > 1 && onSelectProject && (
+          {projects && projects.length > 1 && onSelectProject && (
             <select
               value={projectId}
               onChange={e => onSelectProject(e.target.value)}
@@ -161,7 +161,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
               className="rounded-xl border border-[#1E2235] bg-[#0F111A] px-2.5 py-1 text-xs text-slate-300 focus:border-emerald-500 focus:outline-none"
             >
               <option value="all">All Projects Combined</option>
-              {projects.map(p => (
+              {projects.filter(p => p && p.id).map(p => (
                 <option key={p.id} value={p.id}>
                   {p.name}
                 </option>
