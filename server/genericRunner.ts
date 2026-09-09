@@ -76,9 +76,17 @@ export function extractCredentialsToken(
       return String(fromDataset).trim().replace(/^Bearer\s+/i, '');
     }
 
-    // Target application JWT generation: If target application defines JWT_SECRET / jwtSecret in its dataset,
-    // mint an authentic token for test execution
+    // Target application JWT generation: this signs a token for the
+    // TARGET application under test — it has nothing to do with, and must
+    // never be confused with, process.env.JWT_SECRET (server/auth.ts),
+    // which is Verity's OWN platform authentication secret. That naming
+    // collision existed here before and was a real source of confusion;
+    // TARGET_APP_JWT_SECRET is now the preferred key. JWT_SECRET/jwtSecret/
+    // targetJwtSecret are kept as read-only fallbacks so datasets saved
+    // before this rename keep working — new writes should use the
+    // unambiguous name.
     const targetJwtSecret =
+      getDotted(dataset, 'TARGET_APP_JWT_SECRET') ||
       getDotted(dataset, 'JWT_SECRET') ||
       getDotted(dataset, 'jwtSecret') ||
       getDotted(dataset, 'targetJwtSecret');
@@ -126,9 +134,13 @@ export function getAuthHeaders(
     token = getDotted(dataset, `authTokens.${personaKey}`) || getDotted(dataset, personaKey);
   }
 
-  // Target application JWT signing: If the target application defines JWT_SECRET / jwtSecret in its dataset,
-  // mint an authentic signed JWT using the target application's secret key.
+  // Target application JWT signing: mints a token for the TARGET
+  // application, using ITS OWN secret — never Verity's own JWT_SECRET
+  // (see the matching comment in resolveAuthToken above for why this
+  // naming distinction matters). TARGET_APP_JWT_SECRET is the preferred
+  // key; the legacy names are read-only fallbacks for existing data.
   const targetJwtSecret =
+    getDotted(dataset, 'TARGET_APP_JWT_SECRET') ||
     getDotted(dataset, 'JWT_SECRET') ||
     getDotted(dataset, 'jwtSecret') ||
     getDotted(dataset, 'targetJwtSecret');
@@ -191,9 +203,15 @@ async function fireSingleRequest(
 ) {
   const started = Date.now();
 
-  // Route to target application API URL if VITE_API_URL or apiUrl is configured in dataset
+  // Route to a separate target API host if configured in the dataset — a
+  // real, common case (SPA frontend on one domain, API backend on
+  // another). TARGET_APP_API_BASE_URL is the preferred key; this is
+  // unrelated to Verity's own VITE_API_URL (which tells Verity's own
+  // frontend where Verity's own backend lives) — that naming collision
+  // was a real source of confusion and is being phased out. Legacy keys
+  // kept as read-only fallbacks for existing data.
   const targetApiUrl = dataset
-    ? (getDotted(dataset, 'VITE_API_URL') || getDotted(dataset, 'apiUrl') || getDotted(dataset, 'targetApiUrl'))
+    ? (getDotted(dataset, 'TARGET_APP_API_BASE_URL') || getDotted(dataset, 'VITE_API_URL') || getDotted(dataset, 'apiUrl') || getDotted(dataset, 'targetApiUrl'))
     : undefined;
 
   let effectiveBaseUrl = siteUrl;
@@ -352,8 +370,12 @@ export async function runHttp(
       );
     }
 
-    // If target application specifies CORS_ALLOWED_ORIGINS in dataset, resolve and support CORS testing
+    // Origin header for testing the TARGET application's own CORS
+    // handling — unrelated to Verity's own CORS_ALLOWED_ORIGINS (which
+    // controls who can call Verity's own API). TARGET_APP_CORS_ORIGIN is
+    // the preferred key; legacy names kept as read-only fallbacks.
     const targetCors =
+      getDotted(dataset, 'TARGET_APP_CORS_ORIGIN') ||
       getDotted(dataset, 'CORS_ALLOWED_ORIGINS') ||
       getDotted(dataset, 'corsAllowedOrigins') ||
       getDotted(dataset, 'cors_allowed_origins');

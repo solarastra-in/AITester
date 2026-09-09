@@ -118,21 +118,22 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
     if (!user && payload.email) {
       user = db.findUserByEmail(payload.email);
     }
-    if (!user && payload.id) {
-      user = {
-        id: payload.id,
-        email: payload.email || 'user@verity.dev',
-        name: payload.name || 'Authenticated User',
-        passwordHash: '',
-        role: payload.role || 'standalone',
-        creditsBalance: 100,
-        createdAt: new Date().toISOString(),
-      };
-      db.data.users.push(user);
-      db.save();
-    }
+    // SECURITY: reject, never auto-create. requireAuth is the primary
+    // authentication gate wired into nearly every protected route in the
+    // app — a validly-signed token referencing a user ID that doesn't
+    // exist must be rejected, not used to silently create a brand-new
+    // account with a role taken directly from the token's own payload.
+    // That combination (any valid signature + self-declared role) is a
+    // privilege-escalation primitive, not a convenience. New users are
+    // already provisioned correctly and safely elsewhere: standard
+    // registration (POST /api/auth/register-standalone), organization
+    // onboarding (POST /api/admin/organizations, POST /api/org/members),
+    // and Google sign-in (POST /api/auth/google-session, which hardcodes
+    // role: 'standalone' and only ever runs for a UID/email pair the
+    // client actually authenticated with Google/Firebase) — none of them
+    // need or use this fallback.
     if (!user) {
-      return res.status(401).json({ error: 'User session expired or user no longer exists.' });
+      return res.status(401).json({ error: 'User session expired or no longer exists.' });
     }
     req.user = user;
     req.currentUser = user;
@@ -178,19 +179,17 @@ export function authMiddleware(req: AuthRequest, res: Response, next: NextFuncti
     if (!user && payload.email) {
       user = db.findUserByEmail(payload.email);
     }
-    if (!user && payload.id) {
-      user = {
-        id: payload.id,
-        email: payload.email || 'user@verity.dev',
-        name: payload.name || 'Authenticated User',
-        passwordHash: '',
-        role: payload.role || 'standalone',
-        creditsBalance: 100,
-        createdAt: new Date().toISOString(),
-      };
-      db.data.users.push(user);
-      db.save();
-    }
+    // SECURITY: a validly-signed token whose user no longer exists (or
+    // never existed) is REJECTED, not auto-provisioned. The previous
+    // version of this function created a brand-new user record here —
+    // with a role taken directly from the token's own (attacker-
+    // controllable, if the token were ever forged or a stale/leaked
+    // signing key reused) payload — and granted it access in the same
+    // request. That's a privilege-escalation / persistent-backdoor
+    // primitive, not a session-recovery convenience. If a user's account
+    // was legitimately deleted, they need to register/be re-invited
+    // through the real onboarding flow, not silently reappear via a
+    // stale token.
     if (!user) {
       return res.status(401).json({
         error: 'User session expired or user no longer exists.',
@@ -248,19 +247,9 @@ export function checkTestCaseSecurity(req: AuthRequest, res: Response, next: Nex
     if (!user && payload.email) {
       user = db.findUserByEmail(payload.email);
     }
-    if (!user && payload.id) {
-      user = {
-        id: payload.id,
-        email: payload.email || 'user@verity.dev',
-        name: payload.name || 'Authenticated User',
-        passwordHash: '',
-        role: payload.role || 'standalone',
-        creditsBalance: 100,
-        createdAt: new Date().toISOString(),
-      };
-      db.data.users.push(user);
-      db.save();
-    }
+    // SECURITY: same reasoning as requireAuth above — reject rather than
+    // auto-create a user (with an attacker/self-declared role) for a
+    // validly-signed token referencing a nonexistent ID.
   } catch {
     return res.status(403).json({
       error: 'Forbidden: Invalid or expired authentication credentials.',
