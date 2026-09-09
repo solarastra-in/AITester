@@ -41,8 +41,7 @@
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
     "recharts": "^3.10.1",
-    "uuid": "^14.0.2",
-    "vite": "^6.2.3"
+    "uuid": "^14.0.2"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

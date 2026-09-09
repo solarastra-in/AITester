@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { db } from '../db.js';
-import { requireAuth, checkTestCaseSecurity, AuthRequest } from '../auth.js';
+import { requireAuth, checkTestCaseSecurity, AuthRequest, authMiddleware, AuthMiddleware, generateToken } from '../auth.js';
 import { parseStructuredJson, parseStructuredCsv, parseMarkdownTable, extractPlaceholders, getDotted } from '../specParser.js';
 import { runTestCase } from '../genericRunner.js';
 import { generateTestCases, analyzeTargetUrl, introspectWebsiteAndGenerateQuestions, buildSuiteFromJourney } from '../aiGenerate.js';
@@ -17,7 +17,7 @@ export const projectRouter = Router();
 // Security middleware layer on the API service to check currentUser permissions
 // before returning any test case data.
 // If a user is not authorized or logged in, returns 403 Forbidden.
-// For other routes (like /analytics), standard requireAuth (401 when unauthenticated) is used.
+// For all other routes, authMiddleware validates JWTs from Authorization: Bearer <token>.
 projectRouter.use((req: AuthRequest, res: Response, next: NextFunction) => {
   const isTestCaseDataRoute =
     req.path.endsWith('/cases') ||
@@ -28,7 +28,7 @@ projectRouter.use((req: AuthRequest, res: Response, next: NextFunction) => {
   if (isTestCaseDataRoute) {
     return checkTestCaseSecurity(req, res, next);
   }
-  return requireAuth(req, res, next);
+  return authMiddleware(req, res, next);
 });
 
 interface ProjectRequest extends AuthRequest {
@@ -624,6 +624,9 @@ projectRouter.post('/:id/suites/generate-browser-tests', loadProject, async (req
       caseCount: createdCases.length,
       pagesCrawled: crawl.pages.length,
       pagesSkipped: crawl.skippedUrls.length,
+      totalUrlsDiscovered: crawl.totalSameOriginUrlsDiscovered,
+      usedSitemap: crawl.usedSitemap,
+      interactiveControlsFound: crawl.pages.reduce((sum, p) => sum + p.interactiveElements.length, 0),
       casesNeedingUserData: casesNeedingData.map(c => ({ id: c.id, title: c.title, dataFields: c.dataFields })),
     });
   } catch (err: any) {
@@ -738,11 +741,12 @@ projectRouter.post('/:id/cases/:caseId/run', loadProject, async (req: ProjectReq
     }
   }
 
+  const runOptions = { token: req.token || req.authToken };
   let result: { pass: boolean; message: string; type?: string; requests?: any; stats?: any; browserSteps?: any; bugsFound?: any };
   try {
     result = testCase.type === 'browser'
-      ? await runBrowserTestCase(testCase, req.dataset || {}, req.project!.siteUrl)
-      : await runTestCase(testCase, req.dataset || {}, req.project!.siteUrl);
+      ? await runBrowserTestCase(testCase, req.dataset || {}, req.project!.siteUrl, runOptions)
+      : await runTestCase(testCase, req.dataset || {}, req.project!.siteUrl, runOptions);
   } catch (err: any) {
     result = {
       pass: false,
@@ -810,11 +814,12 @@ projectRouter.post('/:id/run-all', loadProject, async (req: ProjectRequest, res:
       }
     }
 
+    const runOptions = { token: req.token || req.authToken };
     let result: { pass: boolean; message: string; type?: string; requests?: any; stats?: any; browserSteps?: any; bugsFound?: any };
     try {
       result = testCase.type === 'browser'
-        ? await runBrowserTestCase(testCase, req.dataset || {}, req.project!.siteUrl)
-        : await runTestCase(testCase, req.dataset || {}, req.project!.siteUrl);
+        ? await runBrowserTestCase(testCase, req.dataset || {}, req.project!.siteUrl, runOptions)
+        : await runTestCase(testCase, req.dataset || {}, req.project!.siteUrl, runOptions);
     } catch (err: any) {
       result = {
         pass: false,
@@ -1037,12 +1042,13 @@ projectRouter.post('/:id/cases/bulk-run', loadProject, async (req: ProjectReques
   }
 
   // Execute selected cases simultaneously using Promise.all
+  const runOptions = { token: req.token || req.authToken };
   const runPromises = casesToRun.map(async (testCase) => {
     let result: { pass: boolean; message: string; type?: string; requests?: any; stats?: any; browserSteps?: any; bugsFound?: any };
     try {
       result = testCase.type === 'browser'
-        ? await runBrowserTestCase(testCase, req.dataset || {}, req.project!.siteUrl)
-        : await runTestCase(testCase, req.dataset || {}, req.project!.siteUrl);
+        ? await runBrowserTestCase(testCase, req.dataset || {}, req.project!.siteUrl, runOptions)
+        : await runTestCase(testCase, req.dataset || {}, req.project!.siteUrl, runOptions);
     } catch (err: any) {
       result = {
         pass: false,
@@ -1520,7 +1526,11 @@ export function calculateNextRunDate(
   return new Date(now.getTime() + 24 * 3600 * 1000).toISOString();
 }
 
-export async function executeScheduleInternal(schedule: TestSchedule, triggeredByUserId: string = 'cron_scheduler') {
+export async function executeScheduleInternal(
+  schedule: TestSchedule,
+  triggeredByUserId: string = 'cron_scheduler',
+  options?: { token?: string }
+) {
   const project = db.data.projects.find(p => p.id === schedule.projectId);
   if (!project) {
     console.warn(`[Scheduler] Project ${schedule.projectId} not found for schedule ${schedule.id}. Deactivating orphaned schedule.`);
@@ -1535,6 +1545,17 @@ export async function executeScheduleInternal(schedule: TestSchedule, triggeredB
       message: `Project ${schedule.projectId} not found for schedule ${schedule.id}`,
       runs: [],
     };
+  }
+
+  // Resolve or generate valid JWT credentials for this execution context
+  let executionToken = options?.token;
+  if (!executionToken) {
+    const userToAuth = (triggeredByUserId !== 'cron_scheduler' && db.findUserById(triggeredByUserId))
+      || db.findUserById(project.ownerUserId)
+      || db.data.users[0];
+    if (userToAuth) {
+      executionToken = generateToken(userToAuth);
+    }
   }
 
   // Identify cases to run
@@ -1568,8 +1589,8 @@ export async function executeScheduleInternal(schedule: TestSchedule, triggeredB
     let result: { pass: boolean; message: string; type?: string; requests?: any; stats?: any; browserSteps?: any; bugsFound?: any };
     try {
       result = testCase.type === 'browser'
-        ? await runBrowserTestCase(testCase, dataset, project.siteUrl)
-        : await runTestCase(testCase, dataset, project.siteUrl);
+        ? await runBrowserTestCase(testCase, dataset, project.siteUrl, { token: executionToken })
+        : await runTestCase(testCase, dataset, project.siteUrl, { token: executionToken });
     } catch (err: any) {
       result = {
         pass: false,
@@ -1853,7 +1874,7 @@ projectRouter.post('/:id/schedules/:scheduleId/trigger', loadProject, async (req
   }
 
   try {
-    const outcome = await executeScheduleInternal(schedule, req.user!.id);
+    const outcome = await executeScheduleInternal(schedule, req.user!.id, { token: req.token || req.authToken });
     res.json(outcome);
   } catch (err: any) {
     res.status(500).json({ error: `Failed to trigger schedule execution: ${err.message}` });

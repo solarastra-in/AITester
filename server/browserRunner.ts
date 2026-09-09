@@ -367,7 +367,8 @@ export async function createPlaywrightDriver(startUrl: string): Promise<BrowserP
 export async function runBrowserTestCase(
   testCase: Pick<TestCase, 'type' | 'spec'>,
   dataset: Record<string, any>,
-  siteUrl: string
+  siteUrl: string,
+  options?: { token?: string } | string
 ): Promise<BrowserRunResult> {
   if (!testCase.spec.browser) {
     return { pass: false, message: 'This test case has no browser spec.', browserSteps: [], bugsFound: [] };

@@ -246,7 +246,7 @@ export interface PricingTier {
 
 export interface IntrospectionQuestion {
   id: string;
-  category: 'auth' | 'model' | 'data' | 'workflow' | 'edge_case';
+  category: 'auth' | 'model' | 'data' | 'workflow' | 'edge_case' | 'env';
   title: string;
   question: string;
   explanation: string;

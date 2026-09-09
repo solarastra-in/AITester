@@ -1450,7 +1450,7 @@ function generateSmartFallbackCases(
 
 export interface IntrospectionQuestion {
   id: string;
-  category: 'auth' | 'model' | 'data' | 'workflow' | 'edge_case';
+  category: 'auth' | 'model' | 'data' | 'workflow' | 'edge_case' | 'env';
   title: string;
   question: string;
   explanation: string;
@@ -1458,6 +1458,55 @@ export interface IntrospectionQuestion {
   variableKey: string;
   placeholder: string;
   required: boolean;
+}
+
+export function getTargetAppConfigQuestions(cleanUrl: string, hostname: string): IntrospectionQuestion[] {
+  return [
+    {
+      id: 'target_api_url',
+      category: 'env',
+      title: 'Target Backend API URL (VITE_API_URL)',
+      question: 'What is the backend API URL for this target application? (Defaults to site URL if APIs are co-located)',
+      explanation: 'Configures the API base URL used for routing API test requests (VITE_API_URL / apiUrl).',
+      suggestedDefault: cleanUrl,
+      variableKey: 'VITE_API_URL',
+      placeholder: `e.g. https://api.${hostname} or ${cleanUrl}`,
+      required: false,
+    },
+    {
+      id: 'target_jwt_secret',
+      category: 'auth',
+      title: 'Target Application JWT Signing Secret (JWT_SECRET)',
+      question: 'If this application uses JWT authentication, what secret key does it use to sign and verify tokens?',
+      explanation: 'Used by the test runner to mint authentic, signed test tokens dynamically for this application.',
+      suggestedDefault: '',
+      variableKey: 'JWT_SECRET',
+      placeholder: 'e.g. your_target_app_jwt_secret_64chars',
+      required: false,
+    },
+    {
+      id: 'target_cors_origins',
+      category: 'env',
+      title: 'Target Allowed CORS Origins (CORS_ALLOWED_ORIGINS)',
+      question: 'Which origins are allowed by this target application for cross-origin requests?',
+      explanation: 'Used for CORS validation, preflight OPTIONS requests, and security origin testing.',
+      suggestedDefault: cleanUrl,
+      variableKey: 'CORS_ALLOWED_ORIGINS',
+      placeholder: `e.g. ${cleanUrl},https://localhost:3000`,
+      required: false,
+    },
+  ];
+}
+
+export function getTargetAppDefaultDataset(cleanUrl: string): Record<string, any> {
+  return {
+    VITE_API_URL: cleanUrl,
+    apiUrl: cleanUrl,
+    JWT_SECRET: '',
+    jwtSecret: '',
+    CORS_ALLOWED_ORIGINS: cleanUrl,
+    corsAllowedOrigins: cleanUrl,
+  };
 }
 
 export interface DiscoveredEndpoint {
@@ -2024,6 +2073,14 @@ export async function introspectWebsiteAndGenerateQuestions(
     ];
   }
 
+  // Ensure target application configuration questions (VITE_API_URL, JWT_SECRET, CORS_ALLOWED_ORIGINS)
+  // are included for every introspected application
+  questions.push(...getTargetAppConfigQuestions(cleanUrl, hostname));
+  defaultDataset = {
+    ...defaultDataset,
+    ...getTargetAppDefaultDataset(cleanUrl),
+  };
+
   return {
     targetUrl: cleanUrl,
     probedStatus: probe.probedStatus,
@@ -2076,7 +2133,16 @@ export async function buildSuiteFromJourney(
     if (!rawVal || typeof rawVal !== 'string') continue;
     const val = rawVal.trim();
 
-    if (key === 'auth_user_token' || key === 'authTokens.user') {
+    if (key === 'target_api_url' || key === 'VITE_API_URL' || key === 'apiUrl') {
+      dataset.VITE_API_URL = val;
+      dataset.apiUrl = val;
+    } else if (key === 'target_jwt_secret' || key === 'JWT_SECRET' || key === 'jwtSecret') {
+      dataset.JWT_SECRET = val;
+      dataset.jwtSecret = val;
+    } else if (key === 'target_cors_origins' || key === 'CORS_ALLOWED_ORIGINS' || key === 'corsAllowedOrigins') {
+      dataset.CORS_ALLOWED_ORIGINS = val;
+      dataset.corsAllowedOrigins = val;
+    } else if (key === 'auth_user_token' || key === 'authTokens.user') {
       dataset.authTokens.user = val;
     } else if (key === 'auth_team_lead' || key === 'authTokens.team_lead') {
       dataset.authTokens.team_lead = val;
@@ -2138,6 +2204,14 @@ export async function buildSuiteFromJourney(
     if (!dataset.query_id) dataset.query_id = '728';
     if (!dataset.sample_id) dataset.sample_id = 'sample_why_01';
   }
+
+  // Ensure target application configuration variables are established per-application at the dataset level
+  if (!dataset.VITE_API_URL) dataset.VITE_API_URL = cleanUrl;
+  if (!dataset.apiUrl) dataset.apiUrl = dataset.VITE_API_URL;
+  if (dataset.JWT_SECRET === undefined) dataset.JWT_SECRET = '';
+  if (dataset.jwtSecret === undefined) dataset.jwtSecret = dataset.JWT_SECRET;
+  if (!dataset.CORS_ALLOWED_ORIGINS) dataset.CORS_ALLOWED_ORIGINS = cleanUrl;
+  if (!dataset.corsAllowedOrigins) dataset.corsAllowedOrigins = dataset.CORS_ALLOWED_ORIGINS;
 
   // 2. Generate test cases
   let generatedDrafts: ParsedCaseDraft[] = [];

@@ -112,3 +112,21 @@ standalone-template/       The self-hosted package template — seeded per
 - New assertion capability (e.g. header checks) → extend `expect` handling
   in `lib/genericRunner.js`'s `runHttp`.
 - New pricing tier → add a row to `PRICE_TABLE` in `lib/billing.js`.
+
+## Multi-Application & Crawler Completeness Updates
+
+- **Per-Application Target Configuration (Dataset Level)**:
+  - `VITE_API_URL`, `JWT_SECRET`, and `CORS_ALLOWED_ORIGINS` are managed per application dataset rather than at the platform environment level.
+  - Test suites inject target values dynamically via `{{VITE_API_URL}}`, `{{JWT_SECRET}}`, and `{{CORS_ALLOWED_ORIGINS}}` template parameters.
+  - Includes UI support in `DatasetConfigurator.tsx` with cryptographic secret generation.
+- **Hardened Site Crawling (`siteCrawler.ts`)**:
+  - `sitemap.xml` and sitemap index traversal for automated URL discovery seeded at depth 0.
+  - Tracking parameter (`utm_*`, `fbclid`, `gclid`) and anchor hash deduplication via `dedupKey()`.
+  - Accessible `<label>` extraction (via `label[for]`, wrapping `<label>`, and `aria-label`).
+  - Multi-attribute sensitivity detection (`type`, `name`, `label`).
+  - Interactive element discovery covering buttons, JS anchors, onclick handlers, ARIA widgets, and disclosures.
+- **Form-Scoped Browser Test Generation (`browserTestGenerator.ts`)**:
+  - Eliminates multi-form collision bugs using Playwright `form:has([name="..."])` scoped selectors.
+  - Smart named-field recognition for realistic synthetic form data.
+  - Automated interactive controls test suites exercising non-form controls without console errors.
+

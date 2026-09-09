@@ -1,4 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
+import jwt from 'jsonwebtoken';
 import { TestCase, TestCaseSpec, HttpRequestSpec } from './types.js';
 import { resolveTemplates, getDotted } from './specParser.js';
 import { assertPublicUrl } from './ssrfGuard.js';
@@ -29,6 +30,78 @@ export interface ExecutionResult {
   };
 }
 
+export interface RunCredentials {
+  token?: string;
+  authToken?: string;
+  authorization?: string;
+  apiKey?: string;
+  user?: any;
+  [key: string]: any;
+}
+
+export interface RunOptions {
+  token?: string;
+  authToken?: string;
+  credentials?: RunCredentials | string;
+  allowUnauthenticated?: boolean;
+}
+
+export function extractCredentialsToken(
+  options?: RunOptions | string,
+  dataset?: Record<string, any>
+): string | undefined {
+  if (typeof options === 'string' && options.trim()) {
+    return options.trim().replace(/^Bearer\s+/i, '');
+  }
+  if (options && typeof options === 'object') {
+    if (options.token) return String(options.token).trim().replace(/^Bearer\s+/i, '');
+    if (options.authToken) return String(options.authToken).trim().replace(/^Bearer\s+/i, '');
+    if (typeof options.credentials === 'string' && options.credentials.trim()) {
+      return options.credentials.trim().replace(/^Bearer\s+/i, '');
+    }
+    if (options.credentials && typeof options.credentials === 'object') {
+      if (options.credentials.token) return String(options.credentials.token).trim().replace(/^Bearer\s+/i, '');
+      if (options.credentials.authToken) return String(options.credentials.authToken).trim().replace(/^Bearer\s+/i, '');
+      if (options.credentials.authorization) return String(options.credentials.authorization).trim().replace(/^Bearer\s+/i, '');
+    }
+  }
+  if (dataset && typeof dataset === 'object') {
+    const fromDataset =
+      getDotted(dataset, '_authToken') ||
+      getDotted(dataset, 'authToken') ||
+      getDotted(dataset, 'token') ||
+      getDotted(dataset, 'bearerToken') ||
+      getDotted(dataset, 'apiToken');
+    if (fromDataset) {
+      return String(fromDataset).trim().replace(/^Bearer\s+/i, '');
+    }
+
+    // Target application JWT generation: If target application defines JWT_SECRET / jwtSecret in its dataset,
+    // mint an authentic token for test execution
+    const targetJwtSecret =
+      getDotted(dataset, 'JWT_SECRET') ||
+      getDotted(dataset, 'jwtSecret') ||
+      getDotted(dataset, 'targetJwtSecret');
+    if (targetJwtSecret) {
+      try {
+        return jwt.sign(
+          {
+            sub: 'target_app_runner',
+            role: 'qa_tester',
+            iss: 'verity-target-test-runner',
+            iat: Math.floor(Date.now() / 1000),
+            exp: Math.floor(Date.now() / 1000) + 7200,
+          },
+          String(targetJwtSecret)
+        );
+      } catch {
+        // fallback
+      }
+    }
+  }
+  return undefined;
+}
+
 function buildClient(baseUrl: string): AxiosInstance {
   return axios.create({
     baseURL: baseUrl,
@@ -40,25 +113,57 @@ function buildClient(baseUrl: string): AxiosInstance {
   });
 }
 
-function getAuthHeaders(dataset: Record<string, any>, personaKey?: string | null): Record<string, string> {
+export function getAuthHeaders(
+  dataset: Record<string, any>,
+  personaKey?: string | null,
+  callerToken?: string
+): Record<string, string> {
   const headers: Record<string, string> = {};
 
   // 1. Resolve persona token
   let token: string | undefined;
   if (personaKey) {
     token = getDotted(dataset, `authTokens.${personaKey}`) || getDotted(dataset, personaKey);
-    // If not explicitly set in dataset, provide role-based token (e.g. whyor_platform_admin_token)
-    if (!token) {
-      token = `whyor_${personaKey.toLowerCase()}_token`;
+  }
+
+  // Target application JWT signing: If the target application defines JWT_SECRET / jwtSecret in its dataset,
+  // mint an authentic signed JWT using the target application's secret key.
+  const targetJwtSecret =
+    getDotted(dataset, 'JWT_SECRET') ||
+    getDotted(dataset, 'jwtSecret') ||
+    getDotted(dataset, 'targetJwtSecret');
+
+  if (targetJwtSecret && (!token || token.startsWith('whyor_') || token.startsWith('tok_') || token.startsWith('mock_'))) {
+    try {
+      token = jwt.sign(
+        {
+          sub: `target_app_user_${(personaKey || 'user').toLowerCase()}`,
+          role: personaKey || 'user',
+          persona: personaKey || 'user',
+          iss: 'verity-target-test-runner',
+          iat: Math.floor(Date.now() / 1000),
+          exp: Math.floor(Date.now() / 1000) + 7200,
+        },
+        String(targetJwtSecret)
+      );
+    } catch (jwtErr) {
+      console.warn('[Verity Runner] Error signing token with target app JWT_SECRET:', jwtErr);
     }
+  }
+
+  if (personaKey && !token) {
+    token = `whyor_${personaKey.toLowerCase()}_token`;
   }
 
   // 2. Resolve general API Key from dataset
   const apiKey = getDotted(dataset, 'apiKey') || getDotted(dataset, 'api_key') || getDotted(dataset, 'apiToken');
 
-  const effectiveToken = token || apiKey;
+  // 3. Resolve caller credentials (JWT from Authorization: Bearer <token>)
+  const effectiveToken = callerToken || token || apiKey;
   if (effectiveToken) {
-    headers['Authorization'] = `Bearer ${effectiveToken}`;
+    headers['Authorization'] = String(effectiveToken).startsWith('Bearer ')
+      ? String(effectiveToken)
+      : `Bearer ${effectiveToken}`;
   }
   if (apiKey) {
     headers['X-API-Key'] = String(apiKey);
@@ -78,9 +183,30 @@ function bodyToString(data: any): string {
   }
 }
 
-async function fireSingleRequest(client: AxiosInstance, req: HttpRequestSpec, siteUrl: string) {
+async function fireSingleRequest(
+  client: AxiosInstance,
+  req: HttpRequestSpec,
+  siteUrl: string,
+  dataset?: Record<string, any>
+) {
   const started = Date.now();
-  const fullUrl = req.path.startsWith('http') ? req.path : `${siteUrl.replace(/\/$/, '')}/${req.path.replace(/^\//, '')}`;
+
+  // Route to target application API URL if VITE_API_URL or apiUrl is configured in dataset
+  const targetApiUrl = dataset
+    ? (getDotted(dataset, 'VITE_API_URL') || getDotted(dataset, 'apiUrl') || getDotted(dataset, 'targetApiUrl'))
+    : undefined;
+
+  let effectiveBaseUrl = siteUrl;
+  if (targetApiUrl && typeof targetApiUrl === 'string' && targetApiUrl.trim()) {
+    const cleanApi = targetApiUrl.trim();
+    if (req.path.startsWith('/api') || req.path.startsWith('api/') || req.path.includes('/api/')) {
+      effectiveBaseUrl = cleanApi;
+    }
+  }
+
+  const fullUrl = req.path.startsWith('http://') || req.path.startsWith('https://')
+    ? req.path
+    : `${effectiveBaseUrl.replace(/\/$/, '')}/${req.path.replace(/^\//, '')}`;
 
   // If this is an in-browser SPA target like ai.whyor.in with simulated FastAPI endpoints
   const isSpa = isWhyOrSpaTarget(siteUrl, req.path);
@@ -88,7 +214,7 @@ async function fireSingleRequest(client: AxiosInstance, req: HttpRequestSpec, si
   try {
     const resp = await client.request({
       method: req.method as any,
-      url: req.path,
+      url: fullUrl,
       headers: req.headers,
       data: req.body,
       timeout: 20000,
@@ -178,7 +304,12 @@ async function fireSingleRequest(client: AxiosInstance, req: HttpRequestSpec, si
   }
 }
 
-export async function runHttp(testCase: { spec: TestCaseSpec }, dataset: Record<string, any>, siteUrl: string): Promise<ExecutionResult> {
+export async function runHttp(
+  testCase: { spec: TestCaseSpec },
+  dataset: Record<string, any>,
+  siteUrl: string,
+  options?: RunOptions | string
+): Promise<ExecutionResult> {
   const client = buildClient(siteUrl);
   const { requests = [], expect = {} } = testCase.spec;
 
@@ -191,19 +322,56 @@ export async function runHttp(testCase: { spec: TestCaseSpec }, dataset: Record<
     };
   }
 
+  const callerToken = extractCredentialsToken(options, dataset);
+  const optionsObj: RunOptions = typeof options === 'string' ? { token: options } : (options || {});
+
   const responses = [];
   for (const r of requests) {
+    const authHeaders = getAuthHeaders(dataset, r.authPersona, callerToken);
+    const userHeaders = resolveTemplates(r.headers || {}, dataset);
+
+    const mergedHeaders: Record<string, string> = {
+      ...authHeaders,
+      ...userHeaders,
+    };
+
+    if (callerToken && !mergedHeaders['Authorization'] && !mergedHeaders['authorization']) {
+      mergedHeaders['Authorization'] = callerToken.startsWith('Bearer ') ? callerToken : `Bearer ${callerToken}`;
+    }
+
+    const hasAuth = !!(
+      mergedHeaders['Authorization'] ||
+      mergedHeaders['authorization'] ||
+      mergedHeaders['X-API-Key'] ||
+      mergedHeaders['x-api-key']
+    );
+
+    if (!hasAuth && !optionsObj.allowUnauthenticated) {
+      throw new Error(
+        "Unauthenticated call prohibited: Test case execution engine strictly enforces authentication credentials ('Authorization: Bearer <token>') for outgoing requests. Unauthenticated calls are blocked."
+      );
+    }
+
+    // If target application specifies CORS_ALLOWED_ORIGINS in dataset, resolve and support CORS testing
+    const targetCors =
+      getDotted(dataset, 'CORS_ALLOWED_ORIGINS') ||
+      getDotted(dataset, 'corsAllowedOrigins') ||
+      getDotted(dataset, 'cors_allowed_origins');
+    if (targetCors && typeof targetCors === 'string' && targetCors.trim()) {
+      const primaryOrigin = targetCors.split(',')[0].trim();
+      if (r.method === 'OPTIONS' && !mergedHeaders['Origin'] && !mergedHeaders['origin']) {
+        mergedHeaders['Origin'] = primaryOrigin;
+      }
+    }
+
     const resolved: HttpRequestSpec = {
       name: r.name,
       method: r.method,
       path: resolveTemplates(r.path, dataset),
-      headers: {
-        ...getAuthHeaders(dataset, r.authPersona),
-        ...resolveTemplates(r.headers || {}, dataset),
-      },
+      headers: mergedHeaders,
       body: r.body !== undefined ? resolveTemplates(r.body, dataset) : undefined,
     };
-    responses.push(await fireSingleRequest(client, resolved, siteUrl));
+    responses.push(await fireSingleRequest(client, resolved, siteUrl, dataset));
   }
 
   const errored = responses.filter(r => r.status == null);
@@ -298,7 +466,12 @@ export async function runHttp(testCase: { spec: TestCaseSpec }, dataset: Record<
   };
 }
 
-export async function runLoad(testCase: { spec: TestCaseSpec }, dataset: Record<string, any>, siteUrl: string): Promise<ExecutionResult> {
+export async function runLoad(
+  testCase: { spec: TestCaseSpec },
+  dataset: Record<string, any>,
+  siteUrl: string,
+  options?: RunOptions | string
+): Promise<ExecutionResult> {
   const client = buildClient(siteUrl);
   const { request, totalRequests = 10, concurrency = 3, expectRateLimited, maxP95Ms } = testCase.spec;
 
@@ -310,6 +483,9 @@ export async function runLoad(testCase: { spec: TestCaseSpec }, dataset: Record<
     };
   }
 
+  const callerToken = extractCredentialsToken(options, dataset);
+  const optionsObj: RunOptions = typeof options === 'string' ? { token: options } : (options || {});
+
   const durations: number[] = [];
   const statusCounts: Record<string, number> = {};
   let currentIdx = 0;
@@ -317,17 +493,39 @@ export async function runLoad(testCase: { spec: TestCaseSpec }, dataset: Record<
   async function worker() {
     while (currentIdx < totalRequests) {
       const idx = currentIdx++;
+      const authHeaders = getAuthHeaders(dataset, request!.authPersona, callerToken);
+      const userHeaders = resolveTemplates(request!.headers || {}, dataset);
+
+      const mergedHeaders: Record<string, string> = {
+        ...authHeaders,
+        ...userHeaders,
+      };
+
+      if (callerToken && !mergedHeaders['Authorization'] && !mergedHeaders['authorization']) {
+        mergedHeaders['Authorization'] = callerToken.startsWith('Bearer ') ? callerToken : `Bearer ${callerToken}`;
+      }
+
+      const hasAuth = !!(
+        mergedHeaders['Authorization'] ||
+        mergedHeaders['authorization'] ||
+        mergedHeaders['X-API-Key'] ||
+        mergedHeaders['x-api-key']
+      );
+
+      if (!hasAuth && !optionsObj.allowUnauthenticated) {
+        throw new Error(
+          "Unauthenticated call prohibited: Test case execution engine strictly enforces authentication credentials ('Authorization: Bearer <token>') for outgoing requests. Unauthenticated calls are blocked."
+        );
+      }
+
       const resolved: HttpRequestSpec = {
         name: `${request!.name} #${idx + 1}`,
         method: request!.method,
         path: resolveTemplates(request!.path, dataset),
-        headers: {
-          ...getAuthHeaders(dataset, request!.authPersona),
-          ...resolveTemplates(request!.headers || {}, dataset),
-        },
+        headers: mergedHeaders,
         body: request!.body !== undefined ? resolveTemplates(request!.body, dataset) : undefined,
       };
-      const result = await fireSingleRequest(client, resolved, siteUrl);
+      const result = await fireSingleRequest(client, resolved, siteUrl, dataset);
       durations.push(result.durationMs);
       const key = result.status == null ? 'error' : String(result.status);
       statusCounts[key] = (statusCounts[key] || 0) + 1;
@@ -386,7 +584,12 @@ export async function runLoad(testCase: { spec: TestCaseSpec }, dataset: Record<
   };
 }
 
-export async function runTestCase(testCase: { type: string; spec: TestCaseSpec }, dataset: Record<string, any>, siteUrl: string): Promise<ExecutionResult> {
+export async function runTestCase(
+  testCase: { type: string; spec: TestCaseSpec },
+  dataset: Record<string, any>,
+  siteUrl: string,
+  options?: RunOptions | string
+): Promise<ExecutionResult> {
   // SSRF guard: siteUrl ultimately comes from a user-supplied project field
   // (or a per-request override — see runHttp/runLoad), and this function
   // makes real outbound HTTP requests to it on the server's behalf. Checked
@@ -395,11 +598,37 @@ export async function runTestCase(testCase: { type: string; spec: TestCaseSpec }
   // when a project was created and when a test actually runs.
   await assertPublicUrl(siteUrl);
 
+  const callerToken = extractCredentialsToken(options, dataset);
+  const optionsObj: RunOptions = typeof options === 'string' ? { token: options } : (options || {});
+
+  // Pre-flight check: enforce that outgoing requests have valid authentication credentials
+  if (!callerToken && !optionsObj.allowUnauthenticated) {
+    const hasDatasetAuth = !!(
+      getDotted(dataset, 'apiKey') ||
+      getDotted(dataset, 'api_key') ||
+      getDotted(dataset, 'apiToken') ||
+      getDotted(dataset, 'authTokens')
+    );
+
+    let hasSpecAuth = false;
+    if (testCase.spec.request?.headers) {
+      hasSpecAuth = !!(testCase.spec.request.headers['Authorization'] || testCase.spec.request.headers['authorization']);
+    } else if (testCase.spec.requests?.some(r => r.headers?.['Authorization'] || r.headers?.['authorization'] || r.authPersona)) {
+      hasSpecAuth = true;
+    }
+
+    if (!hasDatasetAuth && !hasSpecAuth) {
+      throw new Error(
+        "Unauthenticated call prohibited: Test case execution engine strictly enforces authentication credentials ('Authorization: Bearer <token>') for outgoing requests. Unauthenticated calls are blocked."
+      );
+    }
+  }
+
   if (testCase.type === 'http') {
-    return runHttp(testCase, dataset, siteUrl);
+    return runHttp(testCase, dataset, siteUrl, options);
   }
   if (testCase.type === 'load') {
-    return runLoad(testCase, dataset, siteUrl);
+    return runLoad(testCase, dataset, siteUrl, options);
   }
   throw new Error(`Test type "${testCase.type}" cannot be automated via HTTP runner. Please record manual result.`);
 }

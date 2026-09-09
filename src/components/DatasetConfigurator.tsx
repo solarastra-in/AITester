@@ -303,10 +303,10 @@ export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
   // Categorize a field
   const categorizeField = (k: string): VariableCategory => {
     const lk = k.toLowerCase();
-    if (lk.includes('auth') || lk.includes('token') || lk.includes('jwt') || lk.includes('key') || lk.includes('secret') || lk.includes('pass')) {
+    if (lk.includes('jwt_secret') || lk.includes('jwtsecret') || lk.includes('auth') || lk.includes('token') || lk.includes('jwt') || lk.includes('key') || lk.includes('secret') || lk.includes('pass')) {
       return 'auth';
     }
-    if (lk.includes('url') || lk.includes('host') || lk.includes('domain') || lk.includes('env') || lk.includes('port')) {
+    if (lk.includes('vite_api_url') || lk.includes('cors_allowed_origins') || lk.includes('corsallowedorigins') || lk.includes('url') || lk.includes('host') || lk.includes('domain') || lk.includes('env') || lk.includes('port')) {
       return 'env';
     }
     if (lk.includes('id') || lk.includes('uuid') || lk.includes('slug') || lk.endsWith('_num')) {
@@ -321,6 +321,15 @@ export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
   // Generate realistic synthetic value based on key name
   const generateSyntheticValue = (k: string): any => {
     const lk = k.toLowerCase();
+    if (k === 'JWT_SECRET' || k === 'jwtSecret') {
+      return `sec_jwt_${Math.random().toString(36).substring(2, 15)}_${Math.random().toString(36).substring(2, 15)}_${Date.now()}`;
+    }
+    if (k === 'VITE_API_URL' || k === 'apiUrl') {
+      return project.siteUrl;
+    }
+    if (k === 'CORS_ALLOWED_ORIGINS' || k === 'corsAllowedOrigins') {
+      return `${project.siteUrl},http://localhost:3000`;
+    }
     if (lk.includes('token') || lk.includes('jwt') || lk.includes('bearer')) {
       return `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMyIsImF1ZCI6InZlcml0eS1xYSIsImlhdCI6MTY3MjUzMTAwMH0.mock_signature_${Math.random().toString(36).substring(2, 10)}`;
     }
@@ -350,6 +359,11 @@ export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
     const keysSet = new Set<string>();
     allNeededFields.forEach(f => keysSet.add(f));
 
+    // Guarantee presence of critical target application configuration keys
+    keysSet.add('VITE_API_URL');
+    keysSet.add('JWT_SECRET');
+    keysSet.add('CORS_ALLOWED_ORIGINS');
+
     // Extract top-level keys and nested keys from dataset
     const extractKeys = (obj: any, prefix = '') => {
       if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return;
@@ -366,7 +380,11 @@ export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
 
     const list: VariableMeta[] = [];
     keysSet.forEach(k => {
-      const val = getNestedValue(localDataset, k);
+      let val = getNestedValue(localDataset, k);
+      if (k === 'VITE_API_URL' && !val && localDataset.apiUrl) val = localDataset.apiUrl;
+      if (k === 'JWT_SECRET' && !val && localDataset.jwtSecret) val = localDataset.jwtSecret;
+      if (k === 'CORS_ALLOWED_ORIGINS' && !val && localDataset.corsAllowedOrigins) val = localDataset.corsAllowedOrigins;
+
       const isMissing = val === undefined || val === null || val === '';
       const category = categorizeField(k);
       const isSecret = category === 'auth' || k.toLowerCase().includes('key') || k.toLowerCase().includes('secret');
@@ -378,7 +396,16 @@ export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
 
       let description = 'Custom dynamic configuration value.';
       let example = 'e.g. "production" or "10"';
-      if (category === 'auth') {
+      if (k === 'VITE_API_URL' || k === 'apiUrl') {
+        description = 'Target backend API URL. In a multi-application portal, routes test requests to this host if different from site URL.';
+        example = `e.g. ${project.siteUrl} or https://api.example.com`;
+      } else if (k === 'JWT_SECRET' || k === 'jwtSecret') {
+        description = 'Target application JWT signing secret. When set, runner signs real JWT tokens dynamically for this application.';
+        example = 'e.g. 64-char HMAC-SHA256 secret key';
+      } else if (k === 'CORS_ALLOWED_ORIGINS' || k === 'corsAllowedOrigins') {
+        description = 'Target allowed CORS origins. Injected into Origin headers for OPTIONS and security preflight checks.';
+        example = `e.g. ${project.siteUrl},https://localhost:3000`;
+      } else if (category === 'auth') {
         description = 'Bearer token or API secret key sent in HTTP Authorization headers.';
         example = 'e.g. Bearer eyJhbGci... or vrt_key_abc123';
       } else if (category === 'ids') {
@@ -405,6 +432,12 @@ export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
     });
 
     return list.sort((a, b) => {
+      // Prioritize target application variables at top
+      const isTargetAppA = a.key === 'VITE_API_URL' || a.key === 'JWT_SECRET' || a.key === 'CORS_ALLOWED_ORIGINS';
+      const isTargetAppB = b.key === 'VITE_API_URL' || b.key === 'JWT_SECRET' || b.key === 'CORS_ALLOWED_ORIGINS';
+      if (isTargetAppA && !isTargetAppB) return -1;
+      if (!isTargetAppA && isTargetAppB) return 1;
+
       // Missing first, then auth, then ids
       if (a.isMissing && !b.isMissing) return -1;
       if (!a.isMissing && b.isMissing) return 1;
@@ -426,7 +459,25 @@ export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
 
   // Handle single variable change in visual mode
   const handleUpdateValue = (key: string, newValue: any) => {
-    const updated = setNestedValue(localDataset, key, newValue);
+    let updated = setNestedValue(localDataset, key, newValue);
+    // Keep dual aliases in sync
+    if (key === 'VITE_API_URL') updated.apiUrl = newValue;
+    if (key === 'apiUrl') updated.VITE_API_URL = newValue;
+    if (key === 'JWT_SECRET') updated.jwtSecret = newValue;
+    if (key === 'jwtSecret') updated.JWT_SECRET = newValue;
+    if (key === 'CORS_ALLOWED_ORIGINS') updated.corsAllowedOrigins = newValue;
+    if (key === 'corsAllowedOrigins') updated.CORS_ALLOWED_ORIGINS = newValue;
+
+    setLocalDataset(updated);
+    setRawJsonText(JSON.stringify(updated, null, 2));
+  };
+
+  // Helper to update target app execution config directly
+  const handleUpdateTargetConfig = (key: 'VITE_API_URL' | 'JWT_SECRET' | 'CORS_ALLOWED_ORIGINS', value: string) => {
+    let updated = { ...localDataset, [key]: value };
+    if (key === 'VITE_API_URL') updated.apiUrl = value;
+    if (key === 'JWT_SECRET') updated.jwtSecret = value;
+    if (key === 'CORS_ALLOWED_ORIGINS') updated.corsAllowedOrigins = value;
     setLocalDataset(updated);
     setRawJsonText(JSON.stringify(updated, null, 2));
   };
@@ -454,6 +505,12 @@ export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
         updated = setNestedValue(updated, v.key, generateSyntheticValue(v.key));
       }
     });
+    // Ensure target app keys are initialized
+    if (!updated.VITE_API_URL) updated.VITE_API_URL = project.siteUrl;
+    if (!updated.apiUrl) updated.apiUrl = updated.VITE_API_URL;
+    if (!updated.CORS_ALLOWED_ORIGINS) updated.CORS_ALLOWED_ORIGINS = project.siteUrl;
+    if (!updated.corsAllowedOrigins) updated.corsAllowedOrigins = updated.CORS_ALLOWED_ORIGINS;
+
     setLocalDataset(updated);
     setRawJsonText(JSON.stringify(updated, null, 2));
   };
@@ -463,6 +520,12 @@ export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
     let presetData: Record<string, any> = {};
     if (presetType === 'rest') {
       presetData = {
+        VITE_API_URL: project.siteUrl,
+        apiUrl: project.siteUrl,
+        JWT_SECRET: `sec_rest_jwt_${Math.random().toString(36).substring(2, 12)}`,
+        jwtSecret: `sec_rest_jwt_${Math.random().toString(36).substring(2, 12)}`,
+        CORS_ALLOWED_ORIGINS: project.siteUrl,
+        corsAllowedOrigins: project.siteUrl,
         sample_id: '2',
         page_num: 1,
         search_query: 'active',
@@ -473,6 +536,12 @@ export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
       };
     } else if (presetType === 'ecommerce') {
       presetData = {
+        VITE_API_URL: project.siteUrl,
+        apiUrl: project.siteUrl,
+        JWT_SECRET: `sec_ecom_jwt_${Math.random().toString(36).substring(2, 12)}`,
+        jwtSecret: `sec_ecom_jwt_${Math.random().toString(36).substring(2, 12)}`,
+        CORS_ALLOWED_ORIGINS: project.siteUrl,
+        corsAllowedOrigins: project.siteUrl,
         sample_id: '101',
         orderId: 'ORD-98421',
         cartId: 'CRT-552',
@@ -483,6 +552,12 @@ export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
       };
     } else if (presetType === 'auth') {
       presetData = {
+        VITE_API_URL: project.siteUrl,
+        apiUrl: project.siteUrl,
+        JWT_SECRET: `sec_auth_jwt_${Math.random().toString(36).substring(2, 15)}_${Date.now()}`,
+        jwtSecret: `sec_auth_jwt_${Math.random().toString(36).substring(2, 15)}_${Date.now()}`,
+        CORS_ALLOWED_ORIGINS: `${project.siteUrl},http://localhost:3000`,
+        corsAllowedOrigins: `${project.siteUrl},http://localhost:3000`,
         apiKey: `vrt_live_${Math.random().toString(36).substring(2, 12)}`,
         authTokens: {
           user: `mock_user_jwt_${Date.now()}`,
@@ -809,7 +884,136 @@ export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
       {editorMode === 'visual' ? (
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
           {/* Left Column: Visual Form Variables List (8 cols) */}
-          <div className="lg:col-span-8 space-y-4">
+          <div className="lg:col-span-8 space-y-5">
+            {/* Dedicated Target Application Host, Auth & CORS Configuration Card */}
+            <div className="rounded-2xl border border-emerald-500/40 bg-gradient-to-br from-[#0F111A] via-[#101422] to-[#0A0D15] p-5 shadow-xl space-y-4 ring-1 ring-emerald-500/20">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#1E2235] pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                    <Globe className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                      <span>Target Application Host & Security Configuration</span>
+                      <span className="rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-mono text-emerald-400 uppercase tracking-wider">
+                        Per-Application
+                      </span>
+                    </h3>
+                    <p className="text-[11px] text-slate-400">
+                      Configures target-specific backend routing, dynamic JWT signing, and CORS origins for this website.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-slate-500 font-mono hidden sm:inline">
+                    Profile: {firestoreDatasets.find(d => d.id === selectedDatasetId)?.name || 'Default'}
+                  </span>
+                </div>
+              </div>
+
+              {/* 3 Prominent Target Inputs */}
+              <div className="space-y-4">
+                {/* 1. Target API URL */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                      <Globe className="h-3.5 w-3.5 text-cyan-400" />
+                      <span>Target Backend API URL</span>
+                      <code className="font-mono text-[11px] text-cyan-300 ml-1">VITE_API_URL</code>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateTargetConfig('VITE_API_URL', project.siteUrl)}
+                      className="text-[11px] text-cyan-400 hover:text-cyan-300 transition"
+                    >
+                      Use Site URL ({project.siteUrl})
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    Directs API test requests to this backend host when backend and frontend are deployed on separate URLs or subdomains.
+                  </p>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={localDataset.VITE_API_URL || localDataset.apiUrl || ''}
+                      onChange={(e) => handleUpdateTargetConfig('VITE_API_URL', e.target.value)}
+                      placeholder={`e.g. ${project.siteUrl} or https://api.${project.siteUrl.replace(/^https?:\/\//, '')}`}
+                      className="w-full rounded-xl border border-[#2A2F45] bg-[#06070B] px-3.5 py-2 text-xs font-mono text-cyan-300 placeholder-slate-600 focus:border-cyan-400 focus:outline-none transition"
+                    />
+                  </div>
+                </div>
+
+                {/* 2. Target JWT Signing Secret */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                      <Key className="h-3.5 w-3.5 text-purple-400" />
+                      <span>Target Application JWT Signing Secret</span>
+                      <code className="font-mono text-[11px] text-purple-300 ml-1">JWT_SECRET</code>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateTargetConfig('JWT_SECRET', `sec_jwt_${Math.random().toString(36).substring(2, 12)}_${Math.random().toString(36).substring(2, 12)}`)}
+                      className="text-[11px] text-purple-400 hover:text-purple-300 transition flex items-center gap-1"
+                    >
+                      <Sparkles className="h-3 w-3" />
+                      <span>Generate Secret</span>
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    Signing key for this target application. When set, Verity's test runner dynamically signs authentic JWT bearer tokens on-the-fly for your test cases.
+                  </p>
+                  <div className="relative flex items-center">
+                    <input
+                      type={revealedSecrets['JWT_SECRET'] ? 'text' : 'password'}
+                      value={localDataset.JWT_SECRET || localDataset.jwtSecret || ''}
+                      onChange={(e) => handleUpdateTargetConfig('JWT_SECRET', e.target.value)}
+                      placeholder="e.g. your_target_app_jwt_secret_64chars (optional for public endpoints)"
+                      className="w-full rounded-xl border border-[#2A2F45] bg-[#06070B] px-3.5 py-2 pr-10 text-xs font-mono text-purple-300 placeholder-slate-600 focus:border-purple-400 focus:outline-none transition"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setRevealedSecrets(prev => ({ ...prev, JWT_SECRET: !prev['JWT_SECRET'] }))}
+                      className="absolute right-3 text-slate-400 hover:text-white transition"
+                    >
+                      {revealedSecrets['JWT_SECRET'] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* 3. Target Allowed CORS Origins */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                      <Shield className="h-3.5 w-3.5 text-emerald-400" />
+                      <span>Target Allowed CORS Origins</span>
+                      <code className="font-mono text-[11px] text-emerald-300 ml-1">CORS_ALLOWED_ORIGINS</code>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateTargetConfig('CORS_ALLOWED_ORIGINS', `${project.siteUrl},http://localhost:3000`)}
+                      className="text-[11px] text-emerald-400 hover:text-emerald-300 transition"
+                    >
+                      Use Standard Origins
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    Comma-separated list of allowed origins. Injected into preflight OPTIONS and CORS security assertion test scenarios.
+                  </p>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={localDataset.CORS_ALLOWED_ORIGINS || localDataset.corsAllowedOrigins || ''}
+                      onChange={(e) => handleUpdateTargetConfig('CORS_ALLOWED_ORIGINS', e.target.value)}
+                      placeholder={`e.g. ${project.siteUrl},https://localhost:3000`}
+                      className="w-full rounded-xl border border-[#2A2F45] bg-[#06070B] px-3.5 py-2 text-xs font-mono text-emerald-300 placeholder-slate-600 focus:border-emerald-400 focus:outline-none transition"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Filter Tabs & Quick Add */}
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#1E2235] pb-3">
               <div className="flex items-center gap-1.5">
@@ -1136,10 +1340,31 @@ export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
                                 <span className="text-amber-400 text-[10px] font-bold">⚠ Needs {pathSim.missingPlaceholders.length} field(s)</span>
                               )}
                             </div>
-                            <div className="text-white font-bold break-all">
-                              {activeSimCase.spec.requests[0].method || 'GET'}{' '}
-                              {project.siteUrl.replace(/\/$/, '')}/{pathSim.resolved.replace(/^\//, '')}
-                            </div>
+                            {(() => {
+                              const targetBase = (localDataset.VITE_API_URL || localDataset.apiUrl || project.siteUrl || '').replace(/\/$/, '');
+                              const hasCustomApi = Boolean(localDataset.VITE_API_URL || localDataset.apiUrl);
+                              return (
+                                <div className="space-y-1">
+                                  <div className="text-white font-bold break-all">
+                                    {activeSimCase.spec.requests[0].method || 'GET'}{' '}
+                                    {targetBase}/{pathSim.resolved.replace(/^\//, '')}
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-2 pt-1 text-[10px] text-slate-400">
+                                    <span>Target Base: <span className="font-mono text-cyan-300">{targetBase}</span></span>
+                                    {hasCustomApi && (
+                                      <span className="rounded bg-cyan-500/20 px-1.5 py-0.2 text-[9px] font-bold text-cyan-300 border border-cyan-500/30">
+                                        Custom VITE_API_URL
+                                      </span>
+                                    )}
+                                    {(localDataset.JWT_SECRET || localDataset.jwtSecret) && (
+                                      <span className="rounded bg-purple-500/20 px-1.5 py-0.2 text-[9px] font-bold text-purple-300 border border-purple-500/30">
+                                        JWT_SECRET Active
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })()}
                           </div>
                         );
                       })()}

@@ -747,6 +747,9 @@ export const api = {
     caseCount: number;
     pagesCrawled: number;
     pagesSkipped: number;
+    totalUrlsDiscovered: number;
+    usedSitemap: boolean;
+    interactiveControlsFound: number;
     casesNeedingUserData: Array<{ id: string; title: string; dataFields: string[] }>;
   }> {
     return request(`/api/projects/${projectId}/suites/generate-browser-tests`, {

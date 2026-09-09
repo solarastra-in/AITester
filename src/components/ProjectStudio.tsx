@@ -208,6 +208,9 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({
   const [browserGenResult, setBrowserGenResult] = useState<{
     caseCount: number;
     pagesCrawled: number;
+    totalUrlsDiscovered: number;
+    usedSitemap: boolean;
+    interactiveControlsFound: number;
     casesNeedingUserData: Array<{ id: string; title: string; dataFields: string[] }>;
   } | null>(null);
 
@@ -1008,6 +1011,9 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({
       setBrowserGenResult({
         caseCount: result.caseCount,
         pagesCrawled: result.pagesCrawled,
+        totalUrlsDiscovered: result.totalUrlsDiscovered,
+        usedSitemap: result.usedSitemap,
+        interactiveControlsFound: result.interactiveControlsFound,
         casesNeedingUserData: result.casesNeedingUserData,
       });
       await loadSelectedProject(selectedProjectId);
@@ -2512,7 +2518,9 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({
                   {browserGenResult && (
                     <div className="mt-4 rounded-xl border border-[#1E2235] bg-[#06070B] p-3 text-xs">
                       <p className="text-emerald-300 font-semibold">
-                        Crawled {browserGenResult.pagesCrawled} page(s) and generated {browserGenResult.caseCount} browser test case(s).
+                        Crawled {browserGenResult.pagesCrawled} of {browserGenResult.totalUrlsDiscovered} page(s) discovered
+                        {browserGenResult.usedSitemap && ' (via sitemap.xml + link-following)'}
+                        {' '}and generated {browserGenResult.caseCount} browser test case(s), covering {browserGenResult.interactiveControlsFound} interactive control(s) (buttons, JS-driven links, tabs, menus, disclosures).
                       </p>
                       {browserGenResult.casesNeedingUserData.length > 0 && (
                         <div className="mt-2">

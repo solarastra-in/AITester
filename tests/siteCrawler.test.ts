@@ -100,4 +100,87 @@ describe('crawlSite — real-world crawl', () => {
     // false-positive just because "pin" appears inside a longer word.
     expect(byName.shipping_info.sensitive).toBe(false);
   });
+
+  it('extracts field labels from <label for="...">, wrapping <label>, and aria-label', async () => {
+    const { extractPageData } = await import('../server/siteCrawler.js');
+    const html = `
+      <html><body>
+        <form action="/survey">
+          <label for="f_name">First Name</label>
+          <input id="f_name" name="first_name" type="text" />
+
+          <label>Subscribe to newsletter <input name="newsletter" type="checkbox" /></label>
+
+          <input name="search" type="search" aria-label="Search site" />
+        </form>
+      </body></html>
+    `;
+    const data = extractPageData(html, 'https://example.com/survey', 'https://example.com');
+    const byName = Object.fromEntries(data.forms[0].fields.map(f => [f.name, f]));
+
+    expect(byName.first_name.label).toBe('First Name');
+    expect(byName.newsletter.label).toBe('Subscribe to newsletter');
+    expect(byName.search.label).toBe('Search site');
+  });
+
+  it('uses the <label> text to catch sensitive fields with non-descriptive names', async () => {
+    const { extractPageData } = await import('../server/siteCrawler.js');
+    const html = `
+      <html><body>
+        <form action="/auth">
+          <label for="inp_1">Your Secret PIN</label>
+          <input id="inp_1" name="field_001" type="text" />
+        </form>
+      </body></html>
+    `;
+    const data = extractPageData(html, 'https://example.com/auth', 'https://example.com');
+    const field = data.forms[0].fields[0];
+    expect(field.label).toBe('Your Secret PIN');
+    expect(field.sensitive).toBe(true);
+  });
+
+  it('captures every category of interactive control outside forms', async () => {
+    const { extractPageData } = await import('../server/siteCrawler.js');
+    const html = `
+      <html><body>
+        <header>
+          <button id="nav-btn">Menu</button>
+          <a href="#" id="cart-drawer">View Cart</a>
+          <a href="javascript:void(0)">Help</a>
+          <div onclick="handleClick()" id="custom-clickable">Custom Click</div>
+          <div role="tab" id="tab-profile">Profile</div>
+          <details id="faq-item">
+            <summary>Frequently Asked Questions</summary>
+            <p>Answers here.</p>
+          </details>
+        </header>
+      </body></html>
+    `;
+    const data = extractPageData(html, 'https://example.com/', 'https://example.com');
+
+    const kinds = data.interactiveElements.map(e => e.kind);
+    expect(kinds).toContain('button');
+    expect(kinds).toContain('js_anchor');
+    expect(kinds).toContain('onclick_handler');
+    expect(kinds).toContain('aria_control');
+    expect(kinds).toContain('disclosure');
+
+    const byId = Object.fromEntries(data.interactiveElements.filter(e => e.selector.startsWith('#')).map(e => [e.selector, e]));
+    expect(byId['#nav-btn'].text).toBe('Menu');
+    expect(byId['#cart-drawer'].text).toBe('View Cart');
+    expect(byId['#custom-clickable'].text).toBe('Custom Click');
+    expect(byId['#tab-profile'].text).toBe('Profile');
+    expect(byId['#faq-item summary'].text).toBe('Frequently Asked Questions');
+  });
+
+  it('strips tracking parameters and hashes when normalizing crawl URLs for deduplication', async () => {
+    const { dedupKey } = await import('../server/siteCrawler.js');
+    const raw1 = 'https://example.com/pricing?utm_source=twitter&utm_medium=social#faq';
+    const raw2 = 'https://example.com/pricing';
+    expect(dedupKey(raw1)).toBe(dedupKey(raw2));
+
+    const withRealParam1 = 'https://example.com/products?category=shoes&fbclid=12345';
+    const withRealParam2 = 'https://example.com/products?category=shoes';
+    expect(dedupKey(withRealParam1)).toBe(dedupKey(withRealParam2));
+  });
 });
