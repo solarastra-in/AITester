@@ -88,7 +88,7 @@ export interface Suite {
   createdAt: string;
 }
 
-export type TestCaseType = 'http' | 'load' | 'manual';
+export type TestCaseType = 'http' | 'load' | 'manual' | 'browser';
 
 export interface HttpRequestSpec {
   name: string;
@@ -97,6 +97,48 @@ export interface HttpRequestSpec {
   authPersona?: string | null;
   headers?: Record<string, string>;
   body?: any;
+}
+
+// A single browser automation action. `selector` is a CSS selector (or, for
+// text-based matching, a Playwright-style `text=...`/`role=...` engine
+// prefix — the runner passes it straight through to Playwright's locator
+// API, so any selector engine Playwright supports works).
+export type BrowserStepAction =
+  | 'navigate'
+  | 'click'
+  | 'fill'
+  | 'select'
+  | 'check'
+  | 'waitForSelector'
+  | 'waitForNavigation'
+  | 'assertVisible'
+  | 'assertText'
+  | 'assertUrl'
+  | 'assertNoConsoleErrors'
+  | 'assertNoBrokenLinks'
+  | 'screenshot';
+
+export interface BrowserStep {
+  id: string;
+  action: BrowserStepAction;
+  /** Required for 'navigate' (relative or absolute) and 'assertUrl' (substring match). */
+  url?: string;
+  /** Required for click/fill/select/check/waitForSelector/assertVisible/assertText. */
+  selector?: string;
+  /** Required for fill/select/assertText (expected substring). Supports {{placeholder}} templating against the resolved dataset. */
+  value?: string;
+  /** Human-readable description shown in the report, independent of the mechanical action. */
+  description?: string;
+  /** If true, a failure on this step doesn't stop the remaining steps (used for exploratory checks like broken-link scanning). */
+  continueOnFailure?: boolean;
+}
+
+export interface BrowserTestSpec {
+  /** The page this test starts on, relative to the project's siteUrl unless absolute. */
+  startPath: string;
+  steps: BrowserStep[];
+  /** Field names (matching dataset keys) this test needs that the crawler/AI could not confidently auto-fill — e.g. a password field, a payment field, anything behind a login wall. Surfaced to the user via the dataset configurator rather than silently guessed. */
+  requiresUserSuppliedData?: string[];
 }
 
 export interface TestCaseSpec {
@@ -116,6 +158,8 @@ export interface TestCaseSpec {
   maxP95Ms?: number;
   // Manual Spec
   instructions?: string;
+  // Browser Spec
+  browser?: BrowserTestSpec;
 }
 
 export interface TestCase {
@@ -161,6 +205,27 @@ export interface TestRun {
     p95: number;
     p99: number;
   };
+  // Browser test results — populated only when the parent TestCase's type
+  // is 'browser'. Kept separate from `requests` (HTTP-level) since a
+  // browser run's unit of work is a step, not a request.
+  browserSteps?: Array<{
+    stepId: string;
+    action: string;
+    description?: string;
+    pass: boolean;
+    durationMs: number;
+    error: string | null;
+    screenshotPath?: string;
+  }>;
+  // Real problems the browser found while executing this test — broken
+  // links (non-2xx/3xx same-origin links encountered), console errors, and
+  // failed network requests for subresources. This is the "areas where
+  // bugs are identified" report content, distinct from step pass/fail.
+  bugsFound?: Array<{
+    type: 'broken_link' | 'console_error' | 'failed_request' | 'slow_page_load';
+    detail: string;
+    url?: string;
+  }>;
 }
 
 export interface CreditLedgerEntry {

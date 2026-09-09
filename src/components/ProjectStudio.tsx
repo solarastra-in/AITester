@@ -204,6 +204,12 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({
   const [uploadContent, setUploadContent] = useState('');
   const [uploadSuiteName, setUploadSuiteName] = useState('');
   const [isAiGenerating, setIsAiGenerating] = useState(false);
+  const [isBrowserGenerating, setIsBrowserGenerating] = useState(false);
+  const [browserGenResult, setBrowserGenResult] = useState<{
+    caseCount: number;
+    pagesCrawled: number;
+    casesNeedingUserData: Array<{ id: string; title: string; dataFields: string[] }>;
+  } | null>(null);
 
   // Dataset JSON editor
   const [rawDatasetText, setRawDatasetText] = useState('');
@@ -988,6 +994,28 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({
       showAlert(err.message || 'AI Generation failed.');
     } finally {
       setIsAiGenerating(false);
+    }
+  };
+
+  // 8b. Deep-crawl the site and generate real Playwright/browser test cases
+  const handleGenerateBrowserTests = async () => {
+    if (!selectedProjectId) return;
+    setIsBrowserGenerating(true);
+    setBrowserGenResult(null);
+    try {
+      const targetUrl = generatorUrl.trim() || projectData?.siteUrl;
+      const result = await api.generateBrowserTestSuite(selectedProjectId, { targetUrl });
+      setBrowserGenResult({
+        caseCount: result.caseCount,
+        pagesCrawled: result.pagesCrawled,
+        casesNeedingUserData: result.casesNeedingUserData,
+      });
+      await loadSelectedProject(selectedProjectId);
+      setActiveTab('cases');
+    } catch (err: any) {
+      showAlert(err.message || 'Browser test generation failed.');
+    } finally {
+      setIsBrowserGenerating(false);
     }
   };
 
@@ -1825,6 +1853,7 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({
                           <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${
                             testCase.type === 'http' ? 'bg-emerald-500/20 text-emerald-300' :
                             testCase.type === 'load' ? 'bg-amber-500/20 text-amber-300' :
+                            testCase.type === 'browser' ? 'bg-cyan-500/20 text-cyan-300' :
                             'bg-purple-500/20 text-purple-300'
                           }`}>
                             {testCase.type}
@@ -2452,6 +2481,65 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({
                     <Sparkles className="h-4 w-4" />
                     <span>{isAiGenerating ? 'Generating Test Cases with Gemini...' : 'Generate AI Test Suite'}</span>
                   </button>
+                </div>
+
+                {/* Browser / Playwright test generation — deep-crawls the site's
+                    real pages (not just the one URL above) and generates real
+                    browser automation tests: page-health checks (console
+                    errors, broken links) plus form-fill-and-submit tests. */}
+                <div className="mt-4 rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-4">
+                  <div className="flex items-center gap-2">
+                    <Globe className="h-4 w-4 text-cyan-400" />
+                    <h4 className="text-xs font-bold text-white">Deep-Crawl & Generate Browser Tests</h4>
+                  </div>
+                  <p className="mt-1 text-[11px] text-slate-400">
+                    Crawls every page reachable from this site (same-origin, respects robots.txt), finds real forms and links,
+                    and generates executable Playwright-style browser tests — page-health checks and form-submission tests —
+                    for each one. Sensitive fields (passwords, payment details) are never guessed; they're flagged below for
+                    you to supply in the dataset instead.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleGenerateBrowserTests}
+                    disabled={isBrowserGenerating}
+                    data-testid="generate-browser-tests-submit"
+                    className="mt-3 flex items-center justify-center gap-2 rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-5 py-2.5 text-xs font-bold text-cyan-300 hover:bg-cyan-500/20 disabled:opacity-50 transition"
+                  >
+                    <Server className="h-4 w-4" />
+                    <span>{isBrowserGenerating ? 'Crawling site & generating browser tests…' : 'Deep-Crawl & Generate Browser Tests'}</span>
+                  </button>
+
+                  {browserGenResult && (
+                    <div className="mt-4 rounded-xl border border-[#1E2235] bg-[#06070B] p-3 text-xs">
+                      <p className="text-emerald-300 font-semibold">
+                        Crawled {browserGenResult.pagesCrawled} page(s) and generated {browserGenResult.caseCount} browser test case(s).
+                      </p>
+                      {browserGenResult.casesNeedingUserData.length > 0 && (
+                        <div className="mt-2">
+                          <p className="text-amber-300 font-semibold flex items-center gap-1">
+                            <AlertTriangle className="h-3.5 w-3.5" />
+                            {browserGenResult.casesNeedingUserData.length} test(s) need real test data before they can run:
+                          </p>
+                          <ul className="mt-1.5 space-y-1 text-slate-400">
+                            {browserGenResult.casesNeedingUserData.map(c => (
+                              <li key={c.id} className="pl-2 border-l-2 border-amber-500/30">
+                                <span className="text-slate-200">{c.title}</span>
+                                <span className="text-slate-500"> — needs: </span>
+                                <span className="font-mono text-amber-300">{c.dataFields.join(', ')}</span>
+                              </li>
+                            ))}
+                          </ul>
+                          <button
+                            type="button"
+                            onClick={() => setActiveTab('dataset')}
+                            className="mt-2 text-[11px] font-semibold text-emerald-400 hover:text-emerald-300"
+                          >
+                            Go to Dataset Configurator to fill these in →
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </form>
             ) : (

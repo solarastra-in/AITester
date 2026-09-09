@@ -164,36 +164,239 @@ export function executeWhyOrSpaEndpoint(req: SpaRequestParams): SpaResponseResul
     };
   }
 
-  // 3. POST /v1/feedback
-  if ((path === '/v1/feedback' || path === '/feedback') && req.method.toUpperCase() === 'POST') {
-    if (!perms.canFeedback) {
+  // 3b. POST /v1/dispatch/corroborate
+  if ((path === '/v1/dispatch/corroborate' || path === '/dispatch/corroborate') && req.method.toUpperCase() === 'POST') {
+    const b = req.body || {};
+    const prompt = b.prompt || 'test query';
+    const models = b.candidateModels || ['gemini-3.7-flash', 'claude-3.5-sonnet'];
+    return {
+      status: 200,
+      data: {
+        corroboration_id: `corr_${Math.random().toString(36).slice(2, 10)}`,
+        status: 'consensus_reached',
+        agreement_ratio: 0.96,
+        candidate_models: models,
+        consensus_text: 'Corroborated analytical consensus verified across active multi-provider pool.',
+        variance_score: 0.04,
+        confidence: 0.98,
+        token_savings_pct: 38.2,
+      },
+      headers: { 'content-type': 'application/json', 'x-whyor-cluster': 'us-west2-a' },
+      durationMs: 95,
+      executionMode: 'browser_spa_engine',
+    };
+  }
+
+  // 3c. POST /v1/chat/sessions
+  if ((path === '/v1/chat/sessions' || path === '/chat/sessions') && req.method.toUpperCase() === 'POST') {
+    const b = req.body || {};
+    return {
+      status: 201,
+      data: {
+        sessionId: `ses_${Math.random().toString(36).slice(2, 10)}`,
+        title: b.title || 'Verity Automated Test Session',
+        createdAt: new Date().toISOString(),
+        turnCount: 1,
+        activeModel: 'gemini-2-5-flash',
+        status: 'active',
+      },
+      headers: { 'content-type': 'application/json' },
+      durationMs: 35,
+      executionMode: 'browser_spa_engine',
+    };
+  }
+
+  // 3d. POST /v1/preprocess/file
+  if ((path === '/v1/preprocess/file' || path === '/preprocess/file') && req.method.toUpperCase() === 'POST') {
+    const b = req.body || {};
+    return {
+      status: 200,
+      data: {
+        fileId: `fil_${Math.random().toString(36).slice(2, 10)}`,
+        fileName: b.fileName || 'document.txt',
+        originalTokens: 480,
+        compressedTokens: 142,
+        compressionRatio: 0.70,
+        zeroLossVerified: true,
+        status: 'processed',
+      },
+      headers: { 'content-type': 'application/json' },
+      durationMs: 45,
+      executionMode: 'browser_spa_engine',
+    };
+  }
+
+  // 3e. POST /v1/context/save
+  if ((path === '/v1/context/save' || path === '/context/save') && req.method.toUpperCase() === 'POST') {
+    const b = req.body || {};
+    return {
+      status: 201,
+      data: {
+        status: 'saved',
+        turnId: `trn_${Math.random().toString(36).slice(2, 10)}`,
+        sessionId: b.sessionId || 'ses_live_demo_01',
+        hash: `sha256:${Math.random().toString(36).slice(2, 18)}f74b92`,
+        previousHash: `sha256:${Math.random().toString(36).slice(2, 18)}8e10aa`,
+        ledgerVerified: true,
+        chainContinuity: 'valid',
+      },
+      headers: { 'content-type': 'application/json' },
+      durationMs: 38,
+      executionMode: 'browser_spa_engine',
+    };
+  }
+
+  // 3f. GET /v1/ledger
+  if ((path === '/v1/ledger' || path === '/ledger') && req.method.toUpperCase() === 'GET') {
+    return {
+      status: 200,
+      data: {
+        sessionId: 'ses_live_demo_01',
+        validChain: true,
+        turnsCount: 3,
+        turns: [
+          { turnId: 'trn_01', hash: 'sha256:7f4a91c', verified: true },
+          { turnId: 'trn_02', hash: 'sha256:1849a20', verified: true },
+          { turnId: 'trn_03', hash: 'sha256:9482f5b', verified: true },
+        ],
+        auditStatus: 'tamper_evident_ok',
+      },
+      headers: { 'content-type': 'application/json' },
+      durationMs: 25,
+      executionMode: 'browser_spa_engine',
+    };
+  }
+
+  // 3g. GET /v1/models (Catalog)
+  if ((path === '/v1/models' || path === '/models') && req.method.toUpperCase() === 'GET') {
+    return {
+      status: 200,
+      data: {
+        models: [
+          { id: 'gemini-2-5-flash', name: 'Gemini 2.5 Flash', provider: 'google', tier: 'low', inputPricePerM: 0.15, outputPricePerM: 0.60, status: 'active' },
+          { id: 'claude-3-7-sonnet', name: 'Claude 3.7 Sonnet', provider: 'anthropic', tier: 'frontier', inputPricePerM: 3.00, outputPricePerM: 15.00, status: 'active' },
+          { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai', tier: 'high', inputPricePerM: 2.50, outputPricePerM: 10.00, status: 'active' },
+          { id: 'deepseek-v3', name: 'DeepSeek V3', provider: 'deepseek', tier: 'low', inputPricePerM: 0.14, outputPricePerM: 0.28, status: 'active' },
+        ],
+        total: 4,
+      },
+      headers: { 'content-type': 'application/json' },
+      durationMs: 20,
+      executionMode: 'browser_spa_engine',
+    };
+  }
+
+  // 3h. GET /v1/models/availability
+  if ((path === '/v1/models/availability' || path === '/models/availability') && req.method.toUpperCase() === 'GET') {
+    return {
+      status: 200,
+      data: {
+        available: true,
+        health: 'nominal',
+        providers: {
+          google: { status: 'operational', latencyMs: 140 },
+          anthropic: { status: 'operational', latencyMs: 210 },
+          openai: { status: 'operational', latencyMs: 180 },
+          groq: { status: 'operational', latencyMs: 85 },
+        },
+      },
+      headers: { 'content-type': 'application/json' },
+      durationMs: 30,
+      executionMode: 'browser_spa_engine',
+    };
+  }
+
+  // 3i. POST /v1/credentials/verify
+  if ((path === '/v1/credentials/verify' || path === '/credentials/verify') && req.method.toUpperCase() === 'POST') {
+    const b = req.body || {};
+    const key = (b.apiKey || b.api_key || '').trim();
+    if (!key || key.includes('invalid') || key.includes('bad') || key.length < 5) {
       return {
-        status: 403,
-        data: { error: 'Forbidden', message: `Caller role "${role}" is not allowed to submit Bayesian feedback.` },
+        status: 400,
+        data: {
+          error: 'Validation Error',
+          message: 'The provided third-party provider API key is invalid or empty.',
+        },
+        headers: { 'content-type': 'application/json' },
+        durationMs: 20,
+        executionMode: 'browser_spa_engine',
+      };
+    }
+    return {
+      status: 200,
+      data: {
+        valid: true,
+        provider: b.provider || 'anthropic',
+        status: 'connected',
+        latencyMs: 142,
+        quotaChecked: true,
+      },
+      headers: { 'content-type': 'application/json' },
+      durationMs: 40,
+      executionMode: 'browser_spa_engine',
+    };
+  }
+
+  // 3j. GET /v1/credentials/subscription/gateway-status
+  if ((path === '/v1/credentials/subscription/gateway-status' || path === '/credentials/subscription/gateway-status') && req.method.toUpperCase() === 'GET') {
+    return {
+      status: 200,
+      data: {
+        gateway: 'flat_subscription_bridge',
+        active: true,
+        bridgeStatus: 'connected',
+        rateLimitRemaining: 1000000,
+        zeroTokenOverhead: true,
+        subscribedPlan: 'unlimited_enterprise',
+      },
+      headers: { 'content-type': 'application/json' },
+      durationMs: 22,
+      executionMode: 'browser_spa_engine',
+    };
+  }
+
+  // 3k. POST /v1/auth/register-email-trial
+  if ((path === '/v1/auth/register-email-trial' || path === '/auth/register-email-trial') && req.method.toUpperCase() === 'POST') {
+    const b = req.body || {};
+    const email = (b.email || '').trim();
+    if (!email || !email.includes('@')) {
+      return {
+        status: 400,
+        data: { error: 'Validation Error', message: 'A valid email is required for trial registration.' },
         headers: { 'content-type': 'application/json' },
         durationMs: 15,
         executionMode: 'browser_spa_engine',
       };
     }
-    const body = req.body || {};
-    const dispatchId = body.dispatch_id || 'disp_7a9f2bc1';
-    const signalType = body.signal_type || 'EXPLICIT_THUMBS';
-    const isSuccess = body.is_success !== undefined ? !!body.is_success : true;
-
     return {
       status: 200,
       data: {
-        status: 'feedback_recorded',
-        event_id: `ev_${Math.random().toString(36).slice(2, 10)}`,
-        dispatch_id: dispatchId,
-        signal_type: signalType,
-        is_success: isSuccess,
-        weight_applied: 1.0,
-        posterior_updated: true,
-        message: 'Bayesian Beta(α, β) posterior successfully updated for model quality tracker.',
+        status: 'trial_activated',
+        email,
+        trialDaysRemaining: 7,
+        freeTokensGranted: 500000,
+        trialActivationCode: 'TRIAL-7DAY-AI-DISPATCH',
       },
       headers: { 'content-type': 'application/json' },
-      durationMs: 24,
+      durationMs: 35,
+      executionMode: 'browser_spa_engine',
+    };
+  }
+
+  // 3l. GET /v1/user/daily-limit-status
+  if ((path === '/v1/user/daily-limit-status' || path === '/user/daily-limit-status') && req.method.toUpperCase() === 'GET') {
+    return {
+      status: 200,
+      data: {
+        userTier: 'pro_trial',
+        dailyLimitTokens: 1000000,
+        tokensUsedToday: 84200,
+        remainingTokens: 915800,
+        resetInSeconds: 43200,
+        rateLimited: false,
+      },
+      headers: { 'content-type': 'application/json' },
+      durationMs: 18,
       executionMode: 'browser_spa_engine',
     };
   }

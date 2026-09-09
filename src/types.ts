@@ -92,7 +92,7 @@ export interface Suite {
   createdAt: string;
 }
 
-export type TestCaseType = 'http' | 'load' | 'manual';
+export type TestCaseType = 'http' | 'load' | 'manual' | 'browser';
 
 export interface HttpRequestSpec {
   name: string;
@@ -101,6 +101,37 @@ export interface HttpRequestSpec {
   authPersona?: string | null;
   headers?: Record<string, string>;
   body?: any;
+}
+
+export type BrowserStepAction =
+  | 'navigate'
+  | 'click'
+  | 'fill'
+  | 'select'
+  | 'check'
+  | 'waitForSelector'
+  | 'waitForNavigation'
+  | 'assertVisible'
+  | 'assertText'
+  | 'assertUrl'
+  | 'assertNoConsoleErrors'
+  | 'assertNoBrokenLinks'
+  | 'screenshot';
+
+export interface BrowserStep {
+  id: string;
+  action: BrowserStepAction;
+  url?: string;
+  selector?: string;
+  value?: string;
+  description?: string;
+  continueOnFailure?: boolean;
+}
+
+export interface BrowserTestSpec {
+  startPath: string;
+  steps: BrowserStep[];
+  requiresUserSuppliedData?: string[];
 }
 
 export interface TestCaseSpec {
@@ -117,6 +148,7 @@ export interface TestCaseSpec {
   expectRateLimited?: boolean;
   maxP95Ms?: number;
   instructions?: string;
+  browser?: BrowserTestSpec;
 }
 
 export interface TestCase {
@@ -167,6 +199,20 @@ export interface TestRun {
     p95: number;
     p99: number;
   };
+  browserSteps?: Array<{
+    stepId: string;
+    action: string;
+    description?: string;
+    pass: boolean;
+    durationMs: number;
+    error: string | null;
+    screenshotPath?: string;
+  }>;
+  bugsFound?: Array<{
+    type: 'broken_link' | 'console_error' | 'failed_request' | 'slow_page_load';
+    detail: string;
+    url?: string;
+  }>;
 }
 
 export interface CreditLedgerEntry {

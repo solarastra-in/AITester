@@ -738,6 +738,23 @@ export const api = {
     });
   },
 
+  async generateBrowserTestSuite(
+    projectId: string,
+    opts: { name?: string; targetUrl?: string; maxPages?: number; maxDepth?: number } = {},
+  ): Promise<{
+    suiteId: string;
+    suiteName: string;
+    caseCount: number;
+    pagesCrawled: number;
+    pagesSkipped: number;
+    casesNeedingUserData: Array<{ id: string; title: string; dataFields: string[] }>;
+  }> {
+    return request(`/api/projects/${projectId}/suites/generate-browser-tests`, {
+      method: 'POST',
+      body: JSON.stringify(opts),
+    });
+  },
+
   async deleteSuite(projectId: string, suiteId: string): Promise<any> {
     return request(`/api/projects/${projectId}/suites/${suiteId}`, { method: 'DELETE' });
   },

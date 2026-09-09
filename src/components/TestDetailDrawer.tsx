@@ -239,6 +239,84 @@ export const TestDetailDrawer: React.FC<TestDetailDrawerProps> = ({
                     </div>
                   </div>
                 </div>
+              ) : result?.browserSteps && result.browserSteps.length > 0 ? (
+                <div className="space-y-4">
+                  {/* Telemetry Badge — same pattern as the HTTP results below */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#1E2235] bg-[#0F111A] p-3 text-[11px]">
+                    <div className="flex items-center gap-2">
+                      <Server className="h-4 w-4 text-cyan-400" />
+                      <span className="text-slate-400">Runner:</span>
+                      <span className="font-semibold text-white">Browser Automation (Playwright)</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-slate-500">•</span>
+                      <span className="text-slate-400">Time: <strong className="text-white">{result.ranAt ? new Date(result.ranAt).toLocaleTimeString() : 'Just now'}</strong></span>
+                      <span className="text-slate-500">•</span>
+                      <span className={`inline-flex items-center gap-1.5 rounded px-2 py-0.5 font-mono text-xs font-bold border ${
+                        result.pass
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                          : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                      }`}>
+                        {result.pass ? (
+                          <>
+                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                            <span>VERDICT: PASS</span>
+                          </>
+                        ) : (
+                          <>
+                            <XCircle className="h-3.5 w-3.5 text-rose-400" />
+                            <span>VERDICT: FAIL</span>
+                          </>
+                        )}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Step-by-step results */}
+                  <div className="rounded-xl border border-[#1E2235] bg-[#06070B] p-4">
+                    <h4 className="text-xs font-bold text-white mb-2.5">Step-by-Step Execution</h4>
+                    <div className="space-y-1.5">
+                      {result.browserSteps.map((s, i) => (
+                        <div key={s.stepId || i} className={`flex items-start gap-2 rounded-lg border p-2 text-xs ${
+                          s.pass ? 'border-[#1E2235] bg-[#0F111A]' : 'border-rose-800/60 bg-rose-950/20'
+                        }`}>
+                          {s.pass ? (
+                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 mt-0.5 shrink-0" />
+                          ) : (
+                            <XCircle className="h-3.5 w-3.5 text-rose-400 mt-0.5 shrink-0" />
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-slate-200 truncate">{s.description || s.action}</span>
+                              <span className="font-mono text-[10px] text-slate-500 shrink-0">{s.durationMs}ms</span>
+                            </div>
+                            {s.error && <div className="mt-1 font-mono text-[11px] text-rose-300">{s.error}</div>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Bugs identified — real issues discovered during execution, distinct from step pass/fail */}
+                  {result.bugsFound && result.bugsFound.length > 0 && (
+                    <div className="rounded-xl border border-amber-800/50 bg-amber-950/20 p-4">
+                      <h4 className="text-xs font-bold text-amber-300 mb-2.5 flex items-center gap-1.5">
+                        <AlertTriangle className="h-3.5 w-3.5" />
+                        {result.bugsFound.length} Issue(s) Identified
+                      </h4>
+                      <div className="space-y-1.5">
+                        {result.bugsFound.map((bug, i) => (
+                          <div key={i} className="rounded-lg border border-amber-900/40 bg-[#0F111A] p-2 text-xs">
+                            <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-300 mr-2">
+                              {bug.type.replace(/_/g, ' ')}
+                            </span>
+                            <span className="text-slate-300">{bug.detail}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
               ) : result?.requests && result.requests.length > 0 ? (
                 <div className="space-y-4">
                   {/* Cloud Telemetry Badge */}
@@ -289,6 +367,11 @@ export const TestDetailDrawer: React.FC<TestDetailDrawerProps> = ({
                             <span className="font-mono text-xs text-white break-all">{r.url}</span>
                           </div>
                           <div className="flex items-center gap-2 text-xs">
+                            {r.executionMode === 'browser_spa_engine' && (
+                              <span className="rounded bg-indigo-500/20 px-2 py-0.5 font-mono text-[10px] font-bold text-indigo-300 border border-indigo-500/30">
+                                SPA Engine
+                              </span>
+                            )}
                             {r.status ? (
                               <span className={`rounded px-2 py-0.5 font-mono font-bold ${
                                 r.status < 400
