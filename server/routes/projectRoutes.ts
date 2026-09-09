@@ -726,7 +726,7 @@ projectRouter.post('/:id/cases/:caseId/run', loadProject, async (req: ProjectReq
   let creditsCharged = 0;
   if (mode === 'hosted') {
     try {
-      const billingScope = req.project!.orgId ? { orgId: req.project!.orgId } : { userId: req.user!.id };
+      const billingScope = req.project!.orgId ? { orgId: req.project!.orgId, userId: req.user!.id } : { userId: req.user!.id };
       chargeCredits({
         ...billingScope,
         amount: CREDIT_COST_PER_RUN,
@@ -736,6 +736,9 @@ projectRouter.post('/:id/cases/:caseId/run', loadProject, async (req: ProjectReq
     } catch (err: any) {
       if (err.code === 'INSUFFICIENT_CREDITS') {
         return res.status(402).json({ error: err.message, insufficientCredits: true });
+      }
+      if (err.code === 'USAGE_LIMIT_EXCEEDED') {
+        return res.status(403).json({ error: err.message, usageLimitExceeded: true });
       }
       return res.status(500).json({ error: err.message });
     }
@@ -802,7 +805,7 @@ projectRouter.post('/:id/run-all', loadProject, async (req: ProjectRequest, res:
     let creditsCharged = 0;
     if (mode === 'hosted') {
       try {
-        const billingScope = req.project!.orgId ? { orgId: req.project!.orgId } : { userId: req.user!.id };
+        const billingScope = req.project!.orgId ? { orgId: req.project!.orgId, userId: req.user!.id } : { userId: req.user!.id };
         chargeCredits({
           ...billingScope,
           amount: CREDIT_COST_PER_RUN,
@@ -1025,7 +1028,7 @@ projectRouter.post('/:id/cases/bulk-run', loadProject, async (req: ProjectReques
 
   // Charge credits in hosted mode
   if (executionMode === 'hosted') {
-    const billingScope = req.project!.orgId ? { orgId: req.project!.orgId } : { userId: req.user!.id };
+    const billingScope = req.project!.orgId ? { orgId: req.project!.orgId, userId: req.user!.id } : { userId: req.user!.id };
     const totalRequired = casesToRun.length * CREDIT_COST_PER_RUN;
     try {
       chargeCredits({
@@ -1036,6 +1039,9 @@ projectRouter.post('/:id/cases/bulk-run', loadProject, async (req: ProjectReques
     } catch (err: any) {
       if (err.code === 'INSUFFICIENT_CREDITS') {
         return res.status(402).json({ error: err.message, insufficientCredits: true });
+      }
+      if (err.code === 'USAGE_LIMIT_EXCEEDED') {
+        return res.status(403).json({ error: err.message, usageLimitExceeded: true });
       }
       return res.status(500).json({ error: err.message });
     }

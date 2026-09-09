@@ -125,9 +125,15 @@ orgRouter.post('/members', requireRole('org_admin', 'platform_admin'), (req: Aut
   const orgId = req.user!.orgId;
   if (!orgId) return res.status(400).json({ error: 'No organization attached to account.' });
 
-  const { email, name, role = 'member', teamId } = req.body;
+  const { email, name, role = 'member', teamId, monthlyCreditLimit } = req.body;
   if (!email || !name) {
     return res.status(400).json({ error: 'Email and name are required to seed team member.' });
+  }
+  if (monthlyCreditLimit !== undefined && monthlyCreditLimit !== null) {
+    const parsed = Number(monthlyCreditLimit);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      return res.status(400).json({ error: 'monthlyCreditLimit must be a non-negative number, or omitted for no individual cap.' });
+    }
   }
 
   const normalizedEmail = email.toLowerCase().trim();
@@ -147,6 +153,7 @@ orgRouter.post('/members', requireRole('org_admin', 'platform_admin'), (req: Aut
     orgId,
     teamId: teamId || null,
     creditsBalance: 0,
+    monthlyCreditLimit: monthlyCreditLimit !== undefined && monthlyCreditLimit !== null ? Number(monthlyCreditLimit) : null,
     mustResetPassword: true,
     createdAt: new Date().toISOString(),
   };
@@ -156,7 +163,7 @@ orgRouter.post('/members', requireRole('org_admin', 'platform_admin'), (req: Aut
     req.user!.id,
     req.user!.email,
     'TEAM_MEMBER_SEEDED',
-    `Customer Admin seeded new team member "${name}" <${normalizedEmail}> with role "${newMember.role}".`
+    `Customer Admin seeded new team member "${name}" <${normalizedEmail}> with role "${newMember.role}"${newMember.monthlyCreditLimit != null ? ` and a monthly usage limit of ${newMember.monthlyCreditLimit} credits` : ''}.`
   );
   db.save();
 
@@ -164,6 +171,60 @@ orgRouter.post('/members', requireRole('org_admin', 'platform_admin'), (req: Aut
     member: publicUser(newMember),
     tempPassword, // Displayed in the UI credential delivery card
   });
+});
+
+// Update an existing employee's access/usage controls (role, team, monthly
+// credit limit) — lets the Customer Admin adjust these after onboarding,
+// not just at seed time.
+orgRouter.put('/members/:id', requireRole('org_admin', 'platform_admin'), (req: AuthRequest, res: Response) => {
+  const orgId = req.user!.orgId;
+  if (!orgId) return res.status(400).json({ error: 'No organization attached to account.' });
+
+  const member = db.data.users.find(u => u.id === req.params.id && u.orgId === orgId);
+  if (!member) return res.status(404).json({ error: 'Team member not found in your organization.' });
+
+  const { role, teamId, monthlyCreditLimit } = req.body;
+  const changes: string[] = [];
+
+  if (role !== undefined) {
+    if (role !== 'member' && role !== 'org_admin') {
+      return res.status(400).json({ error: "role must be 'member' or 'org_admin'." });
+    }
+    if (member.role !== role) {
+      changes.push(`role ${member.role} -> ${role}`);
+      member.role = role;
+    }
+  }
+  if (teamId !== undefined) {
+    if (member.teamId !== (teamId || null)) {
+      changes.push(`team ${member.teamId || '(none)'} -> ${teamId || '(none)'}`);
+      member.teamId = teamId || null;
+    }
+  }
+  if (monthlyCreditLimit !== undefined) {
+    if (monthlyCreditLimit !== null) {
+      const parsed = Number(monthlyCreditLimit);
+      if (!Number.isFinite(parsed) || parsed < 0) {
+        return res.status(400).json({ error: 'monthlyCreditLimit must be a non-negative number, or null to remove the cap.' });
+      }
+    }
+    if (member.monthlyCreditLimit !== monthlyCreditLimit) {
+      changes.push(`monthly credit limit ${member.monthlyCreditLimit ?? '(none)'} -> ${monthlyCreditLimit ?? '(none)'}`);
+      member.monthlyCreditLimit = monthlyCreditLimit === null ? null : Number(monthlyCreditLimit);
+    }
+  }
+
+  if (changes.length > 0) {
+    db.addAuditLog(
+      req.user!.id,
+      req.user!.email,
+      'TEAM_MEMBER_UPDATED',
+      `Customer Admin updated "${member.name}" <${member.email}>: ${changes.join(', ')}.`
+    );
+    db.save();
+  }
+
+  res.json({ member: publicUser(member) });
 });
 
 // Update team budget or details

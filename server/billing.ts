@@ -12,12 +12,58 @@ export interface ChargeOptions {
   reason: string;
 }
 
+/**
+ * Sums this specific user's own credit consumption within the org's shared
+ * pool since the start of the current calendar month, for enforcing
+ * User.monthlyCreditLimit — a per-employee usage control the org's
+ * Customer Admin sets independently of the org's total balance. Only
+ * counts ledger entries that recorded THIS user as the actor (orgId set
+ * AND userId set to them), not the org's balance-only entries from before
+ * per-user attribution was tracked, and not a standalone user's own
+ * personal-account entries (userId set, orgId null) — those aren't
+ * "against an org pool" at all.
+ */
+export function getUserMonthlyUsage(userId: string): number {
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  return db.data.creditLedger
+    .filter(e => e.userId === userId && e.orgId && e.delta < 0 && e.createdAt >= monthStart)
+    .reduce((sum, e) => sum + Math.abs(e.delta), 0);
+}
+
+export class UsageLimitExceededError extends Error {
+  code = 'USAGE_LIMIT_EXCEEDED';
+  constructor(message: string) {
+    super(message);
+    this.name = 'UsageLimitExceededError';
+  }
+}
+
 export function chargeCredits({ orgId, userId, amount, reason }: ChargeOptions): number {
   if (amount <= 0) return 0;
 
   if (orgId) {
     const org = db.findOrgById(orgId);
     if (!org) throw new Error('Organization not found for credit billing.');
+
+    // Per-employee usage control: even if the org's shared pool has plenty
+    // of credits, a specific employee's own monthly cap (set by their
+    // Customer Admin when onboarding them) is enforced first — this is
+    // what makes "employees use the tool based on credits provided" a
+    // real, individually-scoped control rather than just "anyone in the
+    // org can spend the whole pool."
+    if (userId) {
+      const user = db.findUserById(userId);
+      if (user && typeof user.monthlyCreditLimit === 'number' && user.monthlyCreditLimit >= 0) {
+        const usedThisMonth = getUserMonthlyUsage(userId);
+        if (usedThisMonth + amount > user.monthlyCreditLimit) {
+          throw new UsageLimitExceededError(
+            `Monthly usage limit reached: ${user.name} has used ${usedThisMonth} of their ${user.monthlyCreditLimit}-credit monthly allowance. Contact your Customer Admin to raise this limit.`
+          );
+        }
+      }
+    }
+
     if (org.creditsBalance < amount) {
       const err: any = new Error(`Insufficient credits in organization pool. Required: ${amount}, Available: ${org.creditsBalance}`);
       err.code = 'INSUFFICIENT_CREDITS';
@@ -27,6 +73,11 @@ export function chargeCredits({ orgId, userId, amount, reason }: ChargeOptions):
     const entry: CreditLedgerEntry = {
       id: uuidv4(),
       orgId,
+      // Recorded even though the org's pool is what actually pays, so the
+      // ledger can answer "which employee spent how much" — previously
+      // dropped entirely, making per-employee usage impossible to see or
+      // enforce.
+      userId: userId || undefined,
       delta: -amount,
       reason,
       balanceAfter: org.creditsBalance,

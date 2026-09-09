@@ -9,6 +9,15 @@ export interface User {
   orgId?: string | null;
   teamId?: string | null;
   creditsBalance: number;
+  /**
+   * Usage control set by the org's Customer Admin when onboarding this
+   * employee: the max credits this specific employee may consume per
+   * calendar month, independent of the org's shared credit pool. Null/
+   * undefined means "no individual cap — limited only by the org's own
+   * balance", matching pre-existing behavior for any user created before
+   * this field existed.
+   */
+  monthlyCreditLimit?: number | null;
   mustResetPassword?: boolean;
   createdAt: string;
 }
@@ -57,6 +66,11 @@ export interface Organization {
   createdAt: string;
   tokenBudget?: number;
   securityConfig?: OrgSecurityConfig;
+  /** Customer's logo, set during Super Admin onboarding — a URL to an already-hosted image, not an uploaded file (this platform has no blob storage). */
+  logoUrl?: string | null;
+  /** Optional customer contact/detail fields collected during onboarding, for the Super Admin's own records — not used elsewhere in the product. */
+  contactEmail?: string | null;
+  industry?: string | null;
 }
 
 export interface Team {

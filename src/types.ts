@@ -9,6 +9,7 @@ export interface User {
   orgId?: string | null;
   teamId?: string | null;
   creditsBalance: number;
+  monthlyCreditLimit?: number | null;
   mustResetPassword?: boolean;
   createdAt: string;
 }
@@ -57,6 +58,9 @@ export interface Organization {
   createdBy: string;
   createdAt: string;
   securityConfig?: OrgSecurityConfig;
+  logoUrl?: string | null;
+  contactEmail?: string | null;
+  industry?: string | null;
 }
 
 export interface Team {

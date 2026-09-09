@@ -93,6 +93,7 @@ export function publicUser(user: User) {
     orgId: user.orgId,
     teamId: user.teamId,
     creditsBalance: user.creditsBalance,
+    monthlyCreditLimit: user.monthlyCreditLimit ?? null,
     mustResetPassword: !!user.mustResetPassword,
     createdAt: user.createdAt,
   };

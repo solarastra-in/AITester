@@ -16,22 +16,62 @@ adminRouter.use(requireAuth, requireRole('platform_admin'));
 adminRouter.get('/stats', (_req: AuthRequest, res: Response) => {
   const orgCount = db.data.organizations.length;
   const userCount = db.data.users.length;
+  const employeeCount = db.data.users.filter(u => u.orgId && (u.role === 'member' || u.role === 'org_admin')).length;
+  const standaloneUserCount = db.data.users.filter(u => u.role === 'standalone').length;
   const projectCount = db.data.projects.length;
+  const testCasesGenerated = db.data.testCases.length;
+  const browserTestCasesGenerated = db.data.testCases.filter(c => c.type === 'browser').length;
+  const httpTestCasesGenerated = db.data.testCases.filter(c => c.type === 'http').length;
   const totalRuns = db.data.testRuns.length;
   const hostedRuns = db.data.testRuns.filter(r => r.executedBy === 'hosted').length;
   const passedRuns = db.data.testRuns.filter(r => r.pass).length;
+  const failedRuns = totalRuns - passedRuns;
+  const errorRatePercent = totalRuns > 0 ? Math.round((failedRuns / totalRuns) * 1000) / 10 : 0;
   const creditsSpent = db.data.creditLedger
     .filter(e => e.delta < 0)
     .reduce((acc, e) => acc + Math.abs(e.delta), 0);
 
+  // Real bugs the tool has found for customers across all browser test
+  // runs — a genuine "value the product has already delivered" signal for
+  // renewal/expansion conversations, not a vanity metric.
+  const bugsFoundTotal = db.data.testRuns.reduce((acc, r) => acc + (r.bugsFound?.length || 0), 0);
+
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
+  const newOrgsLast30Days = db.data.organizations.filter(o => o.createdAt >= thirtyDaysAgo).length;
+  const newUsersLast30Days = db.data.users.filter(u => u.createdAt >= thirtyDaysAgo).length;
+
+  // Per-org usage breakdown, sorted by spend — helps identify which
+  // customers are getting real value (candidates for upsell/expansion)
+  // versus which are barely using the product (churn risk).
+  const orgUsage = db.data.organizations.map(org => {
+    const spentByOrg = db.data.creditLedger
+      .filter(e => e.orgId === org.id && e.delta < 0)
+      .reduce((acc, e) => acc + Math.abs(e.delta), 0);
+    const memberCount = db.data.users.filter(u => u.orgId === org.id).length;
+    const projectCountForOrg = db.data.projects.filter(p => p.orgId === org.id).length;
+    return { orgId: org.id, orgName: org.name, creditsSpent: spentByOrg, memberCount, projectCount: projectCountForOrg };
+  }).sort((a, b) => b.creditsSpent - a.creditsSpent).slice(0, 10);
+
   res.json({
     orgCount,
+    companyCount: orgCount,
     userCount,
+    employeeCount,
+    standaloneUserCount,
     projectCount,
+    testCasesGenerated,
+    browserTestCasesGenerated,
+    httpTestCasesGenerated,
     totalRuns,
     hostedRuns,
     passedRuns,
+    failedRuns,
+    errorRatePercent,
     creditsSpent,
+    bugsFoundTotal,
+    newOrgsLast30Days,
+    newUsersLast30Days,
+    topOrgsByUsage: orgUsage,
   });
 });
 
@@ -54,10 +94,18 @@ adminRouter.get('/organizations', (_req: AuthRequest, res: Response) => {
 
 // Onboard Customer Journey: Seed Customer Organization + Seed Customer Admin + Allocate Resources
 adminRouter.post('/organizations', (req: AuthRequest, res: Response) => {
-  const { orgName, adminEmail, adminName, plan = 'pro', initialCredits = 1000, tokenBudget = 500000 } = req.body;
+  const { orgName, adminEmail, adminName, plan = 'pro', initialCredits = 1000, tokenBudget = 500000, logoUrl, contactEmail, industry } = req.body;
 
   if (!orgName || !adminEmail || !adminName) {
     return res.status(400).json({ error: 'Organization name, Customer Admin name, and email are required.' });
+  }
+  if (logoUrl) {
+    try {
+      const parsed = new URL(logoUrl);
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new Error('bad protocol');
+    } catch {
+      return res.status(400).json({ error: 'logoUrl must be a valid http(s) URL to an already-hosted image.' });
+    }
   }
 
   const normalizedEmail = adminEmail.toLowerCase().trim();
@@ -76,6 +124,9 @@ adminRouter.post('/organizations', (req: AuthRequest, res: Response) => {
     tokenBudget: Number(tokenBudget) || 500000,
     createdBy: req.user!.id,
     createdAt: new Date().toISOString(),
+    logoUrl: logoUrl ? logoUrl.trim() : null,
+    contactEmail: contactEmail ? String(contactEmail).trim().toLowerCase() : null,
+    industry: industry ? String(industry).trim() : null,
   };
 
   db.data.organizations.push(newOrg);
@@ -124,6 +175,62 @@ adminRouter.post('/organizations', (req: AuthRequest, res: Response) => {
     orgAdmin: publicUser(orgAdminUser),
     tempPassword, // Displayed in the UI onboarding step
   });
+});
+
+// Update a customer organization's own details (logo, contact, industry)
+// after initial onboarding — separate from credit adjustment below, which
+// has its own audited endpoint.
+adminRouter.put('/organizations/:id/details', (req: AuthRequest, res: Response) => {
+  const org = db.findOrgById(req.params.id);
+  if (!org) return res.status(404).json({ error: 'Organization not found.' });
+
+  const { logoUrl, contactEmail, industry, name } = req.body;
+  const changes: string[] = [];
+
+  if (logoUrl !== undefined) {
+    if (logoUrl) {
+      try {
+        const parsed = new URL(logoUrl);
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new Error('bad protocol');
+      } catch {
+        return res.status(400).json({ error: 'logoUrl must be a valid http(s) URL to an already-hosted image.' });
+      }
+    }
+    if (org.logoUrl !== (logoUrl || null)) {
+      changes.push('logo');
+      org.logoUrl = logoUrl ? String(logoUrl).trim() : null;
+    }
+  }
+  if (contactEmail !== undefined) {
+    const normalized = contactEmail ? String(contactEmail).trim().toLowerCase() : null;
+    if (org.contactEmail !== normalized) {
+      changes.push('contact email');
+      org.contactEmail = normalized;
+    }
+  }
+  if (industry !== undefined) {
+    const normalized = industry ? String(industry).trim() : null;
+    if (org.industry !== normalized) {
+      changes.push('industry');
+      org.industry = normalized;
+    }
+  }
+  if (name !== undefined && name.trim() && org.name !== name.trim()) {
+    changes.push(`name ${org.name} -> ${name.trim()}`);
+    org.name = name.trim();
+  }
+
+  if (changes.length > 0) {
+    db.addAuditLog(
+      req.user!.id,
+      req.user!.email,
+      'CUSTOMER_ORG_DETAILS_UPDATED',
+      `Updated organization "${org.name}" (${org.id}): ${changes.join(', ')}.`
+    );
+    db.save();
+  }
+
+  res.json({ organization: org });
 });
 
 // Grant or adjust organization credits
