@@ -1,13 +1,40 @@
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { DatabaseSchema, User, Organization, Team, Project, Suite, TestCase, TestRun, CreditLedgerEntry, SystemAuditLog, TestSchedule } from './types.js';
 
-const DATA_DIR = process.env.DATA_DIR
-  ? path.isAbsolute(process.env.DATA_DIR) ? process.env.DATA_DIR : path.join(process.cwd(), process.env.DATA_DIR)
-  : path.join(process.cwd(), 'data');
-const DB_FILE = path.join(DATA_DIR, 'verity-db.json');
+export function resolveDataDir(): string {
+  if (process.env.DATA_DIR) {
+    return path.isAbsolute(process.env.DATA_DIR)
+      ? process.env.DATA_DIR
+      : path.join(process.cwd(), process.env.DATA_DIR);
+  }
+
+  // Serverless / Read-Only container runtime detection (e.g. Vercel, AWS Lambda)
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    return path.join(os.tmpdir(), 'verity-data');
+  }
+
+  // Check if standard ./data folder is writable
+  const defaultDir = path.join(process.cwd(), 'data');
+  try {
+    if (!fs.existsSync(defaultDir)) {
+      fs.mkdirSync(defaultDir, { recursive: true });
+    }
+    const probeFile = path.join(defaultDir, `.write-probe-${Date.now()}-${Math.random()}`);
+    fs.writeFileSync(probeFile, 'ok', 'utf-8');
+    fs.unlinkSync(probeFile);
+    return defaultDir;
+  } catch {
+    // Filesystem is read-only — fallback to OS temporary directory
+    return path.join(os.tmpdir(), 'verity-data');
+  }
+}
+
+export const DATA_DIR = resolveDataDir();
+export const DB_FILE = path.join(DATA_DIR, 'verity-db.json');
 
 function getInitialDb(): DatabaseSchema {
   const salt = bcrypt.genSaltSync(10);
@@ -432,30 +459,59 @@ class Database {
     this.db = this.load();
   }
 
+  private getDataDir(): string {
+    return resolveDataDir();
+  }
+
+  private getDbFile(): string {
+    return path.join(this.getDataDir(), 'verity-db.json');
+  }
+
+  private sanitizeSchema(parsed: any): DatabaseSchema {
+    return {
+      users: Array.isArray(parsed?.users) ? parsed.users : [],
+      organizations: Array.isArray(parsed?.organizations) ? parsed.organizations : [],
+      teams: Array.isArray(parsed?.teams) ? parsed.teams : [],
+      projects: Array.isArray(parsed?.projects) ? parsed.projects : [],
+      suites: Array.isArray(parsed?.suites) ? parsed.suites : [],
+      testCases: Array.isArray(parsed?.testCases) ? parsed.testCases : [],
+      testRuns: Array.isArray(parsed?.testRuns) ? parsed.testRuns : [],
+      creditLedger: Array.isArray(parsed?.creditLedger) ? parsed.creditLedger : [],
+      auditLogs: Array.isArray(parsed?.auditLogs) ? parsed.auditLogs : [],
+      testSchedules: (() => {
+        const raw = Array.isArray(parsed?.testSchedules) ? parsed.testSchedules : [];
+        const projectIds = new Set((parsed?.projects || []).map((p: any) => p.id));
+        return raw.filter((s: any) => s && projectIds.has(s.projectId));
+      })(),
+    };
+  }
+
   private load(): DatabaseSchema {
+    const dataDir = this.getDataDir();
+    const dbFile = this.getDbFile();
     try {
-      if (!fs.existsSync(DATA_DIR)) {
-        fs.mkdirSync(DATA_DIR, { recursive: true });
+      if (!fs.existsSync(dataDir)) {
+        fs.mkdirSync(dataDir, { recursive: true });
       }
-      if (fs.existsSync(DB_FILE)) {
-        const raw = fs.readFileSync(DB_FILE, 'utf-8');
+      if (fs.existsSync(dbFile)) {
+        const raw = fs.readFileSync(dbFile, 'utf-8');
         const parsed = JSON.parse(raw);
-        return {
-          users: parsed.users || [],
-          organizations: parsed.organizations || [],
-          teams: parsed.teams || [],
-          projects: parsed.projects || [],
-          suites: parsed.suites || [],
-          testCases: parsed.testCases || [],
-          testRuns: parsed.testRuns || [],
-          creditLedger: parsed.creditLedger || [],
-          auditLogs: parsed.auditLogs || [],
-          testSchedules: (() => {
-            const raw = parsed.testSchedules || [];
-            const projectIds = new Set((parsed.projects || []).map((p: any) => p.id));
-            return raw.filter((s: any) => s && projectIds.has(s.projectId));
-          })(),
-        };
+        return this.sanitizeSchema(parsed);
+      }
+
+      // If dbFile doesn't exist in dataDir (e.g. running in /tmp on Vercel / serverless),
+      // check if bundled seed data/verity-db.json exists in process.cwd()
+      const bundledSeed = path.join(process.cwd(), 'data', 'verity-db.json');
+      if (fs.existsSync(bundledSeed) && bundledSeed !== dbFile) {
+        try {
+          const raw = fs.readFileSync(bundledSeed, 'utf-8');
+          const parsed = JSON.parse(raw);
+          const initial = this.sanitizeSchema(parsed);
+          this.saveDirect(initial);
+          return initial;
+        } catch (seedErr) {
+          console.warn('Could not load bundled seed database:', seedErr);
+        }
       }
     } catch (e) {
       console.warn('Could not read existing db, initializing fresh seed database', e);
@@ -466,10 +522,16 @@ class Database {
   }
 
   private saveDirect(data: DatabaseSchema) {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
+    const dataDir = this.getDataDir();
+    const dbFile = this.getDbFile();
+    try {
+      if (!fs.existsSync(dataDir)) {
+        fs.mkdirSync(dataDir, { recursive: true });
+      }
+      fs.writeFileSync(dbFile, JSON.stringify(data, null, 2), 'utf-8');
+    } catch (err) {
+      console.warn('Could not persist database to disk (in-memory state preserved):', err);
     }
-    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf-8');
   }
 
   public save() {

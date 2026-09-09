@@ -47,6 +47,33 @@
       "role": "standalone",
       "creditsBalance": 52,
       "createdAt": "2026-09-08T12:49:14.592Z"
+    },
+    {
+      "id": "test-google-user-1",
+      "email": "test@verity.dev",
+      "name": "Test User",
+      "passwordHash": "",
+      "role": "standalone",
+      "creditsBalance": 100,
+      "createdAt": "2026-09-09T14:19:24.277Z"
+    },
+    {
+      "id": "fb_user_1788964448555",
+      "email": "tester.session@example.com",
+      "name": "Session Tester",
+      "passwordHash": "",
+      "role": "standalone",
+      "creditsBalance": 100,
+      "createdAt": "2026-09-09T14:32:02.741Z"
+    },
+    {
+      "id": "solarastra_live",
+      "email": "solarastra.in@gmail.com",
+      "name": "Solar Astra",
+      "passwordHash": "",
+      "role": "standalone",
+      "creditsBalance": 100,
+      "createdAt": "2026-09-09T14:34:24.208Z"
     }
   ],
   "organizations": [
@@ -79,6 +106,78 @@
     }
   ],
   "projects": [
+    {
+      "id": "proj_8f50a9c0",
+      "ownerUserId": "solarastra_live",
+      "orgId": null,
+      "name": "Verification Target",
+      "siteUrl": "https://example.com",
+      "description": "End-to-end verified project",
+      "dataset": {
+        "baseUrl": "https://example.com",
+        "authTokens": {
+          "guest": "",
+          "user": "",
+          "admin": ""
+        }
+      },
+      "createdAt": "2026-09-09T14:34:38.716Z",
+      "updatedAt": "2026-09-09T14:34:38.716Z"
+    },
+    {
+      "id": "proj_c05afe8e",
+      "ownerUserId": "fb_user_1788964448555",
+      "orgId": null,
+      "name": "Session Resilience Target",
+      "siteUrl": "https://example.org",
+      "description": "Resilient test project",
+      "dataset": {
+        "baseUrl": "https://example.org",
+        "authTokens": {
+          "guest": "",
+          "user": "",
+          "admin": ""
+        }
+      },
+      "createdAt": "2026-09-09T14:34:08.613Z",
+      "updatedAt": "2026-09-09T14:34:08.613Z"
+    },
+    {
+      "id": "proj_edcde9f7",
+      "ownerUserId": "fb_user_1788964420616",
+      "orgId": null,
+      "name": "Session Resilience Target",
+      "siteUrl": "https://example.org",
+      "description": "Resilient test project",
+      "dataset": {
+        "baseUrl": "https://example.org",
+        "authTokens": {
+          "guest": "",
+          "user": "",
+          "admin": ""
+        }
+      },
+      "createdAt": "2026-09-09T14:33:40.640Z",
+      "updatedAt": "2026-09-09T14:33:40.640Z"
+    },
+    {
+      "id": "proj_e638c7b6",
+      "ownerUserId": "fb_user_1788964322738",
+      "orgId": null,
+      "name": "Session Resilience Target",
+      "siteUrl": "https://example.org",
+      "description": "Resilient test project",
+      "dataset": {
+        "baseUrl": "https://example.org",
+        "authTokens": {
+          "guest": "",
+          "user": "",
+          "admin": ""
+        }
+      },
+      "createdAt": "2026-09-09T14:32:02.779Z",
+      "updatedAt": "2026-09-09T14:32:02.779Z"
+    },
     {
       "id": "proj_026402e7",
       "ownerUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
@@ -17433,6 +17532,30 @@
   ],
   "creditLedger": [
     {
+      "id": "9fea763e-3a27-499c-901b-9635442ff832",
+      "userId": "live_fb_user",
+      "delta": 100,
+      "reason": "Welcome Cloud Credits Allocation (Google Sign-In)",
+      "balanceAfter": 100,
+      "createdAt": "2026-09-09T14:34:24.209Z"
+    },
+    {
+      "id": "7f28ecfe-ba37-4150-8886-cc3436d632dd",
+      "userId": "fb_user_1788964322738",
+      "delta": 100,
+      "reason": "Welcome Cloud Credits Allocation (Google Sign-In)",
+      "balanceAfter": 100,
+      "createdAt": "2026-09-09T14:32:02.741Z"
+    },
+    {
+      "id": "6ad40759-6feb-488a-997a-8bd532b12ea2",
+      "userId": "test-google-user-1",
+      "delta": 100,
+      "reason": "Welcome Cloud Credits Allocation (Google Sign-In)",
+      "balanceAfter": 100,
+      "createdAt": "2026-09-09T14:19:24.282Z"
+    },
+    {
       "id": "6bc8b69b-5ce7-44c4-a8d4-106ddf9d4571",
       "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
       "delta": -1,
@@ -17898,6 +18021,62 @@
     }
   ],
   "auditLogs": [
+    {
+      "id": "3e98fa9a-9cbd-4746-94aa-ed4bb2d0ed64",
+      "userId": "solarastra_live",
+      "userEmail": "solarastra.in@gmail.com",
+      "action": "PROJECT_CREATED",
+      "details": "Created testing project \"Verification Target\" targeting URL https://example.com",
+      "timestamp": "2026-09-09T14:34:38.717Z"
+    },
+    {
+      "id": "6e8f1729-6729-4d02-ac51-24299b17f9e9",
+      "userId": "live_fb_user",
+      "userEmail": "solarastra.in@gmail.com",
+      "action": "GOOGLE_AUTH_LOGIN",
+      "details": "User signed in with Google identity.",
+      "timestamp": "2026-09-09T14:34:24.209Z"
+    },
+    {
+      "id": "c7384a96-9ef4-42fe-bf96-ecab9ad039f9",
+      "userId": "fb_user_1788964448555",
+      "userEmail": "tester.session@example.com",
+      "action": "PROJECT_CREATED",
+      "details": "Created testing project \"Session Resilience Target\" targeting URL https://example.org",
+      "timestamp": "2026-09-09T14:34:08.613Z"
+    },
+    {
+      "id": "13b8c641-8045-4bb4-bd1a-3e2e18d62c2e",
+      "userId": "fb_user_1788964420616",
+      "userEmail": "tester.session@example.com",
+      "action": "PROJECT_CREATED",
+      "details": "Created testing project \"Session Resilience Target\" targeting URL https://example.org",
+      "timestamp": "2026-09-09T14:33:40.640Z"
+    },
+    {
+      "id": "9c35eef3-5264-41b2-b671-b423d5ad37c1",
+      "userId": "fb_user_1788964322738",
+      "userEmail": "tester.session@example.com",
+      "action": "PROJECT_CREATED",
+      "details": "Created testing project \"Session Resilience Target\" targeting URL https://example.org",
+      "timestamp": "2026-09-09T14:32:02.779Z"
+    },
+    {
+      "id": "679ec2f1-6eb9-40d7-800c-732103a8f939",
+      "userId": "fb_user_1788964322738",
+      "userEmail": "tester.session@example.com",
+      "action": "GOOGLE_AUTH_LOGIN",
+      "details": "User signed in with Google identity.",
+      "timestamp": "2026-09-09T14:32:02.742Z"
+    },
+    {
+      "id": "dacb92c3-2f2c-4f7b-9409-340cc4dcebda",
+      "userId": "test-google-user-1",
+      "userEmail": "test@verity.dev",
+      "action": "GOOGLE_AUTH_LOGIN",
+      "details": "User signed in with Google identity.",
+      "timestamp": "2026-09-09T14:19:24.283Z"
+    },
     {
       "id": "83a7d430-279b-4a43-b77c-de7299f33043",
       "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",

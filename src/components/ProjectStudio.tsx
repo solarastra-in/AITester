@@ -489,17 +489,7 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({
     setIsCreatingProject(true);
     try {
       // Ensure backend session token is valid for Google / Firebase authenticated users
-      if (!getStoredToken() && auth.currentUser) {
-        try {
-          await api.syncGoogleAuth({
-            uid: auth.currentUser.uid,
-            email: auth.currentUser.email || currentUser.email,
-            name: auth.currentUser.displayName || currentUser.name,
-          });
-        } catch (syncErr) {
-          console.warn('Google auth session pre-sync notice:', syncErr);
-        }
-      }
+      await api.ensureValidSession();
 
       const created = await api.createProject(newProjName.trim(), newProjUrl.trim(), newProjDesc.trim());
       const effectiveCreatedId = created?.id || `proj_${Date.now()}`;
@@ -524,7 +514,11 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({
       await loadProjects();
       setSelectedProjectId(effectiveCreatedId);
     } catch (err: any) {
-      showAlert(err.message || 'Failed to create project.');
+      if (err?.status === 401 || err?.message?.includes('authentication token') || err?.message?.includes('Authentication required')) {
+        showAlert('Your session has expired or requires sign-in. Please sign in to create and manage test projects.', 'Authentication Required', 'info');
+      } else {
+        showAlert(err.message || 'Failed to create project.');
+      }
     } finally {
       setIsCreatingProject(false);
     }

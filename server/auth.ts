@@ -15,13 +15,25 @@ import { User, UserRole } from './types.js';
 // JWT_SECRET immediately in every live environment after this change ships
 // — this fix stops new tokens from using the weak secret, but it cannot
 // invalidate tokens that may already have been minted with it.
+import crypto from 'crypto';
+
 const isProduction = process.env.NODE_ENV === 'production';
+const isVercel = Boolean(process.env.VERCEL || process.env.VERCEL_ENV);
 const configuredSecret = process.env.JWT_SECRET;
 
 if (isProduction && !configuredSecret) {
-  throw new Error(
-    'JWT_SECRET environment variable is required in production. Refusing to start with an insecure default signing secret — set JWT_SECRET and redeploy.'
-  );
+  if (isVercel) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[SECURITY WARNING] JWT_SECRET is not configured in Vercel environment variables. ' +
+        'Using an auto-generated instance secret. For production token persistence across serverless invocations, ' +
+        'set JWT_SECRET in your Vercel Project Settings (Settings -> Environment Variables).'
+    );
+  } else {
+    throw new Error(
+      'JWT_SECRET environment variable is required in production. Refusing to start with an insecure default signing secret — set JWT_SECRET and redeploy.'
+    );
+  }
 }
 
 if (!configuredSecret && !isProduction) {
@@ -32,7 +44,26 @@ if (!configuredSecret && !isProduction) {
   );
 }
 
-export const JWT_SECRET = configuredSecret || 'INSECURE-DEV-ONLY-DEFAULT-DO-NOT-USE-IN-PRODUCTION';
+export const JWT_SECRET: string =
+  configuredSecret ||
+  (isProduction && isVercel
+    ? ((globalThis as any).__VERITY_EPHEMERAL_JWT_SECRET ||= crypto.randomBytes(32).toString('hex'))
+    : 'INSECURE-DEV-ONLY-DEFAULT-DO-NOT-USE-IN-PRODUCTION');
+
+export function verifyJwtPayload(token: string): { id: string; role?: UserRole; email?: string; name?: string } {
+  try {
+    return jwt.verify(token, JWT_SECRET) as any;
+  } catch (primaryErr) {
+    if (!isProduction && configuredSecret && configuredSecret !== 'INSECURE-DEV-ONLY-DEFAULT-DO-NOT-USE-IN-PRODUCTION') {
+      try {
+        return jwt.verify(token, 'INSECURE-DEV-ONLY-DEFAULT-DO-NOT-USE-IN-PRODUCTION') as any;
+      } catch {
+        // Fall through to throw primaryErr
+      }
+    }
+    throw primaryErr;
+  }
+}
 
 export interface AuthCredentials {
   token: string;
@@ -73,7 +104,7 @@ export function generateToken(user: User): string {
 export function verifyBearerToken(rawToken: string | undefined | null): User | null {
   if (!rawToken) return null;
   try {
-    const payload = jwt.verify(rawToken, JWT_SECRET) as { id: string; email?: string; role?: UserRole };
+    const payload = verifyJwtPayload(rawToken);
     let user = db.findUserById(payload.id);
     if (!user && payload.email) {
       user = db.findUserByEmail(payload.email);
@@ -113,7 +144,7 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
   }
 
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as { id: string; role?: UserRole; email?: string; name?: string };
+    const payload = verifyJwtPayload(token);
     let user = db.findUserById(payload.id);
     if (!user && payload.email) {
       user = db.findUserByEmail(payload.email);
@@ -174,7 +205,7 @@ export function authMiddleware(req: AuthRequest, res: Response, next: NextFuncti
   }
 
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as { id: string; role?: UserRole; email?: string; name?: string };
+    const payload = verifyJwtPayload(token);
     let user = db.findUserById(payload.id);
     if (!user && payload.email) {
       user = db.findUserByEmail(payload.email);

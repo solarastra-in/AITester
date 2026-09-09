@@ -27,7 +27,7 @@ import {
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { Project, TestCase, TestRun, Suite, User, TestSchedule } from '../types';
-import { api, clearStoredToken, getStoredToken } from './api';
+import { api, clearStoredToken, getStoredToken, isJwtExpired } from './api';
 
 // Initialize Firebase App
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
@@ -232,8 +232,9 @@ export async function syncGoogleUserToFirestore(fbUser: FirebaseUser): Promise<U
 export function subscribeAuthState(callback: (user: User | null, fbUser: FirebaseUser | null) => void) {
   return onAuthStateChanged(auth, async (fbUser) => {
     if (fbUser) {
-      // Ensure backend session token is synchronized if missing
-      if (!getStoredToken()) {
+      // Ensure backend session token is synchronized if missing, malformed, or expired
+      const currentToken = getStoredToken();
+      if (!currentToken || isJwtExpired(currentToken)) {
         try {
           await api.syncGoogleAuth({
             uid: fbUser.uid,

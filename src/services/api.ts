@@ -51,6 +51,110 @@ export function clearStoredToken() {
 }
 
 /**
+ * Validates whether a JWT is expired, unparseable, or missing.
+ * Includes a safety leeway buffer (default: 30 seconds) to prevent edge-of-expiry race conditions.
+ */
+export function isJwtExpired(token: string | null | undefined, leewaySeconds = 30): boolean {
+  if (!token || typeof token !== 'string') return true;
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return true;
+    const base64Url = parts[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonStr = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    const payload = JSON.parse(jsonStr);
+    if (!payload || typeof payload !== 'object') return true;
+    if (typeof payload.exp === 'number') {
+      const expiresAtMs = payload.exp * 1000;
+      return Date.now() >= expiresAtMs - leewaySeconds * 1000;
+    }
+    return false;
+  } catch {
+    return true;
+  }
+}
+
+let activeRefreshPromise: Promise<string | null> | null = null;
+
+/**
+ * Synchronizes Firebase Auth user with the Verity backend to mint a fresh, valid JWT session token.
+ * Mutex-deduplicated so concurrent API calls share the exact same refresh promise.
+ */
+export async function refreshBackendSession(): Promise<string | null> {
+  if (activeRefreshPromise) {
+    return activeRefreshPromise;
+  }
+
+  activeRefreshPromise = (async () => {
+    try {
+      let fbUser = auth.currentUser;
+      if (!fbUser && typeof (auth as any).authStateReady === 'function') {
+        try {
+          await (auth as any).authStateReady();
+          fbUser = auth.currentUser;
+        } catch {
+          // ignore
+        }
+      }
+
+      if (!fbUser || !fbUser.email) {
+        return null;
+      }
+
+      const syncUrl = resolveApiUrl('/api/auth/google-session');
+      const syncRes = await fetch(syncUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          uid: fbUser.uid,
+          email: fbUser.email,
+          name: fbUser.displayName || '',
+        }),
+      });
+
+      if (!syncRes.ok) {
+        return null;
+      }
+
+      const syncData = await syncRes.json();
+      if (syncData?.token) {
+        setStoredToken(syncData.token);
+        if (syncData.user) {
+          currentApiUser = syncData.user;
+        }
+        return syncData.token;
+      }
+
+      return null;
+    } catch (err) {
+      console.warn('Backend session refresh attempt notice:', err);
+      return null;
+    } finally {
+      activeRefreshPromise = null;
+    }
+  })();
+
+  return activeRefreshPromise;
+}
+
+/**
+ * Asserts that the client holds a valid, unexpired session token.
+ * If the current token is missing or expired, attempts to refresh from Firebase Auth.
+ */
+export async function ensureValidSession(): Promise<string | null> {
+  const currentToken = getStoredToken();
+  if (currentToken && !isJwtExpired(currentToken)) {
+    return currentToken;
+  }
+  return refreshBackendSession();
+}
+
+/**
  * Security middleware layer on the API service to check currentUser permissions
  * before returning any test case data.
  * Throws a 403 Forbidden error if the user is not authorized or not logged in.
@@ -406,37 +510,18 @@ export async function testApiConnection(customUrl?: string): Promise<{
   }
 }
 
-async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+async function request<T>(endpoint: string, options: RequestInit = {}, isRetry = false): Promise<T> {
   let token = getStoredToken();
 
-  // If there is no stored token, check if Firebase has an authenticated user and sync session
-  if (!token && typeof window !== 'undefined' && endpoint !== '/api/auth/google-session') {
+  // If token is missing, expired, or malformed, attempt to refresh session from Firebase Auth
+  if ((!token || isJwtExpired(token)) && typeof window !== 'undefined' && endpoint !== '/api/auth/google-session') {
     try {
-      const fbUser = auth.currentUser;
-      if (fbUser && fbUser.email) {
-        const syncUrl = resolveApiUrl('/api/auth/google-session');
-        const syncRes = await fetch(syncUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            uid: fbUser.uid,
-            email: fbUser.email,
-            name: fbUser.displayName || '',
-          }),
-        });
-        if (syncRes.ok) {
-          const syncData = await syncRes.json();
-          if (syncData?.token) {
-            token = syncData.token;
-            setStoredToken(token);
-            if (syncData.user) {
-              currentApiUser = syncData.user;
-            }
-          }
-        }
+      const refreshed = await refreshBackendSession();
+      if (refreshed) {
+        token = refreshed;
       }
     } catch {
-      // Proceed without token
+      // Proceed with existing state
     }
   }
 
@@ -473,6 +558,19 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
       message: `Unable to connect to backend engine at [${currentEngine}]. Verify your network connection or engine runner.`,
     });
     throw err;
+  }
+
+  // Automatic 401 recovery: if token was rejected as expired/invalid, clear it, mint a fresh token, and transparently retry
+  if (response.status === 401 && !isRetry && endpoint !== '/api/auth/login' && endpoint !== '/api/auth/google-session') {
+    clearStoredToken();
+    try {
+      const freshToken = await refreshBackendSession();
+      if (freshToken) {
+        return request<T>(endpoint, options, true);
+      }
+    } catch (refreshErr) {
+      console.warn('Silent session token recovery failed:', refreshErr);
+    }
   }
 
   if (!response.ok) {
@@ -585,6 +683,10 @@ export const api = {
   async getDemoPersonas(): Promise<Array<{ id: string; email: string; name: string; role: string; orgId?: string; creditsBalance: number }>> {
     return request('/api/auth/demo-personas');
   },
+
+  isJwtExpired,
+  refreshBackendSession,
+  ensureValidSession,
 
   // Projects
   async getProjects(): Promise<Project[]> {
