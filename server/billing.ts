@@ -39,7 +39,7 @@ export class UsageLimitExceededError extends Error {
   }
 }
 
-export function chargeCredits({ orgId, userId, amount, reason }: ChargeOptions): number {
+export async function chargeCredits({ orgId, userId, amount, reason }: ChargeOptions): Promise<number> {
   if (amount <= 0) return 0;
 
   if (orgId) {
@@ -84,7 +84,7 @@ export function chargeCredits({ orgId, userId, amount, reason }: ChargeOptions):
       createdAt: new Date().toISOString(),
     };
     db.data.creditLedger.unshift(entry);
-    db.save();
+    await db.save();
     return org.creditsBalance;
   }
 
@@ -106,14 +106,14 @@ export function chargeCredits({ orgId, userId, amount, reason }: ChargeOptions):
       createdAt: new Date().toISOString(),
     };
     db.data.creditLedger.unshift(entry);
-    db.save();
+    await db.save();
     return user.creditsBalance;
   }
 
   throw new Error('Billing scope requires either orgId or userId.');
 }
 
-export function grantCredits({ orgId, userId, amount, reason }: ChargeOptions): number {
+export async function grantCredits({ orgId, userId, amount, reason }: ChargeOptions): Promise<number> {
   if (amount <= 0) return 0;
 
   if (orgId) {
@@ -129,7 +129,7 @@ export function grantCredits({ orgId, userId, amount, reason }: ChargeOptions): 
       createdAt: new Date().toISOString(),
     };
     db.data.creditLedger.unshift(entry);
-    db.save();
+    await db.save();
     return org.creditsBalance;
   }
 
@@ -146,7 +146,7 @@ export function grantCredits({ orgId, userId, amount, reason }: ChargeOptions): 
       createdAt: new Date().toISOString(),
     };
     db.data.creditLedger.unshift(entry);
-    db.save();
+    await db.save();
     return user.creditsBalance;
   }
 

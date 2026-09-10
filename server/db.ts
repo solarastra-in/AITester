@@ -1,40 +1,19 @@
-import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
+import bcrypt from 'bcryptjs';
 import { DatabaseSchema, User, Organization, Team, Project, Suite, TestCase, TestRun, CreditLedgerEntry, SystemAuditLog, TestSchedule } from './types.js';
+import { FirestoreAdapter, AdminFirestoreAdapter, FakeFirestoreAdapter, FirestoreWriteOp } from './firestoreAdapter.js';
 
 export function resolveDataDir(): string {
   if (process.env.DATA_DIR) {
-    return path.isAbsolute(process.env.DATA_DIR)
-      ? process.env.DATA_DIR
-      : path.join(process.cwd(), process.env.DATA_DIR);
+    return process.env.DATA_DIR;
   }
-
-  // Serverless / Read-Only container runtime detection (e.g. Vercel, AWS Lambda)
   if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
     return path.join(os.tmpdir(), 'verity-data');
   }
-
-  // Check if standard ./data folder is writable
-  const defaultDir = path.join(process.cwd(), 'data');
-  try {
-    if (!fs.existsSync(defaultDir)) {
-      fs.mkdirSync(defaultDir, { recursive: true });
-    }
-    const probeFile = path.join(defaultDir, `.write-probe-${Date.now()}-${Math.random()}`);
-    fs.writeFileSync(probeFile, 'ok', 'utf-8');
-    fs.unlinkSync(probeFile);
-    return defaultDir;
-  } catch {
-    // Filesystem is read-only — fallback to OS temporary directory
-    return path.join(os.tmpdir(), 'verity-data');
-  }
+  return path.join(process.cwd(), '.data');
 }
-
-export const DATA_DIR = resolveDataDir();
-export const DB_FILE = path.join(DATA_DIR, 'verity-db.json');
 
 function getInitialDb(): DatabaseSchema {
   const salt = bcrypt.genSaltSync(10);
@@ -452,19 +431,49 @@ function getInitialDb(): DatabaseSchema {
   };
 }
 
+const COLLECTION_NAMES = [
+  'users', 'organizations', 'teams', 'projects', 'suites',
+  'testCases', 'testRuns', 'creditLedger', 'auditLogs', 'testSchedules',
+] as const;
+
+function defaultAdapterForEnvironment(): FirestoreAdapter {
+  if (process.env.NODE_ENV === 'test' || process.env.VITEST) {
+    return new FakeFirestoreAdapter();
+  }
+  return new AdminFirestoreAdapter();
+}
+
+function cloneSchema(s: DatabaseSchema): DatabaseSchema {
+  return JSON.parse(JSON.stringify(s));
+}
+
 class Database {
   private db: DatabaseSchema;
+  /** Deep snapshot of the last state actually confirmed persisted to
+   * Firestore — save() diffs the live in-memory state against this to
+   * compute the minimal set of writes, rather than blindly rewriting
+   * every document on every save. */
+  private lastPersistedSnapshot: DatabaseSchema;
+  private adapter: FirestoreAdapter;
+  /** Resolves once the first real hydration from Firestore completes.
+   * db.data is usable synchronously before this resolves (seeded with
+   * getInitialDb()'s defaults) so nothing crashes on cold start, but
+   * request handling should await this (or call reload()) before relying
+   * on data being current. */
+  public readonly ready: Promise<void>;
 
-  constructor() {
-    this.db = this.load();
+  public useFakeAdapter() {
+    this.adapter = new FakeFirestoreAdapter();
   }
 
-  private getDataDir(): string {
-    return resolveDataDir();
-  }
-
-  private getDbFile(): string {
-    return path.join(this.getDataDir(), 'verity-db.json');
+  constructor(adapter?: FirestoreAdapter) {
+    this.adapter = adapter || defaultAdapterForEnvironment();
+    const seed = getInitialDb();
+    this.db = seed;
+    this.lastPersistedSnapshot = cloneSchema(seed);
+    this.ready = this.reload().then(() => undefined).catch(err => {
+      console.error('[Database] Initial Firestore hydration note — continuing with in-memory seed data:', err.message || err);
+    });
   }
 
   private sanitizeSchema(parsed: any): DatabaseSchema {
@@ -486,61 +495,85 @@ class Database {
     };
   }
 
-  private load(): DatabaseSchema {
-    const dataDir = this.getDataDir();
-    const dbFile = this.getDbFile();
-    try {
-      if (!fs.existsSync(dataDir)) {
-        fs.mkdirSync(dataDir, { recursive: true });
-      }
-      if (fs.existsSync(dbFile)) {
-        const raw = fs.readFileSync(dbFile, 'utf-8');
-        const parsed = JSON.parse(raw);
-        return this.sanitizeSchema(parsed);
-      }
+  /**
+   * Fetches the current, real state of every collection from Firestore —
+   * the fix for the core cross-instance-consistency bug: a JSON file on a
+   * serverless instance's local (and on Vercel, ephemeral, per-instance)
+   * disk could never be reliably visible to a different instance handling
+   * the next request. Firestore is a real, shared, persistent store, so a
+   * fresh reload() at the start of every request (see the middleware in
+   * server/app.ts) means every request sees every other request's writes,
+   * regardless of which serverless instance handled which request.
+   *
+   * On a genuinely empty Firestore (first run ever), seeds it with
+   * getInitialDb()'s demo/seed dataset and persists that seed immediately,
+   * so subsequent reads (from any instance) see the same starting state.
+   */
+  public async reload(): Promise<DatabaseSchema> {
+    const next: any = {};
+    let anyDataFound = false;
 
-      // If dbFile doesn't exist in dataDir (e.g. running in /tmp on Vercel / serverless),
-      // check if bundled seed data/verity-db.json exists in process.cwd()
-      const bundledSeed = path.join(process.cwd(), 'data', 'verity-db.json');
-      if (fs.existsSync(bundledSeed) && bundledSeed !== dbFile) {
-        try {
-          const raw = fs.readFileSync(bundledSeed, 'utf-8');
-          const parsed = JSON.parse(raw);
-          const initial = this.sanitizeSchema(parsed);
-          this.saveDirect(initial);
-          return initial;
-        } catch (seedErr) {
-          console.warn('Could not load bundled seed database:', seedErr);
+    for (const name of COLLECTION_NAMES) {
+      const docs = await this.adapter.getCollection(name);
+      if (docs.length > 0) anyDataFound = true;
+      next[name] = docs.map(d => ({ ...d.data, id: d.id }));
+    }
+
+    if (!anyDataFound) {
+      const seed = getInitialDb();
+      this.db = seed;
+      this.lastPersistedSnapshot = cloneSchema({ ...seed, users: [], organizations: [], teams: [], projects: [], suites: [], testCases: [], testRuns: [], creditLedger: [], auditLogs: [], testSchedules: [] } as any); // force save() to treat every seed record as new
+      await this.save();
+      return this.db;
+    }
+
+    this.db = this.sanitizeSchema(next);
+    this.lastPersistedSnapshot = cloneSchema(this.db);
+    return this.db;
+  }
+
+  /**
+   * Diffs the live in-memory state against the last confirmed-persisted
+   * snapshot and writes only what actually changed (added, modified, or
+   * removed documents) as a single batched Firestore write. Must be
+   * awaited by callers.
+   */
+  public async save(): Promise<void> {
+    const ops: FirestoreWriteOp[] = [];
+
+    for (const name of COLLECTION_NAMES) {
+      const current: any[] = (this.db as any)[name] || [];
+      const previous: any[] = (this.lastPersistedSnapshot as any)[name] || [];
+      const currentById = new Map(current.map((item: any) => [item.id, item]));
+      const previousById = new Map(previous.map((item: any) => [item.id, item]));
+
+      for (const [id, item] of currentById) {
+        const prevItem = previousById.get(id);
+        if (!prevItem || JSON.stringify(prevItem) !== JSON.stringify(item)) {
+          ops.push({ type: 'set', collection: name, id, data: item });
         }
       }
-    } catch (e) {
-      console.warn('Could not read existing db, initializing fresh seed database', e);
-    }
-    const initial = getInitialDb();
-    this.saveDirect(initial);
-    return initial;
-  }
-
-  private saveDirect(data: DatabaseSchema) {
-    const dataDir = this.getDataDir();
-    const dbFile = this.getDbFile();
-    try {
-      if (!fs.existsSync(dataDir)) {
-        fs.mkdirSync(dataDir, { recursive: true });
+      for (const id of previousById.keys()) {
+        if (!currentById.has(id)) {
+          ops.push({ type: 'delete', collection: name, id });
+        }
       }
-      fs.writeFileSync(dbFile, JSON.stringify(data, null, 2), 'utf-8');
-    } catch (err) {
-      console.warn('Could not persist database to disk (in-memory state preserved):', err);
     }
-  }
 
-  public save() {
-    this.saveDirect(this.db);
-  }
+    if (ops.length === 0) return;
 
-  public reload(): DatabaseSchema {
-    this.db = this.load();
-    return this.db;
+    try {
+      await this.adapter.commitBatch(ops);
+      this.lastPersistedSnapshot = cloneSchema(this.db);
+    } catch (err: any) {
+      // In dev mode when running without explicit credentials or when offline in dev:
+      if (process.env.NODE_ENV !== 'production' && !process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+        console.warn('[Database] Persisted in-memory only (FIREBASE_SERVICE_ACCOUNT_KEY not set in dev):', err.message || err);
+        this.lastPersistedSnapshot = cloneSchema(this.db);
+        return;
+      }
+      throw err;
+    }
   }
 
   public get data(): DatabaseSchema {
@@ -564,6 +597,12 @@ class Database {
     return this.db.projects.find(p => p.id === id);
   }
 
+  /**
+   * Records an audit log entry in memory immediately (so it's reflected
+   * in the same request's response if read back), and persists it to
+   * Firestore best-effort in the background WITHOUT the caller awaiting
+   * it. This is a deliberate scope decision for secondary/diagnostic data.
+   */
   public addAuditLog(userId: string, userEmail: string, action: string, details: string) {
     const log: SystemAuditLog = {
       id: uuidv4(),
@@ -577,9 +616,12 @@ class Database {
     if (this.db.auditLogs.length > 500) {
       this.db.auditLogs = this.db.auditLogs.slice(0, 500);
     }
-    this.save();
+    this.save().catch(err => {
+      console.warn('[Database] Background audit log persistence failed (in-memory record preserved for this request):', err);
+    });
     return log;
   }
 }
 
 export const db = new Database();
+export { Database };

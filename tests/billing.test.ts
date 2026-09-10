@@ -25,38 +25,38 @@ afterAll(() => {
 });
 
 describe('chargeCredits', () => {
-  it('deducts real credits from an org and records a ledger entry', () => {
+  it('deducts real credits from an org and records a ledger entry', async () => {
     const org = db.db.data.organizations[0];
     const before = org.creditsBalance;
-    const after = billing.chargeCredits({ orgId: org.id, amount: billing.CREDIT_COST_PER_RUN, reason: 'test run' });
+    const after = await billing.chargeCredits({ orgId: org.id, amount: billing.CREDIT_COST_PER_RUN, reason: 'test run' });
     expect(after).toBe(before - billing.CREDIT_COST_PER_RUN);
     expect(db.db.data.creditLedger[0].delta).toBe(-billing.CREDIT_COST_PER_RUN);
     expect(db.db.data.creditLedger[0].balanceAfter).toBe(after);
   });
 
-  it('throws a real INSUFFICIENT_CREDITS error rather than silently allowing overdraft', () => {
+  it('throws a real INSUFFICIENT_CREDITS error rather than silently allowing overdraft', async () => {
     const org = db.db.data.organizations[0];
-    expect(() => billing.chargeCredits({ orgId: org.id, amount: org.creditsBalance + 1_000_000, reason: 'overdraft attempt' }))
-      .toThrowError(/Insufficient credits/);
+    await expect(billing.chargeCredits({ orgId: org.id, amount: org.creditsBalance + 1_000_000, reason: 'overdraft attempt' }))
+      .rejects.toThrowError(/Insufficient credits/);
   });
 
-  it('rejects a charge with neither orgId nor userId', () => {
-    expect(() => billing.chargeCredits({ amount: 1, reason: 'no scope' } as any)).toThrow();
+  it('rejects a charge with neither orgId nor userId', async () => {
+    await expect(billing.chargeCredits({ amount: 1, reason: 'no scope' } as any)).rejects.toThrow();
   });
 
-  it('is a no-op for a zero or negative amount', () => {
+  it('is a no-op for a zero or negative amount', async () => {
     const org = db.db.data.organizations[0];
     const before = org.creditsBalance;
-    expect(billing.chargeCredits({ orgId: org.id, amount: 0, reason: 'noop' })).toBe(0);
+    expect(await billing.chargeCredits({ orgId: org.id, amount: 0, reason: 'noop' })).toBe(0);
     expect(org.creditsBalance).toBe(before);
   });
 });
 
 describe('grantCredits', () => {
-  it('adds real credits to a standalone user and records a ledger entry', () => {
+  it('adds real credits to a standalone user and records a ledger entry', async () => {
     const user = db.db.data.users.find(u => u.role === 'standalone')!;
     const before = user.creditsBalance;
-    const after = billing.grantCredits({ userId: user.id, amount: 500, reason: 'starter pack purchase' });
+    const after = await billing.grantCredits({ userId: user.id, amount: 500, reason: 'starter pack purchase' });
     expect(after).toBe(before + 500);
     expect(db.db.data.creditLedger[0].delta).toBe(500);
   });

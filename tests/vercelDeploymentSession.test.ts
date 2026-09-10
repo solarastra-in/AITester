@@ -4,7 +4,7 @@ import os from 'os';
 import path from 'path';
 import fs from 'fs';
 import { createApp } from '../server/app.js';
-import { resolveDataDir } from '../server/db.js';
+import { resolveDataDir, db } from '../server/db.js';
 
 describe('Vercel Serverless & Production Deployment Reliability', () => {
   const originalEnv = { ...process.env };
@@ -12,6 +12,7 @@ describe('Vercel Serverless & Production Deployment Reliability', () => {
 
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'verity-vercel-test-'));
+    db.useFakeAdapter();
   });
 
   afterEach(() => {

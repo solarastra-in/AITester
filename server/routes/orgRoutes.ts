@@ -61,7 +61,9 @@ function ensureOrgSecurityConfig(org: Organization): OrgSecurityConfig {
       ipWhitelistingEnabled: false,
       mfaRequiredForAdmins: true,
     };
-    db.save();
+    db.save().catch(err => {
+      console.warn('[Database] Background save of org security config failed:', err);
+    });
   }
   return org.securityConfig;
 }
@@ -96,7 +98,7 @@ orgRouter.get('/overview', (req: AuthRequest, res: Response) => {
 });
 
 // Customer Admin Journey: Seed a new team with resource/token budget
-orgRouter.post('/teams', requireRole('org_admin', 'platform_admin'), (req: AuthRequest, res: Response) => {
+orgRouter.post('/teams', requireRole('org_admin', 'platform_admin'), async (req: AuthRequest, res: Response) => {
   const orgId = req.user!.orgId;
   if (!orgId) return res.status(400).json({ error: 'No organization attached to account.' });
 
@@ -115,13 +117,13 @@ orgRouter.post('/teams', requireRole('org_admin', 'platform_admin'), (req: AuthR
 
   db.data.teams.push(newTeam);
   db.addAuditLog(req.user!.id, req.user!.email, 'TEAM_CREATED', `Customer Admin created team "${name}" with token budget ${budgetTokens}.`);
-  db.save();
+  await db.save();
 
   res.status(201).json(newTeam);
 });
 
 // Customer Admin Journey: Seed & Invite Team Member
-orgRouter.post('/members', requireRole('org_admin', 'platform_admin'), (req: AuthRequest, res: Response) => {
+orgRouter.post('/members', requireRole('org_admin', 'platform_admin'), async (req: AuthRequest, res: Response) => {
   const orgId = req.user!.orgId;
   if (!orgId) return res.status(400).json({ error: 'No organization attached to account.' });
 
@@ -165,7 +167,7 @@ orgRouter.post('/members', requireRole('org_admin', 'platform_admin'), (req: Aut
     'TEAM_MEMBER_SEEDED',
     `Customer Admin seeded new team member "${name}" <${normalizedEmail}> with role "${newMember.role}"${newMember.monthlyCreditLimit != null ? ` and a monthly usage limit of ${newMember.monthlyCreditLimit} credits` : ''}.`
   );
-  db.save();
+  await db.save();
 
   res.status(201).json({
     member: publicUser(newMember),
@@ -176,7 +178,7 @@ orgRouter.post('/members', requireRole('org_admin', 'platform_admin'), (req: Aut
 // Update an existing employee's access/usage controls (role, team, monthly
 // credit limit) — lets the Customer Admin adjust these after onboarding,
 // not just at seed time.
-orgRouter.put('/members/:id', requireRole('org_admin', 'platform_admin'), (req: AuthRequest, res: Response) => {
+orgRouter.put('/members/:id', requireRole('org_admin', 'platform_admin'), async (req: AuthRequest, res: Response) => {
   const orgId = req.user!.orgId;
   if (!orgId) return res.status(400).json({ error: 'No organization attached to account.' });
 
@@ -221,14 +223,14 @@ orgRouter.put('/members/:id', requireRole('org_admin', 'platform_admin'), (req: 
       'TEAM_MEMBER_UPDATED',
       `Customer Admin updated "${member.name}" <${member.email}>: ${changes.join(', ')}.`
     );
-    db.save();
+    await db.save();
   }
 
   res.json({ member: publicUser(member) });
 });
 
 // Update team budget or details
-orgRouter.put('/teams/:id', requireRole('org_admin', 'platform_admin'), (req: AuthRequest, res: Response) => {
+orgRouter.put('/teams/:id', requireRole('org_admin', 'platform_admin'), async (req: AuthRequest, res: Response) => {
   const orgId = req.user!.orgId;
   const team = db.data.teams.find(t => t.id === req.params.id && t.orgId === orgId);
   if (!team) return res.status(404).json({ error: 'Team not found in your organization.' });
@@ -239,7 +241,7 @@ orgRouter.put('/teams/:id', requireRole('org_admin', 'platform_admin'), (req: Au
   if (allocatedCredits !== undefined) team.allocatedCredits = Number(allocatedCredits);
 
   db.addAuditLog(req.user!.id, req.user!.email, 'TEAM_UPDATED', `Updated configuration for team "${team.name}".`);
-  db.save();
+  await db.save();
 
   res.json(team);
 });
@@ -264,7 +266,7 @@ orgRouter.get('/security', requireRole('org_admin', 'platform_admin'), (req: Aut
 });
 
 // 2. Safe API Key Rotation
-orgRouter.post('/security/rotate-key', requireRole('org_admin', 'platform_admin'), (req: AuthRequest, res: Response) => {
+orgRouter.post('/security/rotate-key', requireRole('org_admin', 'platform_admin'), async (req: AuthRequest, res: Response) => {
   const orgId = req.user!.orgId;
   if (!orgId) return res.status(400).json({ error: 'No organization attached to account.' });
 
@@ -348,7 +350,7 @@ orgRouter.post('/security/rotate-key', requireRole('org_admin', 'platform_admin'
     'API_KEY_ROTATED',
     `Customer Admin rotated ${keyType} API key. Grace period: ${graceHoursNum}h. Reason: "${historyEntry.reason}".`
   );
-  db.save();
+  await db.save();
 
   res.json({
     ok: true,
@@ -362,7 +364,7 @@ orgRouter.post('/security/rotate-key', requireRole('org_admin', 'platform_admin'
 });
 
 // 3. Immediately revoke the expiring previous key
-orgRouter.post('/security/revoke-previous-key', requireRole('org_admin', 'platform_admin'), (req: AuthRequest, res: Response) => {
+orgRouter.post('/security/revoke-previous-key', requireRole('org_admin', 'platform_admin'), async (req: AuthRequest, res: Response) => {
   const orgId = req.user!.orgId;
   if (!orgId) return res.status(400).json({ error: 'No organization attached to account.' });
 
@@ -384,7 +386,7 @@ orgRouter.post('/security/revoke-previous-key', requireRole('org_admin', 'platfo
     'API_KEY_GRACE_REVOKED',
     `Customer Admin prematurely revoked previous grace period for ${keyType} key.`
   );
-  db.save();
+  await db.save();
 
   res.json({
     ok: true,

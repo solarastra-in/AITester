@@ -32,7 +32,7 @@ billingRouter.get('/status', (req: AuthRequest, res: Response) => {
 });
 
 // Top-up request simulation / instant development purchase
-billingRouter.post('/top-up', (req: AuthRequest, res: Response) => {
+billingRouter.post('/top-up', async (req: AuthRequest, res: Response) => {
   const user = req.user!;
   const { tierId } = req.body;
 
@@ -40,7 +40,7 @@ billingRouter.post('/top-up', (req: AuthRequest, res: Response) => {
   const org = user.orgId ? db.findOrgById(user.orgId) : null;
 
   const target = org ? { orgId: org.id } : { userId: user.id };
-  const newBalance = grantCredits({
+  const newBalance = await grantCredits({
     ...target,
     amount: tier.credits,
     reason: `Purchased ${tier.name} (+${tier.credits} Credits for $${tier.priceUsd})`,

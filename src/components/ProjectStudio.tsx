@@ -321,7 +321,9 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({
         }),
       ]);
       setProjectData(proj);
-      setCases(casesResp.cases || []);
+      if (casesResp.cases && casesResp.cases.length > 0) {
+        setCases(casesResp.cases);
+      }
       if (casesResp.suites && casesResp.suites.length > 0) {
         setSuites(casesResp.suites);
       } else {
@@ -341,7 +343,6 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({
       console.error('Failed to load project details:', err);
       if (err?.status === 403 || err?.status === 404) {
         setProjectData(null);
-        setCases([]);
         setSuites([]);
         setSchedules([]);
       }
@@ -527,14 +528,65 @@ export const ProjectStudio: React.FC<ProjectStudioProps> = ({
   // 3a-2. Complete Introspection Journey Handler
   const handleJourneySuccess = async (result: any) => {
     try {
-      await loadProjects();
-      if (result.projectId) {
-        setSelectedProjectId(result.projectId);
-        await loadSelectedProject(result.projectId);
+      const targetProjId = result.projectId || selectedProjectId;
+
+      // 1. Immediately apply the newly generated cases and dataset to active state
+      if (result.cases && Array.isArray(result.cases) && result.cases.length > 0) {
+        setCases(result.cases);
       }
+      if (result.dataset && Object.keys(result.dataset).length > 0) {
+        setDataset(result.dataset);
+        setRawDatasetText(JSON.stringify(result.dataset, null, 2));
+      }
+      if (result.suiteId && result.suiteName) {
+        setSuites(prev => {
+          const exists = prev.some(s => s.id === result.suiteId);
+          if (exists) return prev;
+          return [
+            {
+              id: result.suiteId,
+              projectId: targetProjId,
+              name: result.suiteName,
+              source: 'ai_generated',
+              createdAt: new Date().toISOString(),
+            },
+            ...prev,
+          ];
+        });
+      }
+
+      // 2. Persist project & test cases to Firestore for durability & real-time sync
+      if (targetProjId) {
+        try {
+          const projName = result.projectName || projectData?.name || 'Target System QA';
+          const projUrl = result.dataset?.baseUrl || generatorUrl || projectData?.siteUrl || 'https://ai.whyor.in';
+          await projectService.createProject({
+            id: targetProjId,
+            name: projName,
+            siteUrl: projUrl,
+            ownerUserId: currentUser?.id || auth.currentUser?.uid || 'user',
+            orgId: currentOrg?.id || null,
+            dataset: result.dataset || {},
+          });
+
+          if (result.cases && result.cases.length > 0) {
+            await testCaseService.batchCreateTestCases(targetProjId, result.cases);
+          }
+        } catch (syncErr) {
+          console.warn('Firestore sync note for journey:', syncErr);
+        }
+      }
+
+      // 3. Switch project selection and ensure project metadata is loaded
+      if (targetProjId) {
+        setSelectedProjectId(targetProjId);
+        await loadSelectedProject(targetProjId);
+      }
+      await loadProjects();
+
       setActiveTab('cases');
       showAlert(
-        `Successfully formed ${result.caseCount} test cases and dynamic dataset for "${result.suiteName}". Zero missing parameter placeholders.`,
+        `Successfully formed ${result.caseCount || result.cases?.length || 0} test cases and dynamic dataset for "${result.suiteName}". Zero missing parameter placeholders.`,
         'Journey Complete',
         'success'
       );

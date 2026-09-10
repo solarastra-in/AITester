@@ -183,36 +183,28 @@
       "ownerUserId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
       "orgId": null,
       "name": "AI whyor",
-      "siteUrl": "https://ai.whyor.in",
+      "siteUrl": "https://example.com",
       "description": "AI whyor",
       "dataset": {
-        "baseUrl": "https://ai.whyor.in",
+        "baseUrl": "https://example.com",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "authTokens": {
-          "guest": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMyIsImF1ZCI6InZlcml0eS1xYSIsImlhdCI6MTY3MjUzMTAwMH0.mock_signature_8xz2v73y",
-          "user": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMyIsImF1ZCI6InZlcml0eS1xYSIsImlhdCI6MTY3MjUzMTAwMH0.mock_signature_as0616yg",
-          "admin": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMyIsImF1ZCI6InZlcml0eS1xYSIsImlhdCI6MTY3MjUzMTAwMH0.mock_signature_mr34g2sr"
+          "guest": "",
+          "user": "",
+          "admin": ""
         },
-        "models": {
-          "smart_model": "synthetic_models.smart_model_a36vq"
-        },
-        "prompt_samples": {
-          "code_query": "active_status_q",
-          "complex_query": "active_status_q",
-          "invalid_empty": "977",
-          "simple_query": "active_status_q"
-        },
-        "credentials_test": {
-          "invalid_key": "822",
-          "masked_key": "synthetic_credentials_test.masked_key_e4qzn",
-          "provider": "718"
-        },
-        "session_id": "894",
-        "team_id": "137",
-        "trial_email": "qa.tester_378@example.com",
-        "userAgent": "synthetic_userAgent_46t3y"
+        "models": {},
+        "prompt_samples": {},
+        "VITE_API_URL": "https://example.com",
+        "apiUrl": "https://example.com",
+        "JWT_SECRET": "",
+        "jwtSecret": "",
+        "CORS_ALLOWED_ORIGINS": "https://example.com",
+        "corsAllowedOrigins": "https://example.com",
+        "query_id": "101"
       },
       "createdAt": "2026-09-08T12:51:08.679Z",
-      "updatedAt": "2026-09-08T12:54:33.456Z"
+      "updatedAt": "2026-09-10T07:46:44.735Z"
     },
     {
       "id": "proj_a4456523",
@@ -18021,6 +18013,22 @@
     }
   ],
   "auditLogs": [
+    {
+      "id": "b6bd831e-769c-4514-8b2c-6e319d8c8862",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "userEmail": "neerajjain0911@gmail.com",
+      "action": "AI_JOURNEY_SUITE_BUILT",
+      "details": "Built suite 'example.com Comprehensive Test Suite' with 5 cases and dynamic dataset for https://example.com",
+      "timestamp": "2026-09-10T07:46:44.743Z"
+    },
+    {
+      "id": "66c098e7-c629-40ab-92fe-ed4c311087f2",
+      "userId": "Zqa1UhwXt8MMUlJW5GcDhcuyx2n1",
+      "userEmail": "neerajjain0911@gmail.com",
+      "action": "AI_JOURNEY_SUITE_BUILT",
+      "details": "Built suite 'example.com Comprehensive Test Suite' with 5 cases and dynamic dataset for https://example.com",
+      "timestamp": "2026-09-10T07:46:27.228Z"
+    },
     {
       "id": "3e98fa9a-9cbd-4746-94aa-ed4bb2d0ed64",
       "userId": "solarastra_live",

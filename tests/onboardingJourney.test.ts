@@ -159,16 +159,16 @@ describe('Steps 2-4: Customer Admin onboards an employee with usage controls, an
     const { chargeCredits, UsageLimitExceededError } = await import('../server/billing.js');
 
     // First charge (1 credit) succeeds — within the 2-credit limit.
-    const after1 = chargeCredits({ orgId, userId: employeeId, amount: 1, reason: 'test run 1' });
+    const after1 = await chargeCredits({ orgId, userId: employeeId, amount: 1, reason: 'test run 1' });
     expect(after1).toBeLessThan(500); // came out of the real org pool
 
     // Second charge (1 more credit = 2 total) still within the limit.
-    chargeCredits({ orgId, userId: employeeId, amount: 1, reason: 'test run 2' });
+    await chargeCredits({ orgId, userId: employeeId, amount: 1, reason: 'test run 2' });
 
     // Third charge would put this employee at 3 total this month — over
     // their 2-credit limit — even though the org has ~497 credits left.
-    expect(() => chargeCredits({ orgId, userId: employeeId, amount: 1, reason: 'test run 3' }))
-      .toThrow(UsageLimitExceededError);
+    await expect(chargeCredits({ orgId, userId: employeeId, amount: 1, reason: 'test run 3' }))
+      .rejects.toThrow(UsageLimitExceededError);
   });
 
   it('a DIFFERENT employee with no limit set is unaffected by the first employee\'s cap', async () => {
@@ -182,7 +182,7 @@ describe('Steps 2-4: Customer Admin onboards an employee with usage controls, an
     expect(seedRes.body.member.monthlyCreditLimit).toBeNull();
 
     // This should succeed even though the capped employee above already hit their limit.
-    expect(() => chargeCredits({ orgId, userId: uncappedId, amount: 5, reason: 'uncapped run' })).not.toThrow();
+    await expect(chargeCredits({ orgId, userId: uncappedId, amount: 5, reason: 'uncapped run' })).resolves.not.toThrow();
     expect(getUserMonthlyUsage(uncappedId)).toBe(5);
   });
 

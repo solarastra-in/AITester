@@ -14,7 +14,7 @@ export interface ContactSubmission {
 }
 
 // POST /api/contact - Submit contact inquiry
-contactRouter.post('/', (req: Request, res: Response) => {
+contactRouter.post('/', async (req: Request, res: Response) => {
   const { name, email, company, category, message, priority }: ContactSubmission = req.body;
 
   if (!name || typeof name !== 'string' || !name.trim()) {
@@ -51,7 +51,7 @@ contactRouter.post('/', (req: Request, res: Response) => {
       'CONTACT_INQUIRY_SUBMITTED',
       `Contact inquiry #${ticketId} submitted by ${name.trim()} (${company || 'Individual'}): category="${inquiryRecord.category}", priority="${inquiryRecord.priority}"`
     );
-    db.save();
+    await db.save();
   } catch (err) {
     console.warn('Could not record contact audit log:', err);
   }

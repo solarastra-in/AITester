@@ -93,7 +93,7 @@ adminRouter.get('/organizations', (_req: AuthRequest, res: Response) => {
 });
 
 // Onboard Customer Journey: Seed Customer Organization + Seed Customer Admin + Allocate Resources
-adminRouter.post('/organizations', (req: AuthRequest, res: Response) => {
+adminRouter.post('/organizations', async (req: AuthRequest, res: Response) => {
   const { orgName, adminEmail, adminName, plan = 'pro', initialCredits = 1000, tokenBudget = 500000, logoUrl, contactEmail, industry } = req.body;
 
   if (!orgName || !adminEmail || !adminName) {
@@ -168,7 +168,7 @@ adminRouter.post('/organizations', (req: AuthRequest, res: Response) => {
     `Created customer org "${orgName}" (${orgId}), seeded Customer Admin "${adminName}" <${normalizedEmail}>, and allocated ${credits} credits.`
   );
 
-  db.save();
+  await db.save();
 
   res.status(201).json({
     organization: newOrg,
@@ -180,7 +180,7 @@ adminRouter.post('/organizations', (req: AuthRequest, res: Response) => {
 // Update a customer organization's own details (logo, contact, industry)
 // after initial onboarding — separate from credit adjustment below, which
 // has its own audited endpoint.
-adminRouter.put('/organizations/:id/details', (req: AuthRequest, res: Response) => {
+adminRouter.put('/organizations/:id/details', async (req: AuthRequest, res: Response) => {
   const org = db.findOrgById(req.params.id);
   if (!org) return res.status(404).json({ error: 'Organization not found.' });
 
@@ -227,14 +227,14 @@ adminRouter.put('/organizations/:id/details', (req: AuthRequest, res: Response) 
       'CUSTOMER_ORG_DETAILS_UPDATED',
       `Updated organization "${org.name}" (${org.id}): ${changes.join(', ')}.`
     );
-    db.save();
+    await db.save();
   }
 
   res.json({ organization: org });
 });
 
 // Grant or adjust organization credits
-adminRouter.post('/organizations/:id/credits', (req: AuthRequest, res: Response) => {
+adminRouter.post('/organizations/:id/credits', async (req: AuthRequest, res: Response) => {
   const { amount, reason } = req.body;
   const org = db.findOrgById(req.params.id);
   if (!org) return res.status(404).json({ error: 'Organization not found.' });
@@ -247,8 +247,8 @@ adminRouter.post('/organizations/:id/credits', (req: AuthRequest, res: Response)
   let newBalance: number;
   try {
     newBalance = delta > 0
-      ? grantCredits({ orgId: org.id, amount: delta, reason: reason || 'Platform Superadmin Manual Credit Grant' })
-      : chargeCredits({ orgId: org.id, amount: Math.abs(delta), reason: reason || 'Platform Superadmin Manual Credit Deduction' });
+      ? await grantCredits({ orgId: org.id, amount: delta, reason: reason || 'Platform Superadmin Manual Credit Grant' })
+      : await chargeCredits({ orgId: org.id, amount: Math.abs(delta), reason: reason || 'Platform Superadmin Manual Credit Deduction' });
   } catch (err: any) {
     return res.status(err.code === 'INSUFFICIENT_CREDITS' ? 409 : 500).json({ error: err.message });
   }

@@ -178,7 +178,9 @@ export interface TestCaseSpec {
 
 export interface TestCase {
   id: string;
+  projectId?: string;
   suiteId: string;
+  suiteName?: string;
   extId: string;
   category: string;
   title: string;

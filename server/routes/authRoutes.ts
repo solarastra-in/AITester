@@ -32,7 +32,7 @@ authRouter.post('/login', (req: Request, res: Response) => {
 });
 
 // Standalone self-serve signup
-authRouter.post('/register-standalone', (req: Request, res: Response) => {
+authRouter.post('/register-standalone', async (req: Request, res: Response) => {
   const { email, password, name } = req.body;
   if (!email || !password || !name) {
     return res.status(400).json({ error: 'Name, email, and password are required.' });
@@ -67,7 +67,7 @@ authRouter.post('/register-standalone', (req: Request, res: Response) => {
   });
 
   db.addAuditLog(newUser.id, newUser.email, 'USER_REGISTERED', `Standalone user registered with 50 initial trial credits.`);
-  db.save();
+  await db.save();
 
   const token = generateToken(newUser);
   res.status(201).json({
@@ -77,7 +77,7 @@ authRouter.post('/register-standalone', (req: Request, res: Response) => {
 });
 
 // Google / Firebase Auth session sync: provisions or updates the user and mints a valid backend JWT session token
-authRouter.post('/google-session', (req: Request, res: Response) => {
+authRouter.post('/google-session', async (req: Request, res: Response) => {
   try {
     const { uid, email, name } = req.body || {};
     if (!uid || !email) {
@@ -100,7 +100,7 @@ authRouter.post('/google-session', (req: Request, res: Response) => {
       if (user.id !== uid && !db.findUserById(uid)) {
         user.id = uid;
       }
-      db.save();
+      await db.save();
     } else {
       user = {
         id: uid,
@@ -123,7 +123,7 @@ authRouter.post('/google-session', (req: Request, res: Response) => {
       });
 
       db.addAuditLog(user.id, user.email, 'GOOGLE_AUTH_LOGIN', `User signed in with Google identity.`);
-      db.save();
+      await db.save();
     }
 
     const token = generateToken(user);
@@ -150,7 +150,7 @@ authRouter.get('/me', requireAuth, (req: AuthRequest, res: Response) => {
 });
 
 // Reset password
-authRouter.post('/reset-password', requireAuth, (req: AuthRequest, res: Response) => {
+authRouter.post('/reset-password', requireAuth, async (req: AuthRequest, res: Response) => {
   const { newPassword } = req.body;
   if (!newPassword || newPassword.length < 6) {
     return res.status(400).json({ error: 'Password must be at least 6 characters long.' });
@@ -159,7 +159,7 @@ authRouter.post('/reset-password', requireAuth, (req: AuthRequest, res: Response
   const salt = bcrypt.genSaltSync(10);
   req.user!.passwordHash = bcrypt.hashSync(newPassword, salt);
   req.user!.mustResetPassword = false;
-  db.save();
+  await db.save();
 
   res.json({ ok: true, message: 'Password successfully updated.' });
 });

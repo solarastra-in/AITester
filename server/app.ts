@@ -82,6 +82,26 @@ export function createApp() {
     });
   });
 
+  // Refresh from Firestore before handling any data-touching request — this
+  // is the actual fix for the cross-instance consistency bug: a serverless
+  // function instance's own in-memory state was never guaranteed to reflect a
+  // write made by a DIFFERENT instance handling an earlier request. Every request
+  // now starts from Firestore's real, shared, current state. Placed after the
+  // health check (which stays fast and independent) and before the routers that
+  // actually read/write data.
+  app.use('/api', async (req, res, next) => {
+    try {
+      await db.reload();
+      next();
+    } catch (err: any) {
+      if ((process.env.NODE_ENV !== 'production' || process.env.VITEST) && !process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+        return next();
+      }
+      console.error('[Database] reload() failed for incoming request:', err);
+      res.status(503).json({ error: 'Data store temporarily unavailable. Please try again.' });
+    }
+  });
+
   // Mount API Routers
   app.use('/api/auth', authRouter);
   app.use('/api/admin', adminRouter);

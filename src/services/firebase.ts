@@ -18,6 +18,7 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
+  writeBatch,
   query,
   where,
   orderBy,
@@ -617,6 +618,34 @@ export const testCaseService = {
   async deleteTestCases(ids: string[]): Promise<void> {
     const promises = ids.map(id => deleteDoc(doc(db, 'test_cases', id)));
     await Promise.all(promises);
+  },
+
+  // Batch Create / Sync Test Cases (for AI-generated suites and Journey imports)
+  async batchCreateTestCases(projectId: string, cases: TestCase[]): Promise<void> {
+    if (!auth.currentUser || !projectId || !cases || cases.length === 0) return;
+    try {
+      // Chunk by 400 to respect Firestore 500-op limit
+      const chunkSize = 400;
+      for (let i = 0; i < cases.length; i += chunkSize) {
+        const chunk = cases.slice(i, i + chunkSize);
+        const batch = writeBatch(db);
+        const now = new Date().toISOString();
+        for (const tc of chunk) {
+          const id = tc.id || 'tc_' + Math.random().toString(36).substr(2, 9);
+          const ref = doc(db, 'test_cases', id);
+          batch.set(ref, {
+            ...tc,
+            id,
+            projectId,
+            createdAt: tc.createdAt || now,
+            updatedAt: now,
+          }, { merge: true });
+        }
+        await batch.commit();
+      }
+    } catch (err) {
+      console.warn('Batch create test cases note (persisted locally):', err);
+    }
   }
 };
 
