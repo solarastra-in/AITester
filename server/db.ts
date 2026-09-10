@@ -25,11 +25,25 @@ function getInitialDb(): DatabaseSchema {
   const memberAId = 'usr_member_a';
   const standaloneUserId = 'usr_standalone_dev';
 
+  // 3PE Organization IDs
+  const org3peId = 'org_3pe';
+  const orgAdmin3peId = 'usr_3pe_admin_nsns0021';
+  const team3peId = 'team_3pe_core';
+
   const defaultUsers: User[] = [
     {
       id: superAdminId,
       email: 'admin@verity.dev',
       name: 'Platform Superadmin',
+      passwordHash: bcrypt.hashSync('admin123!', salt),
+      role: 'platform_admin',
+      creditsBalance: 9999,
+      createdAt: new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString(),
+    },
+    {
+      id: 'usr_superadmin_solarastra',
+      email: 'solarastra.in@gmail.com',
+      name: 'Super Admin (Solarastra)',
       passwordHash: bcrypt.hashSync('admin123!', salt),
       role: 'platform_admin',
       creditsBalance: 9999,
@@ -44,6 +58,17 @@ function getInitialDb(): DatabaseSchema {
       orgId: orgAId,
       creditsBalance: 500,
       createdAt: new Date(Date.now() - 20 * 24 * 3600 * 1000).toISOString(),
+    },
+    {
+      id: orgAdmin3peId,
+      email: 'nsns0021@gmail.com',
+      name: 'Customer Admin (3PE)',
+      passwordHash: bcrypt.hashSync('Admin3pe2026!', salt),
+      role: 'org_admin',
+      orgId: org3peId,
+      teamId: team3peId,
+      creditsBalance: 1000,
+      createdAt: new Date(Date.now() - 15 * 24 * 3600 * 1000).toISOString(),
     },
     {
       id: memberAId,
@@ -77,6 +102,15 @@ function getInitialDb(): DatabaseSchema {
       createdBy: superAdminId,
       createdAt: new Date(Date.now() - 20 * 24 * 3600 * 1000).toISOString(),
     },
+    {
+      id: org3peId,
+      name: '3PE',
+      plan: 'enterprise',
+      creditsBalance: 5000,
+      tokenBudget: 1500000,
+      createdBy: superAdminId,
+      createdAt: new Date(Date.now() - 15 * 24 * 3600 * 1000).toISOString(),
+    },
   ];
 
   const defaultTeams: Team[] = [
@@ -95,6 +129,14 @@ function getInitialDb(): DatabaseSchema {
       budgetTokens: 250000,
       allocatedCredits: 450,
       createdAt: new Date(Date.now() - 18 * 24 * 3600 * 1000).toISOString(),
+    },
+    {
+      id: team3peId,
+      orgId: org3peId,
+      name: '3PE Core Automation & QA Team',
+      budgetTokens: 500000,
+      allocatedCredits: 1000,
+      createdAt: new Date(Date.now() - 15 * 24 * 3600 * 1000).toISOString(),
     },
   ];
 
@@ -477,11 +519,104 @@ class Database {
   }
 
   private sanitizeSchema(parsed: any): DatabaseSchema {
+    const rawUsers: User[] = Array.isArray(parsed?.users) ? parsed.users : [];
+    const solarastra = rawUsers.find(u => u.email?.toLowerCase() === 'solarastra.in@gmail.com');
+    if (solarastra) {
+      solarastra.role = 'platform_admin';
+      if ((solarastra.creditsBalance ?? 0) < 9999) {
+        solarastra.creditsBalance = 9999;
+      }
+    } else {
+      rawUsers.unshift({
+        id: 'usr_superadmin_solarastra',
+        email: 'solarastra.in@gmail.com',
+        name: 'Super Admin (Solarastra)',
+        passwordHash: '',
+        role: 'platform_admin',
+        creditsBalance: 9999,
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    // Ensure 3PE customer organization exists
+    const rawOrgs: Organization[] = Array.isArray(parsed?.organizations) ? parsed.organizations : [];
+    let org3pe = rawOrgs.find(o => o.id === 'org_3pe' || o.name?.toLowerCase() === '3pe');
+    if (!org3pe) {
+      org3pe = {
+        id: 'org_3pe',
+        name: '3PE',
+        plan: 'enterprise',
+        creditsBalance: 5000,
+        tokenBudget: 1500000,
+        createdBy: 'usr_superadmin',
+        createdAt: new Date(Date.now() - 15 * 24 * 3600 * 1000).toISOString(),
+      };
+      rawOrgs.push(org3pe);
+    }
+
+    // Ensure 3PE QA Team exists
+    const rawTeams: Team[] = Array.isArray(parsed?.teams) ? parsed.teams : [];
+    let team3pe = rawTeams.find(t => t.id === 'team_3pe_core' || t.orgId === org3pe.id);
+    if (!team3pe) {
+      team3pe = {
+        id: 'team_3pe_core',
+        orgId: org3pe.id,
+        name: '3PE Core Automation & QA Team',
+        budgetTokens: 500000,
+        allocatedCredits: 1000,
+        createdAt: new Date(Date.now() - 15 * 24 * 3600 * 1000).toISOString(),
+      };
+      rawTeams.push(team3pe);
+    }
+
+    // Ensure Customer Admin nsns0021@gmail.com is seeded with org_admin role in 3PE
+    const nsnsUser = rawUsers.find(u => u.email?.toLowerCase() === 'nsns0021@gmail.com');
+    if (nsnsUser) {
+      nsnsUser.role = 'org_admin';
+      nsnsUser.orgId = org3pe.id;
+      nsnsUser.teamId = team3pe.id;
+      nsnsUser.name = nsnsUser.name && nsnsUser.name !== 'Google Developer' ? nsnsUser.name : 'Customer Admin (3PE)';
+      if ((nsnsUser.creditsBalance ?? 0) < 500) {
+        nsnsUser.creditsBalance = 1000;
+      }
+    } else {
+      rawUsers.push({
+        id: 'usr_3pe_admin_nsns0021',
+        email: 'nsns0021@gmail.com',
+        name: 'Customer Admin (3PE)',
+        passwordHash: '',
+        role: 'org_admin',
+        orgId: org3pe.id,
+        teamId: team3pe.id,
+        creditsBalance: 1000,
+        createdAt: new Date(Date.now() - 15 * 24 * 3600 * 1000).toISOString(),
+      });
+    }
+
+    const rawProjects: Project[] = Array.isArray(parsed?.projects) ? parsed.projects : [];
+    if (!rawProjects.some(p => p.orgId === org3pe.id)) {
+      rawProjects.push({
+        id: 'proj_3pe_system',
+        ownerUserId: nsnsUser ? nsnsUser.id : 'usr_3pe_admin_nsns0021',
+        orgId: org3pe.id,
+        name: '3PE Core Platform Suite',
+        siteUrl: 'https://api.github.com',
+        description: 'Automated test suite for 3PE platform APIs and integration endpoints.',
+        dataset: {
+          baseUrl: 'https://api.github.com',
+          userAgent: 'Verity-3PE-QA-Runner/1.0',
+          authTokens: {},
+        },
+        createdAt: new Date(Date.now() - 15 * 24 * 3600 * 1000).toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
     return {
-      users: Array.isArray(parsed?.users) ? parsed.users : [],
-      organizations: Array.isArray(parsed?.organizations) ? parsed.organizations : [],
-      teams: Array.isArray(parsed?.teams) ? parsed.teams : [],
-      projects: Array.isArray(parsed?.projects) ? parsed.projects : [],
+      users: rawUsers,
+      organizations: rawOrgs,
+      teams: rawTeams,
+      projects: rawProjects,
       suites: Array.isArray(parsed?.suites) ? parsed.suites : [],
       testCases: Array.isArray(parsed?.testCases) ? parsed.testCases : [],
       testRuns: Array.isArray(parsed?.testRuns) ? parsed.testRuns : [],
@@ -489,7 +624,7 @@ class Database {
       auditLogs: Array.isArray(parsed?.auditLogs) ? parsed.auditLogs : [],
       testSchedules: (() => {
         const raw = Array.isArray(parsed?.testSchedules) ? parsed.testSchedules : [];
-        const projectIds = new Set((parsed?.projects || []).map((p: any) => p.id));
+        const projectIds = new Set(rawProjects.map((p: any) => p.id));
         return raw.filter((s: any) => s && projectIds.has(s.projectId));
       })(),
     };
@@ -590,7 +725,20 @@ class Database {
   }
 
   public findOrgById(id: string) {
-    return this.db.organizations.find(o => o.id === id);
+    let org = this.db.organizations.find(o => o.id === id);
+    if (!org && id === 'org_3pe') {
+      org = {
+        id: 'org_3pe',
+        name: '3PE',
+        plan: 'enterprise',
+        creditsBalance: 5000,
+        tokenBudget: 1500000,
+        createdBy: 'usr_superadmin',
+        createdAt: new Date(Date.now() - 15 * 24 * 3600 * 1000).toISOString(),
+      };
+      this.db.organizations.push(org);
+    }
+    return org;
   }
 
   public findProjectById(id: string) {

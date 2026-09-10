@@ -151,9 +151,9 @@ export const OrgAdminView: React.FC<OrgAdminViewProps> = ({ currentUser, onOpenB
                 <Key className="h-5 w-5" />
               </div>
               <div>
-                <h4 className="text-sm font-bold text-white">Team Member Seeded Successfully!</h4>
+                <h4 className="text-sm font-bold text-white">Employee Onboarded Successfully!</h4>
                 <p className="text-xs text-slate-300">
-                  Provide these initial credentials to <span className="font-semibold text-emerald-300">{seededCredential.name}</span>. They will be prompted to reset on first login.
+                  <span className="font-semibold text-emerald-300">{seededCredential.name}</span> ({seededCredential.email}) is registered. They can sign in using this temp password OR directly click &ldquo;Sign in with Google&rdquo; with their email address for automatic company employee role detection.
                 </p>
               </div>
             </div>
@@ -167,6 +167,9 @@ export const OrgAdminView: React.FC<OrgAdminViewProps> = ({ currentUser, onOpenB
 
           <div className="mt-4 flex flex-wrap items-center gap-4 rounded-xl border border-[#1E2235] bg-[#06070B] p-3 font-mono text-xs">
             <div>
+              <span className="text-slate-500">Employee:</span> <span className="text-white">{seededCredential.name}</span>
+            </div>
+            <div>
               <span className="text-slate-500">Email:</span> <span className="text-white">{seededCredential.email}</span>
             </div>
             <div>
@@ -175,7 +178,7 @@ export const OrgAdminView: React.FC<OrgAdminViewProps> = ({ currentUser, onOpenB
             </div>
             <button
               onClick={() => {
-                navigator.clipboard.writeText(`Email: ${seededCredential.email}\nTemp Password: ${seededCredential.tempPass}`);
+                navigator.clipboard.writeText(`Verity Credentials:\nEmail: ${seededCredential.email}\nTemp Password: ${seededCredential.tempPass}\nOr Sign in with Google: ${seededCredential.email}`);
                 setCopiedPass(true);
                 setTimeout(() => setCopiedPass(false), 2000);
               }}
@@ -387,10 +390,12 @@ export const OrgAdminView: React.FC<OrgAdminViewProps> = ({ currentUser, onOpenB
                       <div className="font-mono text-[11px] text-slate-400">{m.email}</div>
                     </td>
                     <td className="px-6 py-3.5">
-                      <span className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase ${
-                        m.role === 'org_admin' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-[#1A1D2B] text-slate-300 border border-[#1E2235]'
+                      <span className={`rounded px-2 py-0.5 text-[10px] font-bold ${
+                        m.role === 'org_admin'
+                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                          : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
                       }`}>
-                        {m.role}
+                        {m.role === 'org_admin' ? 'Company Admin' : 'Company Employee'}
                       </span>
                     </td>
                     <td className="px-6 py-3.5 font-mono text-slate-400">

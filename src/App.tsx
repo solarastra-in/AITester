@@ -152,6 +152,17 @@ export function App() {
       if (googleUser) {
         setCurrentUser(googleUser);
         setIsLoadingUser(false);
+        // Automatically route user to their respective control center / workspace on login
+        if (window.location.pathname === '/' || window.location.pathname === '') {
+          if (googleUser.role === 'platform_admin') {
+            handleNavigate('super_admin');
+          } else if (googleUser.role === 'org_admin') {
+            handleNavigate('org_admin');
+          } else {
+            handleNavigate('studio');
+          }
+        }
+        fetchCurrentUser();
       } else {
         fetchCurrentUser();
       }
@@ -182,6 +193,14 @@ export function App() {
       const res = await api.switchPersona(role, email);
       setCurrentUser(res.user);
       setCurrentOrg(res.organization);
+      // Auto navigate to role workspace
+      if (res.user.role === 'platform_admin') {
+        handleNavigate('super_admin');
+      } else if (res.user.role === 'org_admin') {
+        handleNavigate('org_admin');
+      } else {
+        handleNavigate('studio');
+      }
     } catch (err) {
       console.error('Failed to switch persona:', err);
     }
@@ -201,9 +220,15 @@ export function App() {
 
   const handleAuthSuccess = (user: User) => {
     setCurrentUser(user);
-    if (currentView === 'home') {
+    // Automatic role-based detection & navigation
+    if (user.role === 'platform_admin') {
+      handleNavigate('super_admin');
+    } else if (user.role === 'org_admin') {
+      handleNavigate('org_admin');
+    } else {
       handleNavigate('studio');
     }
+    fetchCurrentUser();
   };
 
   return (
@@ -215,6 +240,7 @@ export function App() {
         currentUser={currentUser}
         currentOrg={currentOrg}
         onOpenAuth={setAuthMode}
+        onGoogleSignInSuccess={handleAuthSuccess}
         onOpenBilling={() => setIsBillingOpen(true)}
         onSwitchPersona={handleSwitchPersona}
         onLogout={handleLogout}

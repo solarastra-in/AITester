@@ -24,12 +24,19 @@ import {
   Sliders,
   Edit2,
   FolderPlus,
-  X
+  X,
+  BookOpen,
+  ShieldCheck,
+  AlertTriangle,
 } from 'lucide-react';
-import { TestCase, Project } from '../types';
+import { TestCase, Project, DatasetAiAuditResult } from '../types';
 import { datasetService, FirestoreDataset } from '../services/firebase';
+import { api } from '../services/api';
 import { ConfirmModal } from './ConfirmModal';
 import { AlertModal } from './AlertModal';
+import { DatasetGuidedLearningModal } from './DatasetGuidedLearningModal';
+import { DatasetQualityModal } from './DatasetQualityModal';
+import { DatasetGuidedTour } from './DatasetGuidedTour';
 
 interface DatasetConfiguratorProps {
   project: Project;
@@ -52,6 +59,12 @@ interface VariableMeta {
   usedByCases: TestCase[];
   description: string;
   example: string;
+  quality: {
+    status: 'valid' | 'warning' | 'missing' | 'invalid';
+    issue?: string;
+    autoFix?: any;
+    score: number;
+  };
 }
 
 export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
@@ -93,6 +106,15 @@ export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
   const [datasetFormEnv, setDatasetFormEnv] = useState('staging');
   const [datasetFormDesc, setDatasetFormDesc] = useState('');
   const [cloneCurrentVars, setCloneCurrentVars] = useState(true);
+
+  // Guided Learning, Quality Audit & Guided Tour State
+  const [isGuidedLearningOpen, setIsGuidedLearningOpen] = useState(false);
+  const [learningVariableKey, setLearningVariableKey] = useState('');
+  const [isQualityModalOpen, setIsQualityModalOpen] = useState(false);
+  const [isTourOpen, setIsTourOpen] = useState(false);
+  const [auditResult, setAuditResult] = useState<DatasetAiAuditResult | null>(null);
+  const [auditLoading, setAuditLoading] = useState(false);
+
 
   // In-app Confirm & Alert Modals (avoids window.confirm/alert in sandboxed iframe)
   const [confirmModalState, setConfirmModalState] = useState<{
@@ -354,6 +376,64 @@ export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
     return `synthetic_${k}_${Math.random().toString(36).substring(2, 7)}`;
   };
 
+  // Live quality assessment for any variable
+  const getFieldQuality = (key: string, value: any): {
+    status: 'valid' | 'warning' | 'missing' | 'invalid';
+    issue?: string;
+    autoFix?: any;
+    score: number;
+  } => {
+    const valStr = value !== undefined && value !== null ? String(value).trim() : '';
+    if (valStr === '') return { status: 'missing', issue: 'Missing or empty value', score: 0 };
+    if (valStr.includes('{{') && valStr.includes('}}')) {
+      return { status: 'invalid', issue: 'Contains unresolved template brackets {{...}}', score: 20 };
+    }
+
+    const lk = key.toLowerCase();
+    // Auth Token Specific Checks
+    if (lk.includes('token') || lk.includes('jwt') || lk.includes('auth')) {
+      if (valStr.length < 10) {
+        return { status: 'warning', issue: 'Token string appears unusually short', score: 40 };
+      }
+      const dotCount = (valStr.match(/\./g) || []).length;
+      if (dotCount === 2 && !valStr.toLowerCase().startsWith('bearer ')) {
+        return {
+          status: 'warning',
+          issue: 'Missing "Bearer " prefix',
+          autoFix: `Bearer ${valStr}`,
+          score: 75,
+        };
+      }
+    }
+
+    // URL checks
+    if (lk.includes('url') || lk.includes('host') || lk.includes('domain')) {
+      if (!/^https?:\/\//i.test(valStr)) {
+        return {
+          status: 'invalid',
+          issue: 'Missing https:// or http:// protocol',
+          autoFix: `https://${valStr.replace(/^\/+/, '')}`,
+          score: 25,
+        };
+      }
+      if (valStr.endsWith('/')) {
+        return {
+          status: 'warning',
+          issue: 'Trailing slash may cause double slashes in paths',
+          autoFix: valStr.replace(/\/+$/, ''),
+          score: 85,
+        };
+      }
+    }
+
+    // Placeholder check
+    if (/^(TODO|placeholder|replace_me|your_token_here|sample_value|dummy_token)/i.test(valStr)) {
+      return { status: 'warning', issue: 'Value is a placeholder text', score: 45 };
+    }
+
+    return { status: 'valid', score: 100 };
+  };
+
   // Compile list of all variables (both needed by test cases and present in dataset)
   const getAllVariables = (): VariableMeta[] => {
     const keysSet = new Set<string>();
@@ -419,6 +499,8 @@ export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
         example = 'e.g. "shoes" or "pending"';
       }
 
+      const quality = getFieldQuality(k, val !== undefined ? val : '');
+
       list.push({
         key: k,
         value: val !== undefined ? val : '',
@@ -428,6 +510,7 @@ export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
         usedByCases,
         description,
         example,
+        quality,
       });
     });
 
@@ -437,6 +520,12 @@ export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
       const isTargetAppB = b.key === 'VITE_API_URL' || b.key === 'JWT_SECRET' || b.key === 'CORS_ALLOWED_ORIGINS';
       if (isTargetAppA && !isTargetAppB) return -1;
       if (!isTargetAppA && isTargetAppB) return 1;
+
+      // Quality issues first
+      const hasIssueA = a.quality.status !== 'valid';
+      const hasIssueB = b.quality.status !== 'valid';
+      if (hasIssueA && !hasIssueB) return -1;
+      if (!hasIssueA && hasIssueB) return 1;
 
       // Missing first, then auth, then ids
       if (a.isMissing && !b.isMissing) return -1;
@@ -448,9 +537,14 @@ export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
   const allVariables = getAllVariables();
   const missingCount = allVariables.filter(v => v.isMissing).length;
   const configuredCount = allVariables.filter(v => !v.isMissing).length;
+  const qualityIssuesCount = allVariables.filter(v => v.quality.status !== 'valid').length;
+  const totalQualityScore = Math.round(
+    allVariables.reduce((acc, v) => acc + v.quality.score, 0) / (allVariables.length || 1)
+  );
 
   // Filtered variables
   const filteredVariables = allVariables.filter(v => {
+    if (activeTabFilter === 'issues') return v.quality.status !== 'valid';
     if (activeTabFilter === 'missing') return v.isMissing;
     if (activeTabFilter === 'auth') return v.category === 'auth';
     if (activeTabFilter === 'ids') return v.category === 'ids';
@@ -586,8 +680,45 @@ export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
     setIsAddingVariable(false);
   };
 
-  // Save changes to backend and Firestore
-  const handleSave = async () => {
+  const handleOpenFieldGuide = (key: string) => {
+    setLearningVariableKey(key);
+    setIsGuidedLearningOpen(true);
+  };
+
+  const handleRunAiAudit = async () => {
+    try {
+      setAuditLoading(true);
+      setIsQualityModalOpen(true);
+      let current = localDataset;
+      if (editorMode === 'json') {
+        try {
+          current = JSON.parse(rawJsonText);
+        } catch {}
+      }
+      const res = await api.validateDatasetQuality(project.id, current);
+      setAuditResult(res);
+    } catch (err) {
+      console.error('Failed to run AI audit', err);
+    } finally {
+      setAuditLoading(false);
+    }
+  };
+
+  // Save changes to backend and Firestore with quality validation enforcement
+  const handleSave = async (bypassValidation = false) => {
+    if (!bypassValidation) {
+      const vars = getAllVariables();
+      const hasIssues = vars.some(v => {
+        const q = getFieldQuality(v.key, v.value);
+        return q.status !== 'valid';
+      });
+
+      if (hasIssues) {
+        handleRunAiAudit();
+        return;
+      }
+    }
+
     setIsSaving(true);
     setJsonError(null);
     try {
@@ -805,13 +936,40 @@ export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
               title="Automatically fills all missing parameters with realistic synthetic values"
             >
               <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
-              <span>Auto-Fill All Missing ({missingCount})</span>
+              <span>Auto-Fill Missing ({missingCount})</span>
             </button>
           )}
 
+          {/* AI Quality Audit Button */}
+          <button
+            id="btn-trigger-ai-audit"
+            onClick={handleRunAiAudit}
+            className="flex items-center gap-1.5 rounded-xl border border-purple-500/40 bg-purple-500/15 px-3.5 py-2 text-xs font-bold text-purple-300 hover:bg-purple-500/25 transition shadow-sm"
+            title="Scan dataset for format errors, token issues, and data quality recommendations"
+          >
+            <ShieldCheck className="h-4 w-4 text-purple-400" />
+            <span>AI Quality Audit ({totalQualityScore}%)</span>
+            {qualityIssuesCount > 0 && (
+              <span className="ml-1 rounded-full bg-rose-500 px-1.5 py-0.2 text-[10px] font-black text-white">
+                {qualityIssuesCount}
+              </span>
+            )}
+          </button>
+
+          {/* Guided Tour Button */}
+          <button
+            id="btn-trigger-guided-tour"
+            onClick={() => setIsTourOpen(true)}
+            className="flex items-center gap-1.5 rounded-xl border border-blue-500/40 bg-blue-500/15 px-3.5 py-2 text-xs font-bold text-blue-300 hover:bg-blue-500/25 transition shadow-sm"
+            title="Launch interactive guided tour for dataset management & best practices"
+          >
+            <BookOpen className="h-3.5 w-3.5 text-blue-400" />
+            <span>Guided Tour</span>
+          </button>
+
           {/* Save Button */}
           <button
-            onClick={handleSave}
+            onClick={() => handleSave()}
             disabled={isSaving}
             className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-5 py-2 text-xs font-bold text-slate-950 shadow-lg shadow-emerald-500/20 hover:from-emerald-400 hover:to-teal-500 disabled:opacity-50 transition"
           >
@@ -826,6 +984,57 @@ export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
                 <span>Save Dataset</span>
               </>
             )}
+          </button>
+        </div>
+      </div>
+
+      {/* Data Quality & Integrity Meter Banner */}
+      <div className="rounded-2xl border border-[#1E2235] bg-gradient-to-r from-[#0C0E17] via-[#101424] to-[#0A0D17] p-4 flex flex-wrap items-center justify-between gap-4 shadow-md">
+        <div className="flex items-center gap-3">
+          <div className={`flex h-11 w-11 items-center justify-center rounded-xl border font-black text-base shadow-inner ${
+            totalQualityScore >= 90
+              ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
+              : totalQualityScore >= 70
+              ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
+              : 'bg-rose-500/15 border-rose-500/30 text-rose-400'
+          }`}>
+            {totalQualityScore >= 90 ? 'A' : totalQualityScore >= 75 ? 'B' : totalQualityScore >= 60 ? 'C' : 'D'}
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-white">Dataset Quality Index: {totalQualityScore}%</span>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                totalQualityScore >= 90
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                  : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+              }`}>
+                {totalQualityScore >= 90 ? 'Verified High Quality' : 'Needs Optimization'}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-400">
+              {qualityIssuesCount === 0
+                ? 'All variables are correctly formatted, tokenized, and verified for test execution.'
+                : `${qualityIssuesCount} variable${qualityIssuesCount > 1 ? 's have' : ' has'} quality notices (e.g. missing Bearer, trailing slashes, or missing values).`}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            id="btn-inspect-quality-audit"
+            onClick={handleRunAiAudit}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/40 text-purple-300 text-xs font-bold transition"
+          >
+            <ShieldCheck className="h-3.5 w-3.5 text-purple-400" />
+            <span>AI Quality Auditor</span>
+          </button>
+          <button
+            id="btn-open-guided-tour"
+            onClick={() => setIsTourOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 text-blue-300 text-xs font-bold transition"
+          >
+            <BookOpen className="h-3.5 w-3.5 text-blue-400" />
+            <span>Guided Tour</span>
           </button>
         </div>
       </div>
@@ -922,13 +1131,23 @@ export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
                       <span>Target Backend API URL</span>
                       <code className="font-mono text-[11px] text-cyan-300 ml-1">VITE_API_URL</code>
                     </label>
-                    <button
-                      type="button"
-                      onClick={() => handleUpdateTargetConfig('VITE_API_URL', project.siteUrl)}
-                      className="text-[11px] text-cyan-400 hover:text-cyan-300 transition"
-                    >
-                      Use Site URL ({project.siteUrl})
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenFieldGuide('VITE_API_URL')}
+                        className="text-[11px] text-blue-400 hover:text-blue-300 transition flex items-center gap-1 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20"
+                      >
+                        <BookOpen className="h-3 w-3" />
+                        <span>How To Get</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateTargetConfig('VITE_API_URL', project.siteUrl)}
+                        className="text-[11px] text-cyan-400 hover:text-cyan-300 transition"
+                      >
+                        Use Site URL ({project.siteUrl})
+                      </button>
+                    </div>
                   </div>
                   <p className="text-[11px] text-slate-400">
                     Directs API test requests to this backend host when backend and frontend are deployed on separate URLs or subdomains.
@@ -952,14 +1171,24 @@ export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
                       <span>Target Application JWT Signing Secret</span>
                       <code className="font-mono text-[11px] text-purple-300 ml-1">JWT_SECRET</code>
                     </label>
-                    <button
-                      type="button"
-                      onClick={() => handleUpdateTargetConfig('JWT_SECRET', `sec_jwt_${Math.random().toString(36).substring(2, 12)}_${Math.random().toString(36).substring(2, 12)}`)}
-                      className="text-[11px] text-purple-400 hover:text-purple-300 transition flex items-center gap-1"
-                    >
-                      <Sparkles className="h-3 w-3" />
-                      <span>Generate Secret</span>
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenFieldGuide('JWT_SECRET')}
+                        className="text-[11px] text-blue-400 hover:text-blue-300 transition flex items-center gap-1 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20"
+                      >
+                        <BookOpen className="h-3 w-3" />
+                        <span>How To Get</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateTargetConfig('JWT_SECRET', `sec_jwt_${Math.random().toString(36).substring(2, 12)}_${Math.random().toString(36).substring(2, 12)}`)}
+                        className="text-[11px] text-purple-400 hover:text-purple-300 transition flex items-center gap-1"
+                      >
+                        <Sparkles className="h-3 w-3" />
+                        <span>Generate Secret</span>
+                      </button>
+                    </div>
                   </div>
                   <p className="text-[11px] text-slate-400">
                     Signing key for this target application. When set, Verity's test runner dynamically signs authentic JWT bearer tokens on-the-fly for your test cases.
@@ -990,13 +1219,23 @@ export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
                       <span>Target Allowed CORS Origins</span>
                       <code className="font-mono text-[11px] text-emerald-300 ml-1">CORS_ALLOWED_ORIGINS</code>
                     </label>
-                    <button
-                      type="button"
-                      onClick={() => handleUpdateTargetConfig('CORS_ALLOWED_ORIGINS', `${project.siteUrl},http://localhost:3000`)}
-                      className="text-[11px] text-emerald-400 hover:text-emerald-300 transition"
-                    >
-                      Use Standard Origins
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenFieldGuide('CORS_ALLOWED_ORIGINS')}
+                        className="text-[11px] text-blue-400 hover:text-blue-300 transition flex items-center gap-1 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20"
+                      >
+                        <BookOpen className="h-3 w-3" />
+                        <span>How To Get</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateTargetConfig('CORS_ALLOWED_ORIGINS', `${project.siteUrl},http://localhost:3000`)}
+                        className="text-[11px] text-emerald-400 hover:text-emerald-300 transition"
+                      >
+                        Use Standard Origins
+                      </button>
+                    </div>
                   </div>
                   <p className="text-[11px] text-slate-400">
                     Comma-separated list of allowed origins. Injected into preflight OPTIONS and CORS security assertion test scenarios.
@@ -1019,6 +1258,7 @@ export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
               <div className="flex items-center gap-1.5">
                 {[
                   { id: 'all', label: `All Variables (${allVariables.length})` },
+                  { id: 'issues', label: `Needs Attention (${qualityIssuesCount})` },
                   { id: 'missing', label: `Needs Value (${missingCount})` },
                   { id: 'auth', label: 'Auth & Secrets' },
                   { id: 'ids', label: 'IDs & Slugs' },
@@ -1105,12 +1345,14 @@ export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
                       className={`rounded-2xl border p-4 transition ${
                         v.isMissing
                           ? 'border-rose-500/40 bg-rose-950/10'
+                          : v.quality.status === 'warning'
+                          ? 'border-amber-500/30 bg-[#0F111A]'
                           : 'border-[#1E2235] bg-[#0F111A] hover:border-[#2D334D]'
                       }`}
                     >
-                      {/* Top Row: Key Name, Category, Status Badge, and Used-By */}
+                      {/* Top Row: Key Name, Category, Status Badge, and Actions */}
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <code className="rounded bg-[#1A1D2B] px-2 py-0.5 font-mono text-xs font-bold text-emerald-300 border border-[#1E2235]">
                             {`{{${v.key}}}`}
                           </code>
@@ -1128,30 +1370,61 @@ export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
                             {v.category}
                           </span>
 
-                          {/* Status Badge */}
-                          {v.isMissing ? (
-                            <span className="flex items-center gap-1 rounded bg-rose-500/20 px-2 py-0.5 text-[10px] font-bold text-rose-300 border border-rose-500/30">
-                              <AlertCircle className="h-3 w-3" />
-                              Required / Missing
-                            </span>
-                          ) : (
+                          {/* Data Quality & Integrity Badge */}
+                          {v.quality.status === 'valid' ? (
                             <span className="flex items-center gap-1 rounded bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-300 border border-emerald-500/30">
                               <CheckCircle2 className="h-3 w-3" />
-                              Configured
+                              Valid Format
+                            </span>
+                          ) : v.quality.status === 'warning' ? (
+                            <span className="flex items-center gap-1 rounded bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-300 border border-amber-500/30">
+                              <AlertTriangle className="h-3 w-3" />
+                              {v.quality.issue || 'Quality Notice'}
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1 rounded bg-rose-500/20 px-2 py-0.5 text-[10px] font-bold text-rose-300 border border-rose-500/30">
+                              <AlertCircle className="h-3 w-3" />
+                              {v.quality.issue || 'Format Error'}
                             </span>
                           )}
                         </div>
 
-                        {/* Quick Generate Mock Value */}
-                        <div className="flex items-center gap-2">
+                        {/* Action Buttons: Auto-Fix, How To Get, Generate Mock, Delete */}
+                        <div className="flex flex-wrap items-center gap-2">
+                          {/* Guided Learning Button */}
+                          <button
+                            type="button"
+                            id={`btn-guide-${v.key}`}
+                            onClick={() => handleOpenFieldGuide(v.key)}
+                            className="flex items-center gap-1 text-[11px] font-semibold text-blue-400 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 px-2.5 py-1 rounded-lg transition"
+                            title="Interactive visual steps and screenshots on how to obtain this data"
+                          >
+                            <BookOpen className="h-3 w-3" />
+                            <span>How To Get</span>
+                          </button>
+
+                          {/* Auto-Fix Format if available */}
+                          {v.quality.autoFix && (
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateValue(v.key, v.quality.autoFix)}
+                              className="flex items-center gap-1 text-[11px] font-semibold text-amber-300 hover:text-amber-200 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 px-2.5 py-1 rounded-lg transition"
+                              title={`Auto-Fix value to: ${v.quality.autoFix}`}
+                            >
+                              <Sparkles className="h-3 w-3" />
+                              <span>Auto-Fix Format</span>
+                            </button>
+                          )}
+
+                          {/* Quick Generate Mock Value */}
                           <button
                             type="button"
                             onClick={() => handleUpdateValue(v.key, generateSyntheticValue(v.key))}
-                            className="flex items-center gap-1 text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 transition"
+                            className="flex items-center gap-1 text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 transition bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 px-2.5 py-1 rounded-lg"
                             title="Generate realistic mock data"
                           >
                             <Sparkles className="h-3 w-3" />
-                            <span>Generate Mock</span>
+                            <span>Mock</span>
                           </button>
 
                           <button
@@ -1629,6 +1902,52 @@ export const DatasetConfigurator: React.FC<DatasetConfiguratorProps> = ({
         message={alertModalState.message}
         type={alertModalState.type}
         onClose={() => setAlertModalState(prev => ({ ...prev, isOpen: false }))}
+      />
+
+      {/* Guided Learning Modal with Screenshots & Steps */}
+      <DatasetGuidedLearningModal
+        isOpen={isGuidedLearningOpen}
+        onClose={() => setIsGuidedLearningOpen(false)}
+        projectId={project.id}
+        variableKey={learningVariableKey}
+        currentValue={getNestedValue(localDataset, learningVariableKey)}
+        siteUrl={project.siteUrl}
+        onApplyValue={(keyOrVal, maybeVal) => {
+          if (maybeVal !== undefined) {
+            handleUpdateValue(keyOrVal, maybeVal);
+          } else {
+            handleUpdateValue(learningVariableKey, keyOrVal);
+          }
+          setIsGuidedLearningOpen(false);
+        }}
+      />
+
+      {/* Dataset Quality & AI Audit Modal */}
+      <DatasetQualityModal
+        isOpen={isQualityModalOpen}
+        onClose={() => setIsQualityModalOpen(false)}
+        auditResult={auditResult}
+        loading={auditLoading}
+        onRefreshAudit={handleRunAiAudit}
+        onAutoFixAll={(fixedDataset) => {
+          setLocalDataset(fixedDataset);
+          setRawJsonText(JSON.stringify(fixedDataset, null, 2));
+        }}
+        onOpenFieldGuide={(key) => {
+          setIsQualityModalOpen(false);
+          handleOpenFieldGuide(key);
+        }}
+        onConfirmSave={() => {
+          handleSave(true);
+        }}
+        dataset={localDataset}
+      />
+
+      {/* Interactive Guided Tour */}
+      <DatasetGuidedTour
+        isOpen={isTourOpen}
+        onClose={() => setIsTourOpen(false)}
+        onComplete={() => setIsTourOpen(false)}
       />
     </div>
   );

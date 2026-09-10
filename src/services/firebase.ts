@@ -27,7 +27,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
-import { Project, TestCase, TestRun, Suite, User, TestSchedule } from '../types';
+import { Project, TestCase, TestRun, Suite, User, UserRole, TestSchedule } from '../types';
 import { api, clearStoredToken, getStoredToken, isJwtExpired } from './api';
 
 // Initialize Firebase App
@@ -175,38 +175,73 @@ export async function signOutGoogle(): Promise<void> {
   await signOut(auth);
 }
 
+export function isSuperAdminEmail(email: string | undefined | null): boolean {
+  if (!email) return false;
+  const normalized = String(email).toLowerCase().trim();
+  return normalized === 'solarastra.in@gmail.com' || normalized === 'admin@verity.dev';
+}
+
+export function is3peAdminEmail(email: string | undefined | null): boolean {
+  if (!email) return false;
+  const normalized = String(email).toLowerCase().trim();
+  return normalized === 'nsns0021@gmail.com';
+}
+
 export async function syncGoogleUserToFirestore(fbUser: FirebaseUser): Promise<User> {
   const userRef = doc(db, 'users', fbUser.uid);
   const userSnap = await getDoc(userRef);
 
   const now = new Date().toISOString();
+  const normalizedEmail = (fbUser.email || '').toLowerCase().trim();
+  const isSuperAdmin = isSuperAdminEmail(normalizedEmail);
+  const is3peAdmin = is3peAdminEmail(normalizedEmail);
+
   let appUser: User;
 
   if (userSnap.exists()) {
     const existing = userSnap.data() as Partial<User>;
+    const assignedRole: UserRole = isSuperAdmin
+      ? 'platform_admin'
+      : is3peAdmin
+      ? 'org_admin'
+      : (existing.role || 'standalone');
+
     appUser = {
       id: fbUser.uid,
       email: fbUser.email || existing.email || 'user@verity.dev',
-      name: fbUser.displayName || existing.name || 'Google Developer',
-      role: existing.role || 'standalone',
-      orgId: existing.orgId,
-      teamId: existing.teamId,
-      creditsBalance: existing.creditsBalance !== undefined ? existing.creditsBalance : 100,
+      name: fbUser.displayName || existing.name || (isSuperAdmin ? 'Super Admin (Solarastra)' : is3peAdmin ? 'Customer Admin (3PE)' : 'Google Developer'),
+      role: assignedRole,
+      orgId: is3peAdmin ? 'org_3pe' : existing.orgId,
+      teamId: is3peAdmin ? 'team_3pe_core' : existing.teamId,
+      creditsBalance: isSuperAdmin
+        ? Math.max(existing.creditsBalance || 0, 9999)
+        : is3peAdmin
+        ? Math.max(existing.creditsBalance || 0, 1000)
+        : (existing.creditsBalance !== undefined ? existing.creditsBalance : 100),
       createdAt: existing.createdAt || now,
     };
     await updateDoc(userRef, {
       name: appUser.name,
       email: appUser.email,
+      role: appUser.role,
+      orgId: appUser.orgId || null,
+      teamId: appUser.teamId || null,
+      creditsBalance: appUser.creditsBalance,
       photoURL: fbUser.photoURL || '',
       updatedAt: now,
     });
   } else {
+    const assignedRole: UserRole = isSuperAdmin ? 'platform_admin' : is3peAdmin ? 'org_admin' : 'standalone';
+    const initialCredits = isSuperAdmin ? 9999 : is3peAdmin ? 1000 : 100;
+
     appUser = {
       id: fbUser.uid,
       email: fbUser.email || 'user@verity.dev',
-      name: fbUser.displayName || 'Google Developer',
-      role: 'standalone',
-      creditsBalance: 100, // 100 Free Welcome Cloud Credits for Google sign-in
+      name: fbUser.displayName || (isSuperAdmin ? 'Super Admin (Solarastra)' : is3peAdmin ? 'Customer Admin (3PE)' : 'Google Developer'),
+      role: assignedRole,
+      orgId: is3peAdmin ? 'org_3pe' : undefined,
+      teamId: is3peAdmin ? 'team_3pe_core' : undefined,
+      creditsBalance: initialCredits,
       createdAt: now,
     };
     await setDoc(userRef, {
@@ -216,13 +251,40 @@ export async function syncGoogleUserToFirestore(fbUser: FirebaseUser): Promise<U
     });
   }
 
-  // Synchronize with backend API server to mint a valid JWT session token
+  // Synchronize with backend API server to mint a valid JWT session token and detect onboarded roles
   try {
-    await api.syncGoogleAuth({
+    const syncRes = await api.syncGoogleAuth({
       uid: fbUser.uid,
       email: appUser.email,
       name: appUser.name,
     });
+
+    // If backend already had an onboarded record (e.g. Org Admin or Employee), sync authoritative role
+    if (syncRes && syncRes.user) {
+      if (isSuperAdmin) {
+        appUser.role = 'platform_admin';
+      } else if (is3peAdmin) {
+        appUser.role = 'org_admin';
+        appUser.orgId = 'org_3pe';
+        appUser.teamId = 'team_3pe_core';
+      } else if (syncRes.user.role) {
+        appUser.role = syncRes.user.role;
+        appUser.orgId = syncRes.user.orgId;
+        appUser.teamId = syncRes.user.teamId;
+      }
+      if (syncRes.user.creditsBalance !== undefined && !isSuperAdmin) {
+        appUser.creditsBalance = syncRes.user.creditsBalance;
+      }
+
+      // Persist authoritative detected role back to Firestore document
+      await updateDoc(userRef, {
+        role: appUser.role,
+        orgId: appUser.orgId || null,
+        teamId: appUser.teamId || null,
+        creditsBalance: appUser.creditsBalance,
+        updatedAt: new Date().toISOString(),
+      });
+    }
   } catch (syncErr) {
     console.warn('Backend Google Auth token sync notice:', syncErr);
   }
@@ -252,6 +314,16 @@ export function subscribeAuthState(callback: (user: User | null, fbUser: Firebas
         const userSnap = await getDoc(userRef);
         if (userSnap.exists()) {
           const u = userSnap.data() as User;
+          if (isSuperAdminEmail(fbUser.email)) {
+            u.role = 'platform_admin';
+            if ((u.creditsBalance || 0) < 9999) u.creditsBalance = 9999;
+          } else if (is3peAdminEmail(fbUser.email)) {
+            u.role = 'org_admin';
+            u.orgId = 'org_3pe';
+            u.teamId = 'team_3pe_core';
+            if (!u.name || u.name === 'Google Developer') u.name = 'Customer Admin (3PE)';
+            if ((u.creditsBalance || 0) < 1000) u.creditsBalance = 1000;
+          }
           callback(u, fbUser);
         } else {
           const created = await syncGoogleUserToFirestore(fbUser);
@@ -259,12 +331,16 @@ export function subscribeAuthState(callback: (user: User | null, fbUser: Firebas
         }
       } catch (err) {
         console.error('Error fetching Firestore user profile:', err);
+        const isSuperAdmin = isSuperAdminEmail(fbUser.email);
+        const is3peAdmin = is3peAdminEmail(fbUser.email);
         callback({
           id: fbUser.uid,
           email: fbUser.email || '',
-          name: fbUser.displayName || 'Google User',
-          role: 'standalone',
-          creditsBalance: 100,
+          name: fbUser.displayName || (isSuperAdmin ? 'Super Admin (Solarastra)' : is3peAdmin ? 'Customer Admin (3PE)' : 'Google User'),
+          role: isSuperAdmin ? 'platform_admin' : is3peAdmin ? 'org_admin' : 'standalone',
+          orgId: is3peAdmin ? 'org_3pe' : undefined,
+          teamId: is3peAdmin ? 'team_3pe_core' : undefined,
+          creditsBalance: isSuperAdmin ? 9999 : is3peAdmin ? 1000 : 100,
           createdAt: new Date().toISOString(),
         }, fbUser);
       }

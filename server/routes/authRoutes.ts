@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { db } from '../db.js';
-import { generateToken, publicUser, requireAuth, verifyBearerToken, AuthRequest } from '../auth.js';
+import { generateToken, publicUser, requireAuth, verifyBearerToken, isSuperAdminEmail, AuthRequest } from '../auth.js';
 import { User, UserRole } from '../types.js';
 
 export const authRouter = Router();
@@ -14,7 +14,8 @@ authRouter.post('/login', (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Email and password are required.' });
   }
 
-  const user = db.findUserByEmail(email);
+  const normalizedEmail = String(email).toLowerCase().trim();
+  const user = db.findUserByEmail(normalizedEmail);
   if (!user) {
     return res.status(401).json({ error: 'Invalid email or password.' });
   }
@@ -24,10 +25,21 @@ authRouter.post('/login', (req: Request, res: Response) => {
     return res.status(401).json({ error: 'Invalid email or password.' });
   }
 
+  // If super admin email, guarantee platform_admin
+  if (isSuperAdminEmail(normalizedEmail) && user.role !== 'platform_admin') {
+    user.role = 'platform_admin';
+    if ((user.creditsBalance ?? 0) < 9999) {
+      user.creditsBalance = 9999;
+    }
+    db.save().catch(console.error);
+  }
+
   const token = generateToken(user);
+  const org = user.orgId ? db.findOrgById(user.orgId) : null;
   res.json({
     token,
     user: publicUser(user),
+    organization: org || null,
   });
 });
 
@@ -85,30 +97,91 @@ authRouter.post('/google-session', async (req: Request, res: Response) => {
     }
 
     const normalizedEmail = String(email).toLowerCase().trim();
+    const isSuperAdmin = isSuperAdminEmail(normalizedEmail);
+    const is3peAdmin = normalizedEmail === 'nsns0021@gmail.com';
+
     let user = db.findUserById(uid);
 
     if (!user) {
       user = db.findUserByEmail(normalizedEmail);
     }
 
+    // Look for any existing seeded org record for this email (e.g. seeded by Customer Admin or Superadmin)
+    const seededOrgUser = db.data.users.find(u => u.email?.toLowerCase().trim() === normalizedEmail && u.orgId);
+
     if (user) {
       if (name) {
         user.name = String(name).trim();
       }
       user.email = normalizedEmail;
+
+      // Automatically promote solarastra.in@gmail.com or admin@verity.dev to Super Admin
+      if (isSuperAdmin) {
+        user.role = 'platform_admin';
+        if ((user.creditsBalance ?? 0) < 9999) {
+          user.creditsBalance = 9999;
+        }
+      } else if (is3peAdmin) {
+        // Customer Admin seeded for 3PE
+        user.role = 'org_admin';
+        user.orgId = 'org_3pe';
+        user.teamId = 'team_3pe_core';
+        if (!user.name || user.name === 'Google Developer') {
+          user.name = name ? String(name).trim() : 'Customer Admin (3PE)';
+        }
+        if ((user.creditsBalance ?? 0) < 500) {
+          user.creditsBalance = 1000;
+        }
+      } else if (seededOrgUser && (!user.orgId || user.role === 'standalone')) {
+        // Merge seeded customer organization membership onto Google account
+        user.role = seededOrgUser.role;
+        user.orgId = seededOrgUser.orgId;
+        user.teamId = seededOrgUser.teamId;
+        if (seededOrgUser.monthlyCreditLimit !== undefined) {
+          user.monthlyCreditLimit = seededOrgUser.monthlyCreditLimit;
+        }
+      }
+
       // If user was found by email with a legacy ID, map to Google UID if no conflict
       if (user.id !== uid && !db.findUserById(uid)) {
         user.id = uid;
       }
       await db.save();
     } else {
+      // Determine role automatically based on email identity:
+      // - solarastra.in@gmail.com -> Super Admin (platform_admin) with full 9999 credits
+      // - nsns0021@gmail.com -> Customer Admin (org_admin) of 3PE
+      // - Seeded org member -> Inherit seeded role and organization
+      // - Un-onboarded Google user -> Standalone developer with 100 free trial credits
+      let assignedRole: UserRole = isSuperAdmin ? 'platform_admin' : 'standalone';
+      let assignedOrgId: string | undefined = undefined;
+      let assignedTeamId: string | undefined = undefined;
+      let initialCredits = isSuperAdmin ? 9999 : 100;
+      let assignedName = name ? String(name).trim() : (isSuperAdmin ? 'Super Admin (Solarastra)' : 'Google Developer');
+
+      if (is3peAdmin) {
+        assignedRole = 'org_admin';
+        assignedOrgId = 'org_3pe';
+        assignedTeamId = 'team_3pe_core';
+        initialCredits = 1000;
+        assignedName = name ? String(name).trim() : 'Customer Admin (3PE)';
+      } else if (seededOrgUser) {
+        assignedRole = seededOrgUser.role;
+        assignedOrgId = seededOrgUser.orgId;
+        assignedTeamId = seededOrgUser.teamId;
+        initialCredits = seededOrgUser.creditsBalance ?? 500;
+        assignedName = name ? String(name).trim() : (seededOrgUser.name || 'Organization Member');
+      }
+
       user = {
         id: uid,
         email: normalizedEmail,
-        name: name ? String(name).trim() : 'Google Developer',
+        name: assignedName,
         passwordHash: '', // Authenticated via Google OAuth / Firebase
-        role: 'standalone',
-        creditsBalance: 100, // 100 Welcome credits for Google users
+        role: assignedRole,
+        orgId: assignedOrgId,
+        teamId: assignedTeamId,
+        creditsBalance: initialCredits,
         createdAt: new Date().toISOString(),
       };
       db.data.users.push(user);
@@ -116,13 +189,18 @@ authRouter.post('/google-session', async (req: Request, res: Response) => {
       db.data.creditLedger.unshift({
         id: uuidv4(),
         userId: user.id,
-        delta: 100,
-        reason: 'Welcome Cloud Credits Allocation (Google Sign-In)',
-        balanceAfter: 100,
+        orgId: assignedOrgId,
+        delta: initialCredits,
+        reason: isSuperAdmin
+          ? 'Super Admin System Credits Allocation (Google Sign-In)'
+          : is3peAdmin
+          ? '3PE Customer Admin Onboarding Allocation (Google Sign-In)'
+          : 'Welcome Cloud Credits Allocation (Google Sign-In)',
+        balanceAfter: initialCredits,
         createdAt: new Date().toISOString(),
       });
 
-      db.addAuditLog(user.id, user.email, 'GOOGLE_AUTH_LOGIN', `User signed in with Google identity.`);
+      db.addAuditLog(user.id, user.email, 'GOOGLE_AUTH_LOGIN', `User signed in with Google identity automatically recognized as ${assignedRole} in organization ${assignedOrgId || 'none'}.`);
       await db.save();
     }
 
@@ -170,8 +248,10 @@ authRouter.post('/reset-password', requireAuth, async (req: AuthRequest, res: Re
 // already authenticated as platform_admin — see the security note on
 // switch-persona below for why this allowlist exists.
 const DEMO_PERSONA_EMAILS = new Set([
+  'solarastra.in@gmail.com',
   'admin@verity.dev',
   'qa.lead@acmecorp.com',
+  'nsns0021@gmail.com',
   'alex.engineer@acmecorp.com',
   'developer@indie.io',
 ]);

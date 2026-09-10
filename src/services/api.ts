@@ -16,6 +16,8 @@ import {
   KeyRotationHistory,
   TestSchedule,
   Suite,
+  DatasetFieldValidationResult,
+  DatasetAiAuditResult,
 } from '../types';
 import { emitApiError, emitGlobalToast } from '../contexts/NotificationContext';
 import { auth } from './firebase';
@@ -786,6 +788,29 @@ export const api = {
       body: JSON.stringify({ path, value }),
     });
   },
+
+  async validateDatasetQuality(
+    projectId: string,
+    dataset?: Record<string, any>,
+    focusField?: string
+  ): Promise<DatasetAiAuditResult> {
+    return request(`/api/projects/${projectId}/dataset/ai-validate`, {
+      method: 'POST',
+      body: JSON.stringify({ dataset, focusField }),
+    });
+  },
+
+  async getDatasetFieldGuide(
+    projectId: string,
+    key: string,
+    value?: any
+  ): Promise<DatasetFieldValidationResult> {
+    return request(`/api/projects/${projectId}/dataset/ai-guide`, {
+      method: 'POST',
+      body: JSON.stringify({ key, value }),
+    });
+  },
+
 
   async uploadSuite(projectId: string, name: string, format: 'json' | 'csv' | 'markdown', content: string): Promise<any> {
     return request(`/api/projects/${projectId}/suites/upload`, {

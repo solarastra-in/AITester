@@ -16,7 +16,9 @@ adminRouter.use(requireAuth, requireRole('platform_admin'));
 adminRouter.get('/stats', (_req: AuthRequest, res: Response) => {
   const orgCount = db.data.organizations.length;
   const userCount = db.data.users.length;
-  const employeeCount = db.data.users.filter(u => u.orgId && (u.role === 'member' || u.role === 'org_admin')).length;
+  const superAdminCount = db.data.users.filter(u => u.role === 'platform_admin').length;
+  const companyAdminCount = db.data.users.filter(u => u.role === 'org_admin').length;
+  const employeeCount = db.data.users.filter(u => u.role === 'member').length;
   const standaloneUserCount = db.data.users.filter(u => u.role === 'standalone').length;
   const projectCount = db.data.projects.length;
   const testCasesGenerated = db.data.testCases.length;
@@ -56,6 +58,8 @@ adminRouter.get('/stats', (_req: AuthRequest, res: Response) => {
     orgCount,
     companyCount: orgCount,
     userCount,
+    superAdminCount,
+    companyAdminCount,
     employeeCount,
     standaloneUserCount,
     projectCount,
@@ -289,6 +293,53 @@ adminRouter.get('/users', (_req: AuthRequest, res: Response) => {
     orgName: u.orgId ? db.findOrgById(u.orgId)?.name : null,
   }));
   res.json(users);
+});
+
+// Update user role or organization (Super Admin action)
+adminRouter.patch('/users/:id', async (req: AuthRequest, res: Response) => {
+  const targetUser = db.findUserById(req.params.id);
+  if (!targetUser) {
+    return res.status(404).json({ error: 'User not found.' });
+  }
+
+  const { role, orgId, creditsBalance } = req.body || {};
+
+  if (role) {
+    const validRoles = ['platform_admin', 'org_admin', 'member', 'standalone'];
+    if (!validRoles.includes(role)) {
+      return res.status(400).json({ error: `Invalid role. Must be one of: ${validRoles.join(', ')}` });
+    }
+    targetUser.role = role;
+  }
+
+  if (orgId !== undefined) {
+    if (orgId === null || orgId === '') {
+      targetUser.orgId = undefined;
+      targetUser.teamId = undefined;
+    } else {
+      const org = db.findOrgById(orgId);
+      if (!org) return res.status(404).json({ error: 'Target organization not found.' });
+      targetUser.orgId = orgId;
+    }
+  }
+
+  if (typeof creditsBalance === 'number' && !isNaN(creditsBalance) && creditsBalance >= 0) {
+    targetUser.creditsBalance = Math.round(creditsBalance);
+  }
+
+  db.addAuditLog(
+    req.user!.id,
+    req.user!.email,
+    'USER_ROLE_UPDATED',
+    `Super Admin updated user ${targetUser.email} (Role: ${targetUser.role}, Org: ${targetUser.orgId || 'None'})`
+  );
+
+  await db.save();
+
+  res.json({
+    ...publicUser(targetUser),
+    orgName: targetUser.orgId ? db.findOrgById(targetUser.orgId)?.name : null,
+  });
 });
 
 // System audit trail

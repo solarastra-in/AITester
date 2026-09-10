@@ -4,7 +4,7 @@ import { db } from '../db.js';
 import { requireAuth, checkTestCaseSecurity, AuthRequest, authMiddleware, AuthMiddleware, generateToken } from '../auth.js';
 import { parseStructuredJson, parseStructuredCsv, parseMarkdownTable, extractPlaceholders, getDotted } from '../specParser.js';
 import { runTestCase } from '../genericRunner.js';
-import { generateTestCases, analyzeTargetUrl, introspectWebsiteAndGenerateQuestions, buildSuiteFromJourney } from '../aiGenerate.js';
+import { generateTestCases, analyzeTargetUrl, introspectWebsiteAndGenerateQuestions, buildSuiteFromJourney, validateDatasetQualityWithAi, validateSingleField } from '../aiGenerate.js';
 import { chargeCredits, CREDIT_COST_PER_RUN, PREVIEW_DAILY_CAP } from '../billing.js';
 import { assertPublicUrl, SsrfBlockedError } from '../ssrfGuard.js';
 import { crawlSite } from '../siteCrawler.js';
@@ -200,6 +200,52 @@ projectRouter.patch('/:id/dataset', loadProject, async (req: ProjectRequest, res
 
   res.json(dataset);
 });
+
+// 4b. AI Dataset Quality Audit & Validation
+projectRouter.post('/:id/dataset/ai-validate', loadProject, async (req: ProjectRequest, res: Response) => {
+  try {
+    const project = req.project!;
+    const datasetToValidate = req.body?.dataset || project.dataset || {};
+    const suites = db.data.suites.filter(s => s.projectId === project.id);
+    const suiteIds = suites.map(s => s.id);
+    const cases = db.data.testCases.filter(c => suiteIds.includes(c.suiteId));
+
+    const auditResult = await validateDatasetQualityWithAi({
+      dataset: datasetToValidate,
+      siteUrl: project.siteUrl,
+      testCases: cases,
+      focusField: req.body?.focusField,
+    });
+
+    res.json(auditResult);
+  } catch (err: any) {
+    console.error('[Dataset AI Validate Error]:', err);
+    res.status(500).json({ error: err?.message || 'Failed to complete dataset validation audit.' });
+  }
+});
+
+// 4c. AI Guided Learning & Step-by-Step Instructions for a specific dataset variable
+projectRouter.post('/:id/dataset/ai-guide', loadProject, async (req: ProjectRequest, res: Response) => {
+  try {
+    const project = req.project!;
+    const { key, value } = req.body;
+    if (!key) {
+      return res.status(400).json({ error: 'Field key is required.' });
+    }
+
+    const suites = db.data.suites.filter(s => s.projectId === project.id);
+    const suiteIds = suites.map(s => s.id);
+    const cases = db.data.testCases.filter(c => suiteIds.includes(c.suiteId));
+    const usedByCount = cases.filter(c => JSON.stringify(c.spec).includes(`{{${key}}}`)).length;
+
+    const validation = validateSingleField(key, value, project.siteUrl, usedByCount);
+    res.json(validation);
+  } catch (err: any) {
+    console.error('[Dataset AI Guide Error]:', err);
+    res.status(500).json({ error: err?.message || 'Failed to retrieve learning guide.' });
+  }
+});
+
 
 // 5. Ingest test cases (Structured JSON, CSV, or Markdown QA plan)
 projectRouter.post('/:id/suites/upload', loadProject, async (req: ProjectRequest, res: Response) => {

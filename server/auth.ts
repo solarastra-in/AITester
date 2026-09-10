@@ -50,6 +50,25 @@ export const JWT_SECRET: string =
     ? ((globalThis as any).__VERITY_EPHEMERAL_JWT_SECRET ||= crypto.randomBytes(32).toString('hex'))
     : 'INSECURE-DEV-ONLY-DEFAULT-DO-NOT-USE-IN-PRODUCTION');
 
+/**
+ * Checks whether an email address qualifies for the Super Admin (platform_admin) role.
+ * solarastra.in@gmail.com is designated as the primary Super Admin.
+ * admin@verity.dev and any addresses configured via SUPERADMIN_EMAILS are also recognized.
+ */
+export function isSuperAdminEmail(email: string | undefined | null): boolean {
+  if (!email) return false;
+  const normalized = String(email).toLowerCase().trim();
+  if (normalized === 'solarastra.in@gmail.com' || normalized === 'admin@verity.dev') {
+    return true;
+  }
+  const envSuperAdmins = process.env.SUPERADMIN_EMAILS;
+  if (envSuperAdmins) {
+    const list = envSuperAdmins.split(',').map(e => e.trim().toLowerCase());
+    if (list.includes(normalized)) return true;
+  }
+  return false;
+}
+
 export function verifyJwtPayload(token: string): { id: string; role?: UserRole; email?: string; name?: string } {
   try {
     return jwt.verify(token, JWT_SECRET) as any;
@@ -166,6 +185,9 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
     if (!user) {
       return res.status(401).json({ error: 'User session expired or no longer exists.' });
     }
+    if (isSuperAdminEmail(user.email) && user.role !== 'platform_admin') {
+      user.role = 'platform_admin';
+    }
     req.user = user;
     req.currentUser = user;
     req.token = token;
@@ -226,6 +248,10 @@ export function authMiddleware(req: AuthRequest, res: Response, next: NextFuncti
         error: 'User session expired or user no longer exists.',
         status: 401,
       });
+    }
+
+    if (isSuperAdminEmail(user.email) && user.role !== 'platform_admin') {
+      user.role = 'platform_admin';
     }
 
     req.user = user;

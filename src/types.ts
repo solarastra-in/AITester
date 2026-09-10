@@ -386,4 +386,42 @@ export interface TestSchedule {
   updatedAt: string;
 }
 
+export interface DatasetFieldValidationResult {
+  key: string;
+  status: 'valid' | 'warning' | 'invalid' | 'missing';
+  score: number;
+  title: string;
+  category: 'auth' | 'env' | 'ids' | 'params' | 'custom';
+  currentValue: any;
+  normalizedValue?: any;
+  issues: string[];
+  recommendations: string[];
+  guide: {
+    overview: string;
+    whyNeeded: string;
+    whereToFind: string;
+    steps: Array<{ stepNumber: number; title: string; description: string; codeSnippet?: string }>;
+    visualType: 'devtools_network' | 'devtools_storage' | 'swagger_docs' | 'curl_terminal' | 'env_config';
+    mockPreview: {
+      title: string;
+      subtitle: string;
+      snippet: string;
+    };
+    suggestedExtractionCurl?: string;
+  };
+}
+
+export interface DatasetAiAuditResult {
+  overallScore: number;
+  overallGrade: 'A+' | 'A' | 'B' | 'C' | 'D' | 'F';
+  totalFields: number;
+  validCount: number;
+  warningCount: number;
+  invalidCount: number;
+  missingCount: number;
+  summary: string;
+  fieldResults: Record<string, DatasetFieldValidationResult>;
+}
+
+
 

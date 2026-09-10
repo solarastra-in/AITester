@@ -221,9 +221,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                     ? 'bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/40'
                     : 'text-slate-300 hover:bg-[#131622] hover:text-white'
                 }`}
+                title="Company Administration: Manage Employees & Compute Budgets"
               >
                 <Building2 className="h-3.5 w-3.5 text-amber-400" />
-                Org Admin
+                Company Admin
               </button>
             )}
 
@@ -236,9 +237,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                     ? 'bg-rose-500/20 text-rose-300 ring-1 ring-rose-500/40'
                     : 'text-slate-300 hover:bg-[#131622] hover:text-white'
                 }`}
+                title="Super Admin Control Center: Onboard Companies & Supervise Platform"
               >
                 <ShieldCheck className="h-3.5 w-3.5 text-rose-400" />
-                Superadmin
+                Super Admin
               </button>
             )}
           </nav>
@@ -436,13 +438,51 @@ export const Navbar: React.FC<NavbarProps> = ({
                     )}
                     <div className="mt-1.5 flex items-center justify-between text-[10px] text-slate-400">
                       <span>Role:</span>
-                      <span className="font-semibold text-emerald-400 capitalize">
-                        {currentUser.role.replace('_', ' ')}
+                      <span className={`font-semibold px-1.5 py-0.5 rounded text-[10px] ${
+                        currentUser.role === 'platform_admin'
+                          ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                          : currentUser.role === 'org_admin'
+                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                          : currentUser.role === 'member'
+                          ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                          : 'bg-slate-800 text-slate-300'
+                      }`}>
+                        {currentUser.role === 'platform_admin'
+                          ? 'Super Admin'
+                          : currentUser.role === 'org_admin'
+                          ? 'Company Admin'
+                          : currentUser.role === 'member'
+                          ? 'Company Employee'
+                          : 'Standalone'}
                       </span>
                     </div>
                   </div>
 
                   <div className="space-y-0.5 pt-1">
+                    {currentUser.role === 'platform_admin' && (
+                      <button
+                        onClick={() => {
+                          onNavigate('super_admin');
+                          setUserMenuOpen(false);
+                        }}
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs text-rose-300 hover:bg-rose-500/10 hover:text-rose-200"
+                      >
+                        <ShieldCheck className="h-3.5 w-3.5 text-rose-400" />
+                        Super Admin Center
+                      </button>
+                    )}
+                    {currentUser.role === 'org_admin' && (
+                      <button
+                        onClick={() => {
+                          onNavigate('org_admin');
+                          setUserMenuOpen(false);
+                        }}
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs text-amber-300 hover:bg-amber-500/10 hover:text-amber-200"
+                      >
+                        <Building2 className="h-3.5 w-3.5 text-amber-400" />
+                        Company Admin Workspace
+                      </button>
+                    )}
                     <button
                       onClick={() => {
                         onOpenBilling();
